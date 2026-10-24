@@ -47,3 +47,34 @@ export function SplitSkeleton() {
     </div>
   );
 }
+
+export function AvailabilitySkeleton({ withHeader = false }: { withHeader?: boolean }) {
+  return (
+    <div className="mx-auto max-w-xl px-4 pt-5" aria-busy="true" aria-label="Loading availability">
+      {withHeader && (
+        <div className="mb-6 flex items-center gap-3 px-1">
+          <div className="h-9 w-9 animate-shimmer rounded-full bg-line" />
+          <div className="space-y-2">
+            <Bar className="h-3 w-24" />
+            <Bar className="h-3 w-36" />
+          </div>
+        </div>
+      )}
+      <div className="px-1">
+        <Bar className="h-7 w-56" />
+        <Bar className="mt-3 h-3 w-72" />
+        <Bar className="mt-6 h-11 w-full" />
+      </div>
+      <div className="mt-6 grid grid-cols-[38px_repeat(7,minmax(0,1fr))] gap-y-2">
+        <div />
+        {Array.from({ length: 7 }, (_, i) => (
+          <div key={i} className="flex flex-col items-center gap-1.5">
+            <Bar className="h-2.5 w-6" />
+            <Bar className="h-5 w-5" />
+          </div>
+        ))}
+      </div>
+      <div className="mt-3 ml-[38px] h-[520px] animate-shimmer rounded-xl border border-dashed border-line" />
+    </div>
+  );
+}

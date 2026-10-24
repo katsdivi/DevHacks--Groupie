@@ -12,6 +12,8 @@ import { devState, getGroup } from './groups.ts';
 import { computeSplit, splitCardData, splitView } from './splitService.ts';
 import { splitCardHtml } from './cards/splitCard.ts';
 import { renderPng } from './cards/render.ts';
+import { listMembers } from './members.ts';
+import { signLinkToken } from './linkToken.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const webDist = path.resolve(here, '../../web/dist');
@@ -37,6 +39,19 @@ if (env.devMode) {
     if (!group) return void res.status(404).type('text').send('Unknown group. See /dev/state for ids.');
     const view = splitView(group.id, null, computeSplit(group.id));
     res.type('html').send(splitCardHtml(splitCardData(view)));
+  });
+
+  // Signed browser links to each member's availability page (for email, Track 1).
+  app.get('/dev/links', (req, res) => {
+    const group = getGroup(Number(req.query.group));
+    if (!group) return void res.status(404).type('text').send('Unknown group. See /dev/state for ids.');
+    res.json(
+      listMembers(group.id).map((m) => ({
+        member_id: m.id,
+        name: m.name,
+        url: `${env.publicUrl}/?t=${signLinkToken({ g: group.id, m: m.id, n: m.name }, env.linkSigningSecret)}`,
+      })),
+    );
   });
 
   // Saved split as the card: HTML with ?preview=1, otherwise the PNG we post.
@@ -83,6 +98,7 @@ async function startBot() {
     { command: 'setup', description: 'Set team size and get started' },
     { command: 'join', description: 'Show who has joined' },
     { command: 'split', description: 'Show the fair split' },
+    { command: 'avail', description: 'When is everyone free?' },
     { command: 'settings', description: 'Group settings' },
     { command: 'rename', description: 'Give me a new name' },
   ]);

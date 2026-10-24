@@ -10,12 +10,24 @@ export class ApiError extends Error {
   }
 }
 
+/** Signed browser link token (`?t=`), only used outside Telegram. */
+export function linkToken(): string | null {
+  if (tg) return null;
+  return new URLSearchParams(location.search).get('t') || null;
+}
+
+function authHeader(): Record<string, string> {
+  if (tg) return { authorization: `tma ${tg.initData}` };
+  const t = linkToken();
+  return t ? { authorization: `link ${t}` } : {};
+}
+
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(`/api${path}`, {
     ...init,
     headers: {
       'content-type': 'application/json',
-      ...(tg ? { authorization: `tma ${tg.initData}` } : {}),
+      ...authHeader(),
       ...init.headers,
     },
   });

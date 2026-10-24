@@ -21,6 +21,8 @@ export type WebApp = {
   setBackgroundColor(c: string): void;
   setBottomBarColor?(c: string): void;
   requestWriteAccess?(cb?: (granted: boolean) => void): void;
+  disableVerticalSwipes?(): void;
+  enableVerticalSwipes?(): void;
   BackButton: { show(): void; hide(): void; onClick(cb: () => void): void; offClick(cb: () => void): void };
   MainButton: BottomButton;
   HapticFeedback: {

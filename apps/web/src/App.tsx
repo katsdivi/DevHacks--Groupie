@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { decodeStartParam, type MeResponse, type MemberResponse, type Screen } from '@groupie/shared';
-import { api, ApiError } from './api.ts';
+import { decodeStartParam, peekLinkToken, type MeResponse, type MemberResponse, type Screen } from '@groupie/shared';
+import { api, ApiError, linkToken } from './api.ts';
 import { startParam, tg } from './telegram.ts';
 import { useBackButton } from './useBackButton.ts';
 import { Header } from './components/Header.tsx';
@@ -10,10 +10,18 @@ import { Home } from './screens/Home.tsx';
 import { Settings } from './screens/Settings.tsx';
 import { Form } from './screens/Form.tsx';
 import { Split } from './screens/Split.tsx';
+import { Availability } from './screens/Availability.tsx';
 import { Soon } from './screens/Soon.tsx';
 
 const BOT_LINK = 'https://t.me/CubbieGroupieBot';
 const route = decodeStartParam(startParam());
+// Browser mode: a signed `?t=` link opens the availability grid without Telegram.
+const link = (() => {
+  const token = linkToken();
+  if (!token) return null;
+  const payload = peekLinkToken(token);
+  return { payload, expired: !payload || payload.exp * 1000 < Date.now() };
+})();
 
 export default function App() {
   const [me, setMe] = useState<MeResponse | null>(null);
@@ -45,6 +53,16 @@ export default function App() {
     [],
   );
 
+  if (!tg && link) {
+    if (link.expired || !link.payload) {
+      return <Message title="Link expired" body="This link expired. Ask your group for a fresh one." />;
+    }
+    return (
+      <div className="min-h-screen">
+        <Availability groupId={link.payload.g} standalone />
+      </div>
+    );
+  }
   if (!tg) {
     return (
       <Message
@@ -74,7 +92,8 @@ export default function App() {
         {screen === 'settings' && <Settings me={me} onRenamed={onRenamed} />}
         {screen === 'form' && <Form me={me} onSaved={onSaved} />}
         {screen === 'split' && <Split me={me} go={go} />}
-        {!['home', 'settings', 'form', 'split'].includes(screen) && <Soon nickname={me.group.nickname} />}
+        {screen === 'avail' && <Availability groupId={me.group.id} nickname={me.group.nickname} go={go} />}
+        {!['home', 'settings', 'form', 'split', 'avail'].includes(screen) && <Soon nickname={me.group.nickname} />}
       </main>
     </div>
   );

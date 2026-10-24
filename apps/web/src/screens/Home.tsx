@@ -88,6 +88,9 @@ export function Home({ me, go }: { me: MeResponse; go: (s: Screen) => void }) {
         {hasAssignment && (
           <Row title="The split" sub="Who's doing what, request a swap" onClick={() => go('split')} />
         )}
+        {hasAssignment && member && (
+          <Row title="Availability" sub="When you're free this week" onClick={() => go('avail')} />
+        )}
         {member && <Row title="My details" sub="Name, email, skills" accent={member.color} onClick={() => go('form')} />}
         <Row title="Settings" sub={`Rename ${group.nickname} for this group`} onClick={() => go('settings')} />
       </nav>

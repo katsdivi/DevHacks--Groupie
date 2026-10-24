@@ -3,23 +3,29 @@ import {
   MemberRequest,
   NicknameRequest,
   SwapRequest,
+  AvailabilityPutRequest,
   parseNickname,
   type MeResponse,
   type MemberResponse,
   type SplitResponse,
   type SwapResponse,
+  type AvailabilityMeResponse,
+  type AvailabilityPutResponse,
+  type HeatmapResponse,
 } from '@groupie/shared';
-import { isGroupMember, requireTelegram, tgUser } from './auth.ts';
+import { isGroupMember, linkAuth, requireAuth, tgUser } from './auth.ts';
 import { getGroup, getTasks, setNickname, type Group } from './groups.ts';
 import { getMemberByTgUser, listMembers, memberDto, upsertMember } from './members.ts';
 import { refreshJoinStatus } from './bot/joinStatus.ts';
 import { maybeRunSplit, postSplitCard } from './bot/split.ts';
 import { requestSwap, splitView, SwapError } from './splitService.ts';
+import { cleanSlots, getSlots, heatmap, respondedCount, setSlots } from './availability.ts';
+import { onAvailabilityChanged } from './bot/schedule.ts';
 import { html } from './bot/format.ts';
 import { announceRename } from './bot/index.ts';
 
 export const api = Router();
-api.use(requireTelegram);
+api.use(requireAuth);
 
 function summary(g: Group): MeResponse['group'] {
   const tasks = getTasks(g.id);
@@ -36,19 +42,34 @@ function summary(g: Group): MeResponse['group'] {
   };
 }
 
-/** Loads the group and checks the caller belongs to it. Sends the error response itself. */
-async function loadGroupFor(req: Request, res: Response, rawId: unknown): Promise<Group | null> {
+/**
+ * Loads the group and checks the caller belongs to it. Sends the error response itself.
+ * Browser links only work on routes that pass `allowLink`, and only for their own group.
+ */
+async function loadGroupFor(req: Request, res: Response, rawId: unknown, allowLink = false): Promise<Group | null> {
   const id = Number(rawId);
+  const link = linkAuth(res);
+  if (link && (!allowLink || link.g !== id)) {
+    res.status(403).json({ error: 'link_scope', message: 'This link only opens availability for its own group.' });
+    return null;
+  }
   const group = Number.isInteger(id) ? getGroup(id) : undefined;
   if (!group) {
     res.status(404).json({ error: 'group_not_found', message: "I'm not in that group yet. Add me first!" });
     return null;
   }
-  if (!(await isGroupMember(group.id, tgUser(res).id))) {
+  if (!link && !(await isGroupMember(group.id, tgUser(res).id))) {
     res.status(403).json({ error: 'not_a_member', message: "You're not in this group, so I can't show it to you." });
     return null;
   }
   return group;
+}
+
+/** The caller's member record: from the link, or from their Telegram id. */
+function currentMember(res: Response, group: Group) {
+  const link = linkAuth(res);
+  if (link) return listMembers(group.id).find((m) => m.id === link.m);
+  return getMemberByTgUser(group.id, tgUser(res).id);
 }
 
 api.get('/me', async (req, res) => {
@@ -142,4 +163,44 @@ api.post('/groups/:id/swap', async (req, res) => {
     }
     throw err;
   }
+});
+
+const NOT_JOINED = { error: 'not_joined', message: 'Add your details first, then paint your free times.' };
+
+api.get('/groups/:id/availability/me', async (req, res) => {
+  const group = await loadGroupFor(req, res, req.params.id, true);
+  if (!group) return;
+  const member = currentMember(res, group);
+  if (!member) return void res.status(409).json(NOT_JOINED);
+  const body: AvailabilityMeResponse = {
+    group: { id: group.id, title: group.title, nickname: group.nickname, tz: group.tz },
+    member: { id: member.id, name: member.name, color: member.color },
+    slots: getSlots(member.id),
+  };
+  res.json(body);
+});
+
+api.put('/groups/:id/availability/me', async (req, res) => {
+  const group = await loadGroupFor(req, res, req.params.id, true);
+  if (!group) return;
+  const member = currentMember(res, group);
+  if (!member) return void res.status(409).json(NOT_JOINED);
+  const parsed = AvailabilityPutRequest.safeParse(req.body);
+  if (!parsed.success) return void res.status(400).json({ error: 'bad_slots', message: 'Those times look off. Try again?' });
+  const slots = cleanSlots(parsed.data.slots, group.tz);
+  setSlots(member.id, slots);
+  await onAvailabilityChanged(group.id).catch((err) => console.error('onAvailabilityChanged failed', err));
+  const body: AvailabilityPutResponse = {
+    saved: slots.length,
+    responded: respondedCount(group.id),
+    team_size: group.teamSize ?? listMembers(group.id).length,
+  };
+  res.json(body);
+});
+
+api.get('/groups/:id/heatmap', async (req, res) => {
+  const group = await loadGroupFor(req, res, req.params.id, true);
+  if (!group) return;
+  const body: HeatmapResponse = heatmap(group.id);
+  res.json(body);
 });

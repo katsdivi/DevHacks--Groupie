@@ -14,6 +14,7 @@ import {
 } from '../splitService.ts';
 import { renderPng } from '../cards/render.ts';
 import { splitCardHtml } from '../cards/splitCard.ts';
+import { postAvailStatus } from './schedule.ts';
 
 export const splitComposer = new Composer();
 
@@ -56,6 +57,7 @@ export async function maybeRunSplit(groupId: number) {
     groupId,
     `<b>${html(group.nickname)} here.</b> Fair split, done. Everyone is within ${pts(result.maxGap)} of each other.\nHappy? Tap <b>Looks fair</b>. Want to trade? <b>Request swap</b>.`,
   );
+  await postAvailStatus(groupId);
 }
 
 splitComposer.command('split', async (ctx) => {

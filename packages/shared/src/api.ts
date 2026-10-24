@@ -119,3 +119,40 @@ export const SwapResponse = SplitResponse.extend({
   moved: z.object({ task_id: z.number(), from_member_id: z.number(), to_member_id: z.number() }).nullable(),
 });
 export type SwapResponse = z.infer<typeof SwapResponse>;
+
+export const AvailabilityMeResponse = z.object({
+  group: z.object({ id: z.number(), title: z.string(), nickname: z.string(), tz: z.string() }),
+  member: z.object({ id: z.number(), name: z.string(), color: z.string() }),
+  /** UTC ISO slot starts (30 minutes each). */
+  slots: z.array(z.string()),
+});
+export type AvailabilityMeResponse = z.infer<typeof AvailabilityMeResponse>;
+
+export const AvailabilityPutRequest = z.object({ slots: z.array(z.string()).max(7 * 48) });
+export type AvailabilityPutRequest = z.infer<typeof AvailabilityPutRequest>;
+
+export const AvailabilityPutResponse = z.object({ saved: z.number(), responded: z.number(), team_size: z.number() });
+export type AvailabilityPutResponse = z.infer<typeof AvailabilityPutResponse>;
+
+export const HeatmapMember = z.object({ id: z.number(), name: z.string(), color: z.string(), responded: z.boolean() });
+
+export const HeatmapBest = z.object({
+  start: z.string(),
+  end: z.string(),
+  /** Members free for the whole hour. */
+  member_ids: z.array(z.number()),
+  label: z.string(),
+});
+export type HeatmapBest = z.infer<typeof HeatmapBest>;
+
+export const HeatmapResponse = z.object({
+  tz: z.string(),
+  team_size: z.number(),
+  responded: z.number(),
+  members: z.array(HeatmapMember),
+  /** slot start -> member ids free then (only slots with at least one person). */
+  slots: z.record(z.string(), z.array(z.number())),
+  /** Best one-hour windows, best first (up to 5). */
+  best: z.array(HeatmapBest),
+});
+export type HeatmapResponse = z.infer<typeof HeatmapResponse>;

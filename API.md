@@ -13,6 +13,16 @@ Authorization: tma <Telegram.WebApp.initData>
 
 The server checks the HMAC signature with the bot token, rejects data older than 24 hours, and then confirms with Telegram (`getChatMember`, cached 5 minutes) that the user is in the group they are asking about.
 
+### Browser links (people outside Telegram)
+
+The availability page also works in a normal browser at `<PUBLIC_URL>/?t=<token>`. The token names one member of one group and is signed with `LINK_SIGNING_SECRET` (HMAC-SHA256, 14 day expiry). Requests from that page send:
+
+```
+Authorization: link <token>
+```
+
+Link auth only works on the three availability endpoints below, and only for the token's own group and member. Everything else returns `403 link_scope`. Expired or forged tokens return `401 link_expired`. Get each member's link from `GET /dev/links?group=<id>` (this is what the Track 1 Cubbie skill emails).
+
 Errors always look like this:
 
 ```json
@@ -25,7 +35,9 @@ Errors always look like this:
 | 401 | `unauthorized` | Missing, forged, or stale init data |
 | 403 | `not_a_member` | Valid user, but not in that group |
 | 404 | `group_not_found` | The bot is not in that group yet |
-| 409 | `no_assignment`, `team_full`, `no_split` | Wrong moment in the flow |
+| 401 | `link_expired` | Browser link expired or forged |
+| 403 | `link_scope` | Browser link used outside availability, or for another group |
+| 409 | `no_assignment`, `team_full`, `no_split`, `not_joined` | Wrong moment in the flow |
 
 Group ids are Telegram chat ids and are negative (for example `-5254546157`).
 
@@ -126,12 +138,62 @@ Response is the new split plus what moved:
 
 Side effects: posts a fresh split card in the group and resets the "Looks fair" votes.
 
+### `GET /api/groups/:id/availability/me`
+
+Telegram or link auth. My saved free times as UTC slot starts (30 minutes each).
+
+```json
+{
+  "group": { "id": -5254546157, "title": "CSE 340 Squad", "nickname": "Motu", "tz": "America/Phoenix" },
+  "member": { "id": 1, "name": "Divyam", "color": "#FF6B5B" },
+  "slots": ["2026-10-25T23:00:00.000Z", "2026-10-25T23:30:00.000Z"]
+}
+```
+
+`409 not_joined` if this Telegram user has not added their details yet.
+
+### `PUT /api/groups/:id/availability/me`
+
+Telegram or link auth. Replaces my free times with exactly this set (the grid autosaves the full set).
+
+```json
+{ "slots": ["2026-10-25T23:00:00.000Z", "2026-10-25T23:30:00.000Z"] }
+```
+
+Slots not on a 30-minute boundary, or outside today to 8 days out, are dropped. Response:
+
+```json
+{ "saved": 2, "responded": 4, "team_size": 5 }
+```
+
+Side effects: edits the group's "N/5 responded" message. When everyone has responded, locks the best hour and posts it, then the meeting poll and the invite button.
+
+### `GET /api/groups/:id/heatmap`
+
+Telegram or link auth.
+
+```json
+{
+  "tz": "America/Phoenix",
+  "team_size": 5,
+  "responded": 5,
+  "members": [{ "id": 1, "name": "Divyam", "color": "#FF6B5B", "responded": true }],
+  "slots": { "2026-10-25T23:00:00.000Z": [1, 2, 3, 4, 5] },
+  "best": [
+    { "start": "2026-10-25T23:00:00.000Z", "end": "2026-10-26T00:00:00.000Z", "member_ids": [1, 2, 3, 4, 5], "label": "Sun, Oct 25 · 4 to 5 PM" }
+  ]
+}
+```
+
+`slots` only lists times with at least one person free. `best` holds up to 5 one-hour windows ranked by how many people are free for the whole hour, then earliest.
+
 ## Dev only (`DEV_MODE=true`, no auth)
 
 | Route | What it shows |
 |---|---|
 | `GET /dev/state` | Every group with its members and tasks, as JSON |
 | `GET /dev/split?group=<id>` | A split computed right now (not saved), drawn as the card |
+| `GET /dev/links?group=<id>` | Each member's signed browser link to the availability page |
 | `GET /cards/split?group=<id>&preview=1` | The saved split card as HTML, for design work |
 | `GET /cards/split?group=<id>` | The same card as the PNG the bot posts |
 
@@ -142,7 +204,8 @@ Side effects: posts a fresh split card in the group and resets the "Looks fair" 
 | `/setup` | group | Ask the team size |
 | `/join` | group | Repost the "N/5 joined" message with the details button |
 | `/split` | group | Repost the current split card |
+| `/avail` | group | Post the "When is everyone free?" message with the live counter |
 | `/app` | group | Button that opens the Mini App |
 | `/settings`, `/rename [name]` | group | Rename the bot for this group |
-| `/seed` | group, dev | Fill empty seats with pretend teammates |
+| `/seed` | group, dev | Fill empty seats with pretend teammates and paint their free times |
 | `/reset` | group, dev | Wipe the group and start over |

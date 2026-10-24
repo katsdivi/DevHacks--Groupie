@@ -17,6 +17,8 @@ import {
 import { html } from './format.ts';
 import { assignment } from './assignment.ts';
 import { maybeRunSplit, splitComposer } from './split.ts';
+import { onAvailabilityChanged, scheduleComposer } from './schedule.ts';
+import { seedAvailability } from '../availability.ts';
 
 import { appButton, appUrl, bot } from './core.ts';
 import { postJoinStatus, refreshJoinStatus } from './joinStatus.ts';
@@ -243,11 +245,17 @@ bot.command('seed', async (ctx) => {
     return;
   }
   const added = seedMembers(group.id, group.teamSize);
-  await ctx.reply(added ? `Added ${added} pretend teammates.` : 'No empty seats to fill.');
+  const painted = seedAvailability(group.id);
+  await ctx.reply(
+    added || painted
+      ? `Added ${added} pretend teammates${painted ? ` and painted free times for ${painted}` : ''}.`
+      : 'No empty seats to fill.',
+  );
   if (added) {
     await refreshJoinStatus(group.id);
     await maybeRunSplit(group.id);
   }
+  if (painted) await onAvailabilityChanged(group.id);
 });
 
 bot.command('reset', async (ctx) => {
@@ -260,6 +268,7 @@ bot.command('reset', async (ctx) => {
 
 bot.use(assignment);
 bot.filter((ctx) => isGroupChat(ctx)).use(splitComposer);
+bot.filter((ctx) => isGroupChat(ctx)).use(scheduleComposer);
 
 // Capture the reply after [Name me] / [Rename].
 bot.on('message:text', async (ctx, next) => {

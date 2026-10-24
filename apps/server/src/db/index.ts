@@ -88,6 +88,11 @@ const MIGRATIONS = [
      tg_user_id INTEGER NOT NULL,
      PRIMARY KEY (group_id, tg_user_id)
    );`,
+  `ALTER TABLE groups ADD COLUMN avail_message_id INTEGER;
+   ALTER TABLE meetings ADD COLUMN poll_id TEXT;
+   ALTER TABLE meetings ADD COLUMN poll_message_id INTEGER;
+   ALTER TABLE meetings ADD COLUMN created_at TEXT;
+   CREATE INDEX availability_member ON availability(member_id);`,
 ];
 
 export function openDb(file: string) {

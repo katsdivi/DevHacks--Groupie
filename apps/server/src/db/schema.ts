@@ -14,6 +14,7 @@ export const groups = sqliteTable('groups', {
   statusMessageId: integer('status_message_id'),
   createdAt: text('created_at').notNull(),
   splitMessageId: integer('split_message_id'),
+  availMessageId: integer('avail_message_id'),
 });
 
 export const pendingInputs = sqliteTable(
@@ -71,7 +72,12 @@ export const meetings = sqliteTable('meetings', {
   mode: text('mode', { enum: ['meet', 'zoom', 'in_person'] }),
   calendarEventId: text('calendar_event_id'),
   meetLink: text('meet_link'),
+  pollId: text('poll_id'),
+  pollMessageId: integer('poll_message_id'),
+  createdAt: text('created_at'),
 });
+
+export type Meeting = typeof meetings.$inferSelect;
 
 export const swapRequests = sqliteTable('swap_requests', {
   id: integer('id').primaryKey({ autoIncrement: true }),
