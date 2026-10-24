@@ -101,8 +101,10 @@ bot.command('start', async (ctx) => {
     });
 });
 
+const GROUP_ONLY = "That one works in your project group chat. Add me there and send it again!";
+
 bot.command('app', async (ctx) => {
-  if (!isGroupChat(ctx)) return;
+  if (!isGroupChat(ctx)) return void (await ctx.reply(GROUP_ONLY));
   const group = groupFromCtx(ctx);
   await ctx.reply(`${html(group.nickname)} here. Tap below to open me.`, {
     parse_mode: 'HTML',
@@ -111,14 +113,14 @@ bot.command('app', async (ctx) => {
 });
 
 bot.command('rename', async (ctx) => {
-  if (!isGroupChat(ctx)) return;
+  if (!isGroupChat(ctx)) return void (await ctx.reply(GROUP_ONLY));
   groupFromCtx(ctx);
   if (ctx.match.trim()) await applyName(ctx, ctx.match, 'rename');
   else await askForName(ctx, 'rename');
 });
 
 bot.command('settings', async (ctx) => {
-  if (!isGroupChat(ctx)) return;
+  if (!isGroupChat(ctx)) return void (await ctx.reply(GROUP_ONLY));
   const group = groupFromCtx(ctx);
   await ctx.reply(`<b>Settings</b>\nI go by <b>${html(group.nickname)}</b> in this group.`, {
     parse_mode: 'HTML',
