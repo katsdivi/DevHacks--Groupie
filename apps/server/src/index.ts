@@ -27,6 +27,11 @@ if (fs.existsSync(webDist)) {
   });
 }
 
+const dataDir = path.dirname(path.resolve(env.databasePath));
+fs.mkdirSync(dataDir, { recursive: true });
+fs.accessSync(dataDir, fs.constants.W_OK);
+console.log(`Data dir ${dataDir} is writable`);
+
 app.listen(env.port, () => {
-  console.log(`Groupie listening on http://localhost:${env.port}`);
+  console.log(`Groupie listening on port ${env.port}`);
 });
