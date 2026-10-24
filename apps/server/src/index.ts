@@ -7,6 +7,7 @@ import type { HealthResponse } from '@groupie/shared';
 import { env } from './env.ts';
 import './db/index.ts';
 import { ALLOWED_UPDATES, bot } from './bot/index.ts';
+import { api } from './api.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const webDist = path.resolve(here, '../../web/dist');
@@ -18,6 +19,8 @@ app.get('/health', (_req, res) => {
   const body: HealthResponse = { ok: true, service: 'groupie', time: new Date().toISOString() };
   res.json(body);
 });
+
+app.use('/api', api);
 
 if (env.botMode === 'webhook') {
   app.post('/tg/webhook', webhookCallback(bot, 'express', { secretToken: env.webhookSecret }));
@@ -47,6 +50,7 @@ async function startBot() {
     return;
   }
   await bot.api.setMyCommands([
+    { command: 'app', description: 'Open Groupie' },
     { command: 'settings', description: 'Group settings' },
     { command: 'rename', description: 'Give me a new name' },
   ]);

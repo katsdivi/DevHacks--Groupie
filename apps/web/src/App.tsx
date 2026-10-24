@@ -1,18 +1,71 @@
-import { MEMBER_COLORS } from '@groupie/shared';
+import { useCallback, useEffect, useState } from 'react';
+import { decodeStartParam, type MeResponse, type Screen } from '@groupie/shared';
+import { api, ApiError } from './api.ts';
+import { startParam, tg } from './telegram.ts';
+import { useBackButton } from './useBackButton.ts';
+import { Header } from './components/Header.tsx';
+import { HomeSkeleton } from './components/Skeleton.tsx';
+import { Message } from './components/Message.tsx';
+import { Home } from './screens/Home.tsx';
+import { Settings } from './screens/Settings.tsx';
+import { Soon } from './screens/Soon.tsx';
+
+const BOT_LINK = 'https://t.me/CubbieGroupieBot';
+const route = decodeStartParam(startParam());
 
 export default function App() {
+  const [me, setMe] = useState<MeResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  // Screen stack; deep links open on top of home so Back lands somewhere sensible.
+  const [stack, setStack] = useState<Screen[]>(() =>
+    route && route.screen !== 'home' ? ['home', route.screen] : ['home'],
+  );
+
+  useEffect(() => {
+    if (!tg || !route) return;
+    api<MeResponse>(`/me?group=${route.groupId}`)
+      .then(setMe)
+      .catch((e) => setError(e instanceof ApiError ? e.message : 'Could not reach Groupie. Try again in a sec?'));
+  }, []);
+
+  const go = useCallback((s: Screen) => setStack((st) => [...st, s]), []);
+  const back = useCallback(() => setStack((st) => st.slice(0, -1)), []);
+  useBackButton(stack.length > 1 ? back : null);
+
+  const onRenamed = useCallback(
+    (nickname: string) => setMe((m) => (m ? { ...m, group: { ...m.group, nickname } } : m)),
+    [],
+  );
+
+  if (!tg) {
+    return (
+      <Message
+        title="Groupie lives in Telegram"
+        body="Open me from your group chat to see your project. Your group project's biggest fan is waiting."
+        action={{ label: 'Open in Telegram', href: BOT_LINK }}
+      />
+    );
+  }
+  if (!route) {
+    return (
+      <Message
+        title="Which group?"
+        body="Open me from a button in your group chat so I know which project we're talking about."
+      />
+    );
+  }
+  if (error) return <Message title="Hmm." body={error} />;
+  if (!me) return <HomeSkeleton />;
+
+  const screen = stack[stack.length - 1];
   return (
-    <main className="flex min-h-full items-center justify-center p-4">
-      <div className="w-full max-w-sm rounded-3xl border border-dashed border-line p-8 text-center">
-        <div className="mb-6 flex justify-center gap-2">
-          {MEMBER_COLORS.map((c) => (
-            <span key={c.name} className="h-3 w-3 rounded-full" style={{ background: c.hex }} />
-          ))}
-        </div>
-        <h1 className="text-4xl font-bold tracking-tight">Groupie</h1>
-        <p className="mt-3 text-muted">Your group project's biggest fan.</p>
-        <p className="mt-8 text-xs uppercase tracking-widest text-muted">Warming up</p>
-      </div>
-    </main>
+    <div className="min-h-screen">
+      <Header nickname={me.group.nickname} title={me.group.title} />
+      <main key={stack.length + screen} className="animate-enter">
+        {screen === 'home' && <Home me={me} go={go} />}
+        {screen === 'settings' && <Settings me={me} onRenamed={onRenamed} />}
+        {screen !== 'home' && screen !== 'settings' && <Soon nickname={me.group.nickname} />}
+      </main>
+    </div>
   );
 }

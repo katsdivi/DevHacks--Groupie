@@ -1,4 +1,5 @@
 import { Bot, InlineKeyboard, type Context } from 'grammy';
+import { encodeStartParam, parseNickname, type Screen } from '@groupie/shared';
 import { env } from '../env.ts';
 import {
   clearPending,
@@ -9,7 +10,6 @@ import {
   setPending,
   upsertGroup,
 } from '../groups.ts';
-import { parseNickname } from './nickname.ts';
 
 export const bot = new Bot(env.botToken);
 
@@ -17,6 +17,19 @@ export const ALLOWED_UPDATES = ['message', 'callback_query', 'my_chat_member', '
 
 const html = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const mention = (id: number, name: string) => `<a href="tg://user?id=${id}">${html(name)}</a>`;
+
+/** Direct-link Mini App URL. web_app buttons aren't allowed in groups, so we use plain URL buttons. */
+export const appUrl = (groupId: number, screen: Screen) =>
+  `https://t.me/${env.botUsername}/${env.miniAppShortName}?startapp=${encodeStartParam(groupId, screen)}`;
+const appButton = (groupId: number, label = 'Open Groupie', screen: Screen = 'home') =>
+  new InlineKeyboard().url(label, appUrl(groupId, screen));
+
+export const renameText = (name: string) => `New name, who dis. I'm ${html(name)} now.`;
+
+export async function announceRename(groupId: number, name: string) {
+  await bot.api.sendMessage(groupId, renameText(name), { parse_mode: 'HTML' });
+}
+
 const isGroupChat = (ctx: Context) => ctx.chat?.type === 'group' || ctx.chat?.type === 'supergroup';
 
 function groupFromCtx(ctx: Context) {
@@ -51,10 +64,10 @@ async function applyName(ctx: Context, raw: string, kind: 'nickname' | 'rename')
   }
   clearPending(ctx.chat!.id, ctx.from!.id);
   setNickname(ctx.chat!.id, name);
-  await ctx.reply(
-    kind === 'rename' ? `New name, who dis. I'm ${html(name)} now.` : `Call me ${html(name)} from now on.`,
-    { parse_mode: 'HTML' },
-  );
+  await ctx.reply(kind === 'rename' ? renameText(name) : `Call me ${html(name)} from now on.`, {
+    parse_mode: 'HTML',
+    reply_markup: appButton(ctx.chat!.id),
+  });
 }
 
 // Added to a group (or re-added after being removed).
@@ -81,7 +94,20 @@ bot.command('start', async (ctx) => {
   const known = getGroup(ctx.chat.id);
   groupFromCtx(ctx);
   if (!known) await sendWelcome(ctx);
-  else await ctx.reply(`${html(known.nickname)} here. Already on it.`, { parse_mode: 'HTML' });
+  else
+    await ctx.reply(`${html(known.nickname)} here. Already on it.`, {
+      parse_mode: 'HTML',
+      reply_markup: appButton(ctx.chat.id),
+    });
+});
+
+bot.command('app', async (ctx) => {
+  if (!isGroupChat(ctx)) return;
+  const group = groupFromCtx(ctx);
+  await ctx.reply(`${html(group.nickname)} here. Tap below to open me.`, {
+    parse_mode: 'HTML',
+    reply_markup: appButton(ctx.chat.id),
+  });
 });
 
 bot.command('rename', async (ctx) => {
@@ -96,7 +122,9 @@ bot.command('settings', async (ctx) => {
   const group = groupFromCtx(ctx);
   await ctx.reply(`<b>Settings</b>\nI go by <b>${html(group.nickname)}</b> in this group.`, {
     parse_mode: 'HTML',
-    reply_markup: new InlineKeyboard().text('Rename', 'nick:rename'),
+    reply_markup: new InlineKeyboard()
+      .text('Rename', 'nick:rename')
+      .url('Open settings', appUrl(ctx.chat.id, 'settings')),
   });
 });
 
@@ -115,7 +143,9 @@ bot.callbackQuery('nick:keep', async (ctx) => {
   await ctx.answerCallbackQuery({ text: 'Groupie it is!' });
   groupFromCtx(ctx);
   await ctx
-    .editMessageText("Hey, I'm Groupie, your group project's biggest fan. Groupie it is, love that for us.")
+    .editMessageText("Hey, I'm Groupie, your group project's biggest fan. Groupie it is, love that for us.", {
+      reply_markup: appButton(ctx.chat!.id),
+    })
     .catch(() => {});
 });
 

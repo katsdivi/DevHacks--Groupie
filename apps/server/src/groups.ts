@@ -1,4 +1,5 @@
 import { and, eq, gt } from 'drizzle-orm';
+export type { Group } from './db/schema.ts';
 import { db, schema } from './db/index.ts';
 import { env } from './env.ts';
 

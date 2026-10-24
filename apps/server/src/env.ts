@@ -8,6 +8,7 @@ export const env = {
   databasePath: process.env.DATABASE_PATH ?? './data/groupie.db',
   botToken: process.env.BOT_TOKEN ?? '',
   botUsername: process.env.BOT_USERNAME ?? 'CubbieGroupieBot',
+  miniAppShortName: process.env.MINI_APP_SHORT_NAME ?? 'app',
   webhookSecret: process.env.WEBHOOK_SECRET ?? '',
   defaultTz: process.env.DEFAULT_TZ ?? 'America/Phoenix',
   // webhook: production. polling: local testing (takes the bot away from prod). off: no bot.

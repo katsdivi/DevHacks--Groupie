@@ -1,11 +1,32 @@
 @import 'tailwindcss';
+@import '@fontsource-variable/inter';
 
 @theme {
   --color-ink: #1e1e1e;
+  --color-panel: #262626;
   --color-line: #3a3a3a;
+  --color-line-strong: #555555;
   --color-muted: #9a9a9a;
-  --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --color-text: #f5f5f5;
+  --font-sans: 'Inter Variable', Inter, ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --animate-enter: enter 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  --animate-shimmer: shimmer 1.4s ease-in-out infinite;
 }
 
-html, body, #root { height: 100%; }
-body { background: var(--color-ink); color: #f5f5f5; margin: 0; }
+@keyframes enter {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes shimmer {
+  0%, 100% { opacity: 0.45; }
+  50% { opacity: 0.9; }
+}
+
+html, body, #root { min-height: 100%; }
+body {
+  background: var(--color-ink);
+  color: var(--color-text);
+  margin: 0;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
