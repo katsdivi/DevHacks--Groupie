@@ -1,7 +1,7 @@
 import type { NextFunction, Request, Response } from 'express';
 import type { TgUser } from '@groupie/shared';
 import { env } from './env.ts';
-import { bot } from './bot/index.ts';
+import { bot } from './bot/core.ts';
 import { validateInitData } from './initData.ts';
 
 /** The verified Telegram user, set by requireTelegram. */

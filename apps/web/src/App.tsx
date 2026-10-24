@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { decodeStartParam, type MeResponse, type Screen } from '@groupie/shared';
+import { decodeStartParam, type MeResponse, type MemberResponse, type Screen } from '@groupie/shared';
 import { api, ApiError } from './api.ts';
 import { startParam, tg } from './telegram.ts';
 import { useBackButton } from './useBackButton.ts';
@@ -8,6 +8,7 @@ import { HomeSkeleton } from './components/Skeleton.tsx';
 import { Message } from './components/Message.tsx';
 import { Home } from './screens/Home.tsx';
 import { Settings } from './screens/Settings.tsx';
+import { Form } from './screens/Form.tsx';
 import { Soon } from './screens/Soon.tsx';
 
 const BOT_LINK = 'https://t.me/CubbieGroupieBot';
@@ -34,6 +35,12 @@ export default function App() {
 
   const onRenamed = useCallback(
     (nickname: string) => setMe((m) => (m ? { ...m, group: { ...m.group, nickname } } : m)),
+    [],
+  );
+
+  const onSaved = useCallback(
+    (res: MemberResponse) =>
+      setMe((m) => (m ? { ...m, member: res.member, group: { ...m.group, joined: res.joined } } : m)),
     [],
   );
 
@@ -64,7 +71,8 @@ export default function App() {
       <main key={stack.length + screen} className="animate-enter">
         {screen === 'home' && <Home me={me} go={go} />}
         {screen === 'settings' && <Settings me={me} onRenamed={onRenamed} />}
-        {screen !== 'home' && screen !== 'settings' && <Soon nickname={me.group.nickname} />}
+        {screen === 'form' && <Form me={me} onSaved={onSaved} />}
+        {!['home', 'settings', 'form'].includes(screen) && <Soon nickname={me.group.nickname} />}
       </main>
     </div>
   );

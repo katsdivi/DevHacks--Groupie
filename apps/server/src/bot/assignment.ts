@@ -11,6 +11,7 @@ import {
 } from '../parse.ts';
 import type { Group } from '../db/schema.ts';
 import { html } from './format.ts';
+import { postJoinStatus } from './joinStatus.ts';
 
 export const assignment = new Composer();
 
@@ -118,6 +119,7 @@ async function readAssignment(ctx: Context, group: Group, fileId: string, fileNa
       await ctx.api.editMessageReplyMarkup(chatId, group.statusMessageId).catch(() => {});
     }
     await edit(taskListText(group.nickname, parsed, group.tz));
+    await postJoinStatus(group.id);
   } catch (err) {
     console.error('Assignment parse failed', err);
     await edit("I couldn't make sense of that one. Try sending it again, or as a PDF?").catch(() => {});

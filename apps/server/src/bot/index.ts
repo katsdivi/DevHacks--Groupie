@@ -1,5 +1,5 @@
-import { Bot, InlineKeyboard, type Context } from 'grammy';
-import { encodeStartParam, parseNickname, type Screen } from '@groupie/shared';
+import { InlineKeyboard, type Context } from 'grammy';
+import { parseNickname } from '@groupie/shared';
 import { env } from '../env.ts';
 import {
   clearPending,
@@ -17,7 +17,11 @@ import {
 import { html } from './format.ts';
 import { assignment } from './assignment.ts';
 
-export const bot = new Bot(env.botToken);
+import { appButton, appUrl, bot } from './core.ts';
+import { postJoinStatus, refreshJoinStatus } from './joinStatus.ts';
+import { seedMembers } from '../members.ts';
+
+export { bot, appUrl };
 
 if (env.devMode) {
   bot.use((ctx, next) => {
@@ -33,11 +37,6 @@ export const ALLOWED_UPDATES = ['message', 'callback_query', 'my_chat_member', '
 
 const mention = (id: number, name: string) => `<a href="tg://user?id=${id}">${html(name)}</a>`;
 
-/** Direct-link Mini App URL. web_app buttons aren't allowed in groups, so we use plain URL buttons. */
-export const appUrl = (groupId: number, screen: Screen) =>
-  `https://t.me/${env.botUsername}/${env.miniAppShortName}?startapp=${encodeStartParam(groupId, screen)}`;
-const appButton = (groupId: number, label = 'Open Groupie', screen: Screen = 'home') =>
-  new InlineKeyboard().url(label, appUrl(groupId, screen));
 
 export const renameText = (name: string) => `New name, who dis. I'm ${html(name)} now.`;
 
@@ -223,6 +222,28 @@ bot.callbackQuery('size:change', async (ctx) => {
   if (!group || group.status !== 'setup') return void (await ctx.answerCallbackQuery());
   await ctx.answerCallbackQuery();
   await ctx.editMessageText(askSizeText(group), { parse_mode: 'HTML', reply_markup: askSizeKeyboard() });
+});
+
+bot.command('join', async (ctx) => {
+  if (!isGroupChat(ctx)) return void (await ctx.reply(GROUP_ONLY));
+  const group = groupFromCtx(ctx);
+  if (group.status === 'setup') {
+    await ctx.reply(`${html(group.nickname)} here. Send the assignment file first, then everyone can join.`, { parse_mode: 'HTML' });
+    return;
+  }
+  await postJoinStatus(group.id);
+});
+
+bot.command('seed', async (ctx) => {
+  if (!isGroupChat(ctx) || !env.devMode) return;
+  const group = groupFromCtx(ctx);
+  if (group.status === 'setup' || !group.teamSize) {
+    await ctx.reply('Set the team size and send the assignment first, then /seed.');
+    return;
+  }
+  const added = seedMembers(group.id, group.teamSize);
+  await ctx.reply(added ? `Added ${added} pretend teammates.` : 'No empty seats to fill.');
+  if (added) await refreshJoinStatus(group.id);
 });
 
 bot.command('reset', async (ctx) => {

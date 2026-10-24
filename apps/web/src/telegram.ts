@@ -14,6 +14,7 @@ export type WebApp = {
   version: string;
   platform: string;
   ready(): void;
+  close(): void;
   expand(): void;
   isVersionAtLeast(v: string): boolean;
   setHeaderColor(c: string): void;
