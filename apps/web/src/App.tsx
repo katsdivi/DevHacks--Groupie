@@ -9,6 +9,7 @@ import { Message } from './components/Message.tsx';
 import { Home } from './screens/Home.tsx';
 import { Settings } from './screens/Settings.tsx';
 import { Form } from './screens/Form.tsx';
+import { Split } from './screens/Split.tsx';
 import { Soon } from './screens/Soon.tsx';
 
 const BOT_LINK = 'https://t.me/CubbieGroupieBot';
@@ -72,7 +73,8 @@ export default function App() {
         {screen === 'home' && <Home me={me} go={go} />}
         {screen === 'settings' && <Settings me={me} onRenamed={onRenamed} />}
         {screen === 'form' && <Form me={me} onSaved={onSaved} />}
-        {!['home', 'settings', 'form'].includes(screen) && <Soon nickname={me.group.nickname} />}
+        {screen === 'split' && <Split me={me} go={go} />}
+        {!['home', 'settings', 'form', 'split'].includes(screen) && <Soon nickname={me.group.nickname} />}
       </main>
     </div>
   );

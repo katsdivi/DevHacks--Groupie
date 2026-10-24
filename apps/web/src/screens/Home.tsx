@@ -85,6 +85,9 @@ export function Home({ me, go }: { me: MeResponse; go: (s: Screen) => void }) {
       </section>
 
       <nav className="mt-4 divide-y divide-dashed divide-line overflow-hidden rounded-3xl border border-dashed border-line-strong">
+        {hasAssignment && (
+          <Row title="The split" sub="Who's doing what, request a swap" onClick={() => go('split')} />
+        )}
         {member && <Row title="My details" sub="Name, email, skills" accent={member.color} onClick={() => go('form')} />}
         <Row title="Settings" sub={`Rename ${group.nickname} for this group`} onClick={() => go('settings')} />
       </nav>
