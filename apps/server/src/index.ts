@@ -8,7 +8,10 @@ import { env } from './env.ts';
 import './db/index.ts';
 import { ALLOWED_UPDATES, bot } from './bot/index.ts';
 import { api } from './api.ts';
-import { devState } from './groups.ts';
+import { devState, getGroup } from './groups.ts';
+import { computeSplit, splitCardData, splitView } from './splitService.ts';
+import { splitCardHtml } from './cards/splitCard.ts';
+import { renderPng } from './cards/render.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const webDist = path.resolve(here, '../../web/dist');
@@ -26,6 +29,23 @@ app.use('/api', api);
 if (env.devMode) {
   app.get('/dev/state', (_req, res) => {
     res.type('json').send(JSON.stringify({ groups: devState() }, null, 2));
+  });
+
+  // Live split (computed now, not saved) drawn as the card.
+  app.get('/dev/split', (req, res) => {
+    const group = getGroup(Number(req.query.group));
+    if (!group) return void res.status(404).type('text').send('Unknown group. See /dev/state for ids.');
+    const view = splitView(group.id, null, computeSplit(group.id));
+    res.type('html').send(splitCardHtml(splitCardData(view)));
+  });
+
+  // Saved split as the card: HTML with ?preview=1, otherwise the PNG we post.
+  app.get('/cards/split', async (req, res) => {
+    const group = getGroup(Number(req.query.group));
+    if (!group) return void res.status(404).type('text').send('Unknown group. See /dev/state for ids.');
+    const html = splitCardHtml(splitCardData(splitView(group.id, null)));
+    if (req.query.preview) return void res.type('html').send(html);
+    res.type('png').send(await renderPng(html));
   });
 }
 
@@ -46,7 +66,9 @@ if (fs.existsSync(webDist)) {
 
 console.log(`Database at ${path.resolve(env.databasePath)}`);
 
-app.listen(env.port, () => {
+app.listen(env.port, (err) => {
+  // Express 5 passes listen errors (like a taken port) to this callback.
+  if (err) throw err;
   console.log(`Groupie listening on port ${env.port}`);
   startBot().catch((err) => console.error('Bot failed to start', err));
 });
@@ -60,6 +82,7 @@ async function startBot() {
     { command: 'app', description: 'Open Groupie' },
     { command: 'setup', description: 'Set team size and get started' },
     { command: 'join', description: 'Show who has joined' },
+    { command: 'split', description: 'Show the fair split' },
     { command: 'settings', description: 'Group settings' },
     { command: 'rename', description: 'Give me a new name' },
   ]);

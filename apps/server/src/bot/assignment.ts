@@ -10,20 +10,13 @@ import {
   SUPPORTED_FORMATS,
 } from '../parse.ts';
 import type { Group } from '../db/schema.ts';
-import { html } from './format.ts';
+import { formatDue, html } from './format.ts';
 import { postJoinStatus } from './joinStatus.ts';
 
 export const assignment = new Composer();
 
 const MAX_BYTES = 20 * 1024 * 1024; // Bot API download limit
 const inFlight = new Set<number>();
-
-export function formatDue(due: string | null, tz: string): string | null {
-  if (!due) return null;
-  const d = new Date(`${due.slice(0, 10)}T12:00:00Z`);
-  if (Number.isNaN(d.getTime())) return null;
-  return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: tz });
-}
 
 export function taskListText(nickname: string, parsed: ParsedAssignment, tz: string): string {
   const points = parsed.tasks.reduce((s, t) => s + t.effort, 0);

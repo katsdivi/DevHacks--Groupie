@@ -73,3 +73,49 @@ export type NicknameResponse = z.infer<typeof NicknameResponse>;
 
 export const ApiError = z.object({ error: z.string(), message: z.string() });
 export type ApiError = z.infer<typeof ApiError>;
+
+export const TaskStatus = z.enum(['todo', 'on_track', 'stuck', 'done']);
+export type TaskStatus = z.infer<typeof TaskStatus>;
+
+export const SplitTaskView = z.object({
+  id: z.number(),
+  title: z.string(),
+  description: z.string(),
+  effort: z.number(),
+  skill_tags: z.array(z.string()),
+  status: TaskStatus,
+});
+export type SplitTaskView = z.infer<typeof SplitTaskView>;
+
+export const SplitMemberView = z.object({
+  id: z.number(),
+  name: z.string(),
+  color: z.string(),
+  points: z.number(),
+  is_me: z.boolean(),
+  tasks: z.array(SplitTaskView),
+});
+export type SplitMemberView = z.infer<typeof SplitMemberView>;
+
+export const SplitResponse = z.object({
+  group_id: z.number(),
+  assignment_title: z.string().nullable(),
+  due_date: z.string().nullable(),
+  total_points: z.number(),
+  max_gap: z.number(),
+  members: z.array(SplitMemberView),
+  /** Tasks with no assignee yet (before the split runs). */
+  unassigned: z.array(SplitTaskView),
+});
+export type SplitResponse = z.infer<typeof SplitResponse>;
+
+export const SwapRequest = z.object({
+  task_id: z.number().int(),
+  to_member_id: z.number().int().nullable().optional(),
+});
+export type SwapRequest = z.infer<typeof SwapRequest>;
+
+export const SwapResponse = SplitResponse.extend({
+  moved: z.object({ task_id: z.number(), from_member_id: z.number(), to_member_id: z.number() }).nullable(),
+});
+export type SwapResponse = z.infer<typeof SwapResponse>;

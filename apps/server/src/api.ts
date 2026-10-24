@@ -2,14 +2,20 @@ import { Router, type Request, type Response } from 'express';
 import {
   MemberRequest,
   NicknameRequest,
+  SwapRequest,
   parseNickname,
   type MeResponse,
   type MemberResponse,
+  type SplitResponse,
+  type SwapResponse,
 } from '@groupie/shared';
 import { isGroupMember, requireTelegram, tgUser } from './auth.ts';
 import { getGroup, getTasks, setNickname, type Group } from './groups.ts';
 import { getMemberByTgUser, listMembers, memberDto, upsertMember } from './members.ts';
 import { refreshJoinStatus } from './bot/joinStatus.ts';
+import { maybeRunSplit, postSplitCard } from './bot/split.ts';
+import { requestSwap, splitView, SwapError } from './splitService.ts';
+import { html } from './bot/format.ts';
 import { announceRename } from './bot/index.ts';
 
 export const api = Router();
@@ -74,6 +80,7 @@ api.post('/groups/:id/members', async (req, res) => {
   }
   const member = upsertMember(group.id, userId, parsed.data);
   await refreshJoinStatus(group.id);
+  await maybeRunSplit(group.id).catch((err) => console.error('maybeRunSplit failed', err));
   const body: MemberResponse = { member: memberDto(member), joined: listMembers(group.id).length, team_size: group.teamSize ?? 0 };
   res.status(already ? 200 : 201).json(body);
 });
@@ -92,4 +99,47 @@ api.patch('/groups/:id/nickname', async (req, res) => {
     await announceRename(group.id, nickname).catch((err) => console.error('announceRename failed', err));
   }
   res.json({ nickname });
+});
+
+api.get('/groups/:id/split', async (req, res) => {
+  const group = await loadGroupFor(req, res, req.params.id);
+  if (!group) return;
+  const me = getMemberByTgUser(group.id, tgUser(res).id);
+  const body: SplitResponse = splitView(group.id, me?.id ?? null);
+  res.json(body);
+});
+
+const pts = (n: number) => `${n} pt${n === 1 ? '' : 's'}`;
+
+api.post('/groups/:id/swap', async (req, res) => {
+  const group = await loadGroupFor(req, res, req.params.id);
+  if (!group) return;
+  const parsed = SwapRequest.safeParse(req.body);
+  const me = getMemberByTgUser(group.id, tgUser(res).id);
+  if (!parsed.success || !me) {
+    res.status(400).json({ error: 'bad_swap', message: me ? 'Pick one of your tasks.' : 'Add your details first.' });
+    return;
+  }
+  if (group.status === 'setup' || group.status === 'collecting_members') {
+    res.status(409).json({ error: 'no_split', message: 'No split yet. Hang tight until everyone joins.' });
+    return;
+  }
+  try {
+    const { result, moved } = requestSwap(group.id, me.id, parsed.data.task_id, parsed.data.to_member_id ?? null);
+    const view = splitView(group.id, me.id);
+    const task = view.members.flatMap((m) => m.tasks).find((t) => t.id === moved.task_id);
+    const to = view.members.find((m) => m.id === moved.to_member_id);
+    await postSplitCard(
+      group.id,
+      `<b>Swap done.</b> ${html(task?.title ?? 'A task')} moved from ${html(me.name)} to ${html(to?.name ?? 'a teammate')}. Max difference: ${pts(result.maxGap)}.`,
+    ).catch((err) => console.error('postSplitCard failed', err));
+    const body: SwapResponse = { ...view, moved };
+    res.json(body);
+  } catch (err) {
+    if (err instanceof SwapError) {
+      res.status(400).json({ error: 'bad_swap', message: err.message });
+      return;
+    }
+    throw err;
+  }
 });

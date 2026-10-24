@@ -16,6 +16,17 @@ export type SplitResult = {
 };
 
 const MAX_ITERATIONS = 500;
+const RESTARTS = 40;
+
+/** Small seeded PRNG so restarts stay deterministic. */
+function mulberry32(seed: number) {
+  return () => {
+    seed = (seed + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
 
 /** +1 per task tag the member is good at, -1 per tag in their weak areas. */
 export function skillFit(task: SplitTask, member: SplitMember): number {
@@ -36,7 +47,8 @@ type State = { owner: number[]; totals: number[]; fit: number };
 
 /**
  * Splits tasks across members so effort totals are as even as possible.
- * Greedy (largest first, to the lightest member) followed by local search over moves and swaps.
+ * Greedy (largest first, to the lightest member) followed by local search over moves and swaps,
+ * with a few seeded restarts to escape plateaus.
  * Deterministic: tasks and members are sorted by id internally, so input order doesn't matter.
  */
 export function split(tasks: SplitTask[], members: SplitMember[], constraints: SplitConstraints = {}): SplitResult {
@@ -63,7 +75,7 @@ export function split(tasks: SplitTask[], members: SplitMember[], constraints: S
     .filter((i) => locked[i] === -1)
     .sort((a, b) => ts[b]!.effort - ts[a]!.effort || ts[a]!.id - ts[b]!.id);
 
-  const greedy = (useFit: boolean): State => {
+  const greedy = (useFit: boolean, taskOrder: number[] = order): State => {
     const owner = ts.map(() => -1);
     const totals = ms.map(() => 0);
     ts.forEach((t, i) => {
@@ -72,7 +84,7 @@ export function split(tasks: SplitTask[], members: SplitMember[], constraints: S
         totals[locked[i]!]! += t.effort;
       }
     });
-    for (const i of order) {
+    for (const i of taskOrder) {
       let best = -1;
       for (let m = 0; m < nM; m++) {
         if (!allowed[i]![m]) continue;
@@ -169,7 +181,22 @@ export function split(tasks: SplitTask[], members: SplitMember[], constraints: S
   // Searching from both a skill-aware and a plain greedy start guarantees we never do worse than greedy.
   const a = improve(greedy(true));
   const b = improve(greedy(false));
-  const best = better(keyOf(b.totals, b.fit), keyOf(a.totals, a.fit)) ? b : a;
+  let best = better(keyOf(b.totals, b.fit), keyOf(a.totals, a.fit)) ? b : a;
+
+  // Moves and swaps can stall on plateaus (for example 11/10/10/10/8 around a locked task).
+  // Restart from seeded shuffles of the task order and keep the best, stopping at the ideal gap.
+  const totalEffort = ts.reduce((sum, t) => sum + t.effort, 0);
+  const idealGap = totalEffort % nM === 0 ? 0 : 1;
+  const rand = mulberry32(ts.length * 7919 + nM * 104729 + totalEffort);
+  for (let r = 0; r < RESTARTS && keyOf(best.totals, 0)[0] > idealGap; r++) {
+    const shuffled = [...order];
+    for (let k = shuffled.length - 1; k > 0; k--) {
+      const j = Math.floor(rand() * (k + 1));
+      [shuffled[k], shuffled[j]] = [shuffled[j]!, shuffled[k]!];
+    }
+    const c = improve(greedy(r % 2 === 0, shuffled));
+    if (better(keyOf(c.totals, c.fit), keyOf(best.totals, best.fit))) best = c;
+  }
 
   const assignments: Record<number, number> = {};
   ts.forEach((t, i) => (assignments[t.id] = ms[best.owner[i]!]!.id));

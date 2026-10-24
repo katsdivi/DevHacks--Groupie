@@ -16,6 +16,7 @@ import {
 } from '../groups.ts';
 import { html } from './format.ts';
 import { assignment } from './assignment.ts';
+import { maybeRunSplit, splitComposer } from './split.ts';
 
 import { appButton, appUrl, bot } from './core.ts';
 import { postJoinStatus, refreshJoinStatus } from './joinStatus.ts';
@@ -243,7 +244,10 @@ bot.command('seed', async (ctx) => {
   }
   const added = seedMembers(group.id, group.teamSize);
   await ctx.reply(added ? `Added ${added} pretend teammates.` : 'No empty seats to fill.');
-  if (added) await refreshJoinStatus(group.id);
+  if (added) {
+    await refreshJoinStatus(group.id);
+    await maybeRunSplit(group.id);
+  }
 });
 
 bot.command('reset', async (ctx) => {
@@ -255,6 +259,7 @@ bot.command('reset', async (ctx) => {
 });
 
 bot.use(assignment);
+bot.filter((ctx) => isGroupChat(ctx)).use(splitComposer);
 
 // Capture the reply after [Name me] / [Rename].
 bot.on('message:text', async (ctx, next) => {

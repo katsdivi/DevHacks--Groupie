@@ -13,6 +13,7 @@ export const groups = sqliteTable('groups', {
   tz: text('tz').notNull(),
   statusMessageId: integer('status_message_id'),
   createdAt: text('created_at').notNull(),
+  splitMessageId: integer('split_message_id'),
 });
 
 export const pendingInputs = sqliteTable(
@@ -89,6 +90,15 @@ export const agentMessages = sqliteTable('agent_messages', {
   content: text('content').notNull(),
   createdAt: text('created_at').notNull(),
 });
+
+export const splitVotes = sqliteTable(
+  'split_votes',
+  {
+    groupId: integer('group_id').notNull(),
+    tgUserId: integer('tg_user_id').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.groupId, t.tgUserId] })],
+);
 
 export type Member = typeof members.$inferSelect;
 export type Task = typeof tasks.$inferSelect;

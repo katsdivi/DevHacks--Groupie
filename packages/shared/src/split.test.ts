@@ -189,3 +189,14 @@ describe('split', () => {
     }
   });
 });
+
+describe('split plateaus', () => {
+  it('escapes the 11/10/10/10/8 plateau around a locked task', () => {
+    const efforts = [3, 2, 5, 3, 5, 3, 5, 8, 3, 5, 2, 2, 3];
+    const tasks = efforts.map((effort, i) => ({ id: i + 1, effort, skill_tags: [] }));
+    const members = [1, 2, 3, 4, 5].map((id) => ({ id, skills: [], weak_areas: [] }));
+    const r = split(tasks, members, { locked: { 12: 5 }, forbidden: [{ task_id: 12, member_id: 1 }] });
+    expect(r.maxGap).toBe(1);
+    expect(r.assignments[12]).toBe(5);
+  });
+});

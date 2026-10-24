@@ -82,6 +82,12 @@ const MIGRATIONS = [
      content TEXT NOT NULL,
      created_at TEXT NOT NULL
    );`,
+  `ALTER TABLE groups ADD COLUMN split_message_id INTEGER;
+   CREATE TABLE split_votes (
+     group_id INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE ON UPDATE CASCADE,
+     tg_user_id INTEGER NOT NULL,
+     PRIMARY KEY (group_id, tg_user_id)
+   );`,
 ];
 
 export function openDb(file: string) {
