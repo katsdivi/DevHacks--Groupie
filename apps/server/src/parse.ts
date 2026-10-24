@@ -1,4 +1,5 @@
 import { extractText, getDocumentProxy } from 'unpdf';
+import { OfficeParser } from 'officeparser';
 import {
   ParsedAssignment,
   parsedAssignmentJsonSchema,
@@ -17,6 +18,45 @@ export async function extractPdfText(data: Uint8Array): Promise<string> {
   const pdf = await getDocumentProxy(data);
   const { text } = await extractText(pdf, { mergePages: true });
   return normalize(text);
+}
+
+const PLAIN = ['txt', 'md', 'markdown', 'csv'];
+const OFFICE = ['docx', 'pptx', 'xlsx', 'odt', 'odp', 'ods', 'rtf', 'html', 'htm', 'epub'];
+const LEGACY = ['doc', 'ppt', 'xls', 'pages', 'key'];
+
+/** Shown to people when we can't read a file. */
+export const SUPPORTED_FORMATS = 'PDF, Word (.docx), PowerPoint (.pptx), Google Docs exports, RTF, ODT, or plain text';
+
+export class UnsupportedFormatError extends Error {
+  legacy: boolean;
+  constructor(ext: string, legacy: boolean) {
+    super(`Unsupported format: ${ext}`);
+    this.legacy = legacy;
+  }
+}
+
+export function fileExtension(fileName: string | undefined, mime: string | undefined): string {
+  const ext = /\.([a-z0-9]{1,8})$/i.exec(fileName ?? '')?.[1]?.toLowerCase();
+  if (ext) return ext;
+  if (mime === 'application/pdf') return 'pdf';
+  if (mime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') return 'docx';
+  if (mime?.startsWith('text/')) return 'txt';
+  return '';
+}
+
+export function isReadableFormat(ext: string): boolean {
+  return ext === 'pdf' || PLAIN.includes(ext) || OFFICE.includes(ext);
+}
+
+/** Pulls plain text out of any supported document. */
+export async function extractDocumentText(data: Uint8Array, ext: string): Promise<string> {
+  if (ext === 'pdf') return extractPdfText(data);
+  if (PLAIN.includes(ext)) return normalize(new TextDecoder().decode(data));
+  if (OFFICE.includes(ext)) {
+    const ast = await OfficeParser.parseOffice(Buffer.from(data));
+    return normalize(String((await ast.to('text')).value ?? ''));
+  }
+  throw new UnsupportedFormatError(ext, LEGACY.includes(ext));
 }
 
 export function normalize(text: string): string {

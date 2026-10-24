@@ -2,7 +2,14 @@ import { Composer, type Context } from 'grammy';
 import type { ParsedAssignment } from '@groupie/shared';
 import { env } from '../env.ts';
 import { countMembers, getGroup, saveAssignment } from '../groups.ts';
-import { extractPdfText, parseAssignment } from '../parse.ts';
+import {
+  extractDocumentText,
+  fileExtension,
+  isReadableFormat,
+  parseAssignment,
+  SUPPORTED_FORMATS,
+} from '../parse.ts';
+import type { Group } from '../db/schema.ts';
 import { html } from './format.ts';
 
 export const assignment = new Composer();
@@ -38,56 +45,84 @@ async function download(ctx: Context, fileId: string): Promise<Uint8Array> {
   return new Uint8Array(await res.arrayBuffer());
 }
 
+const isGroup = (ctx: Context) => ctx.chat?.type === 'group' || ctx.chat?.type === 'supergroup';
+
+/** True while Groupie is waiting for the assignment (so later shared drafts are ignored). */
+const expectingAssignment = (g: Group | undefined) =>
+  !!g && (g.status === 'setup' || (g.status === 'collecting_members' && countMembers(g.id) === 0));
+
+assignment.on('message:photo', async (ctx, next) => {
+  if (!isGroup(ctx) || !expectingAssignment(getGroup(ctx.chat.id))) return next();
+  await ctx.reply(`I can't read photos yet. Send the assignment as a file instead: ${SUPPORTED_FORMATS}.`, {
+    reply_parameters: { message_id: ctx.msg.message_id },
+  });
+});
+
 assignment.on('message:document', async (ctx, next) => {
   const doc = ctx.msg.document;
-  const isPdf = doc.mime_type === 'application/pdf' || doc.file_name?.toLowerCase().endsWith('.pdf');
-  if (!isPdf || (ctx.chat.type !== 'group' && ctx.chat.type !== 'supergroup')) return next();
-
   const group = getGroup(ctx.chat.id);
+  if (!isGroup(ctx) || !expectingAssignment(group)) return next();
+  const ext = fileExtension(doc.file_name, doc.mime_type);
   const reply = (text: string) =>
     ctx.reply(text, { parse_mode: 'HTML', reply_parameters: { message_id: ctx.msg.message_id } });
 
-  if (!group || !group.teamSize) {
-    await reply("Ooh, homework. Tell me the team size first: send /setup, pick a number, then drop the PDF again.");
+  if (!isReadableFormat(ext)) {
+    const legacy = ['doc', 'ppt', 'xls', 'pages', 'key'].includes(ext);
+    await reply(
+      legacy
+        ? `That's an older .${ext} file I can't open. Save it as PDF or .docx and send it again?`
+        : `I can't read ${ext ? `.${html(ext)}` : 'that kind of'} files. Send the assignment as ${SUPPORTED_FORMATS}.`,
+    );
     return;
   }
-  if (group.status !== 'setup' && !(group.status === 'collecting_members' && countMembers(group.id) === 0)) {
-    await reply(`${html(group.nickname)} here. I already have this group's assignment. Use /reset to start over.`);
+  if (!group!.teamSize) {
+    await reply("Ooh, homework. Tell me the team size first: send /setup, pick a number, then drop the file again.");
     return;
   }
-  if ((doc.file_size ?? 0) > MAX_BYTES) {
-    await reply('That file is too big for me (20 MB max). Can you send a smaller PDF?');
+  await readAssignment(ctx, group!, doc.file_id, doc.file_name ?? 'the assignment', ext, doc.file_size ?? 0);
+});
+
+async function readAssignment(ctx: Context, group: Group, fileId: string, fileName: string, ext: string, size: number) {
+  const chatId = ctx.chat!.id;
+  const reply = (text: string) =>
+    ctx.reply(text, { parse_mode: 'HTML', reply_parameters: { message_id: ctx.msg!.message_id } });
+  if (size > MAX_BYTES) {
+    await reply('That file is too big for me (20 MB max). Can you send a smaller one?');
     return;
   }
   if (inFlight.has(group.id)) {
-    await reply("Still reading the last one. Give me a sec!");
+    await reply('Still reading the last one. Give me a sec!');
     return;
   }
 
   inFlight.add(group.id);
-  const status = await reply(`Reading <b>${html(doc.file_name ?? 'the assignment')}</b>. Give me a sec...`);
-  const edit = (text: string) => ctx.api.editMessageText(ctx.chat.id, status.message_id, text, { parse_mode: 'HTML' });
+  const status = await reply(`Reading <b>${html(fileName)}</b>. Give me a sec...`);
+  const edit = (text: string) => ctx.api.editMessageText(chatId, status.message_id, text, { parse_mode: 'HTML' });
   const typing = setInterval(() => ctx.replyWithChatAction('typing').catch(() => {}), 4500);
   try {
     await ctx.replyWithChatAction('typing').catch(() => {});
-    const text = await extractPdfText(await download(ctx, doc.file_id));
+    const text = await extractDocumentText(await download(ctx, fileId), ext);
     if (text.replace(/\s/g, '').length < 50) {
-      await edit("Hmm, that PDF looks like a scan, so I can't read the text. Can you send one with selectable text?");
+      await edit(
+        ext === 'pdf'
+          ? "Hmm, that PDF looks like a scan, so I can't read the text. Can you send one with selectable text?"
+          : "Hmm, I couldn't find any text in that file. Can you send it as a PDF or .docx?",
+      );
       return;
     }
-    const parsed = await parseAssignment(text, group.teamSize, () => {
+    const parsed = await parseAssignment(text, group.teamSize!, () => {
       edit('Thinking, one sec...').catch(() => {});
     });
     saveAssignment(group.id, parsed);
     if (group.statusMessageId) {
-      await ctx.api.editMessageReplyMarkup(ctx.chat.id, group.statusMessageId).catch(() => {});
+      await ctx.api.editMessageReplyMarkup(chatId, group.statusMessageId).catch(() => {});
     }
     await edit(taskListText(group.nickname, parsed, group.tz));
   } catch (err) {
     console.error('Assignment parse failed', err);
-    await edit("I couldn't make sense of that one. Try sending it again, or a different PDF?").catch(() => {});
+    await edit("I couldn't make sense of that one. Try sending it again, or as a PDF?").catch(() => {});
   } finally {
     clearInterval(typing);
     inFlight.delete(group.id);
   }
-});
+}
