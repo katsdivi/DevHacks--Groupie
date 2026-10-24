@@ -20,3 +20,4 @@ export const MEMBER_COLORS = [
 export * from './nickname.ts';
 export * from './startParam.ts';
 export * from './api.ts';
+export * from './assignment.ts';

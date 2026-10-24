@@ -1,6 +1,7 @@
 import { and, eq, gt } from 'drizzle-orm';
 export type { Group } from './db/schema.ts';
 import { db, schema } from './db/index.ts';
+import type { ParsedAssignment } from '@groupie/shared';
 import { env } from './env.ts';
 
 const { groups, pendingInputs, members, tasks } = schema;
@@ -91,4 +92,35 @@ export function clearPending(groupId: number, tgUserId: number) {
   db.delete(pendingInputs)
     .where(and(eq(pendingInputs.groupId, groupId), eq(pendingInputs.tgUserId, tgUserId)))
     .run();
+}
+
+/** Stores a parsed assignment, replacing any earlier task list, and opens member collection. */
+export function saveAssignment(groupId: number, parsed: ParsedAssignment) {
+  db.transaction((tx) => {
+    tx.delete(tasks).where(eq(tasks.groupId, groupId)).run();
+    for (const t of parsed.tasks) {
+      tx.insert(tasks)
+        .values({
+          groupId,
+          title: t.title,
+          description: t.description,
+          effort: t.effort,
+          skillTags: t.skill_tags,
+          dueDate: parsed.due_date,
+        })
+        .run();
+    }
+    tx.update(groups)
+      .set({ assignmentTitle: parsed.assignment_title, dueDate: parsed.due_date, status: 'collecting_members' })
+      .where(eq(groups.id, groupId))
+      .run();
+  });
+}
+
+export function getTasks(groupId: number) {
+  return db.select().from(tasks).where(eq(tasks.groupId, groupId)).orderBy(tasks.id).all();
+}
+
+export function countMembers(groupId: number) {
+  return db.select().from(members).where(eq(members.groupId, groupId)).all().length;
 }

@@ -14,12 +14,13 @@ import {
   upsertGroup,
   type Group,
 } from '../groups.ts';
+import { html } from './format.ts';
+import { assignment } from './assignment.ts';
 
 export const bot = new Bot(env.botToken);
 
 export const ALLOWED_UPDATES = ['message', 'callback_query', 'my_chat_member', 'poll_answer'] as const;
 
-const html = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const mention = (id: number, name: string) => `<a href="tg://user?id=${id}">${html(name)}</a>`;
 
 /** Direct-link Mini App URL. web_app buttons aren't allowed in groups, so we use plain URL buttons. */
@@ -221,6 +222,8 @@ bot.command('reset', async (ctx) => {
   groupFromCtx(ctx);
   await sendWelcome(ctx);
 });
+
+bot.use(assignment);
 
 // Capture the reply after [Name me] / [Rename].
 bot.on('message:text', async (ctx, next) => {
