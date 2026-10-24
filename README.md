@@ -31,6 +31,14 @@ pnpm test
 
 Health check: http://localhost:3000/health
 
+## Bot modes
+
+`BOT_MODE` controls how the bot gets updates:
+
+- `webhook` (default in production): Telegram posts to `<PUBLIC_URL>/tg/webhook`.
+- `off` (default locally): the server runs without the bot.
+- `polling`: run the bot from your laptop. This removes the production webhook, so redeploy (or restart the Railway service) afterwards to hand the bot back.
+
 ## Local HTTPS for the Mini App
 
 ```sh

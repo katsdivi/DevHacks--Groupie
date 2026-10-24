@@ -2,8 +2,11 @@ import express from 'express';
 import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { webhookCallback } from 'grammy';
 import type { HealthResponse } from '@groupie/shared';
 import { env } from './env.ts';
+import './db/index.ts';
+import { ALLOWED_UPDATES, bot } from './bot/index.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const webDist = path.resolve(here, '../../web/dist');
@@ -16,6 +19,10 @@ app.get('/health', (_req, res) => {
   res.json(body);
 });
 
+if (env.botMode === 'webhook') {
+  app.post('/tg/webhook', webhookCallback(bot, 'express', { secretToken: env.webhookSecret }));
+}
+
 if (fs.existsSync(webDist)) {
   app.use(express.static(webDist));
   app.get(/^\/(?!api|tg|dev|cards|health).*/, (_req, res) => {
@@ -27,11 +34,31 @@ if (fs.existsSync(webDist)) {
   });
 }
 
-const dataDir = path.dirname(path.resolve(env.databasePath));
-fs.mkdirSync(dataDir, { recursive: true });
-fs.accessSync(dataDir, fs.constants.W_OK);
-console.log(`Data dir ${dataDir} is writable`);
+console.log(`Database at ${path.resolve(env.databasePath)}`);
 
 app.listen(env.port, () => {
   console.log(`Groupie listening on port ${env.port}`);
+  startBot().catch((err) => console.error('Bot failed to start', err));
 });
+
+async function startBot() {
+  if (env.botMode === 'off' || !env.botToken) {
+    console.log('Bot is off (set BOT_MODE=polling to run it locally)');
+    return;
+  }
+  await bot.api.setMyCommands([
+    { command: 'settings', description: 'Group settings' },
+    { command: 'rename', description: 'Give me a new name' },
+  ]);
+  if (env.botMode === 'webhook') {
+    await bot.api.setWebhook(`${env.publicUrl}/tg/webhook`, {
+      secret_token: env.webhookSecret,
+      allowed_updates: [...ALLOWED_UPDATES],
+    });
+    console.log(`Bot webhook set to ${env.publicUrl}/tg/webhook`);
+  } else {
+    await bot.api.deleteWebhook();
+    void bot.start({ allowed_updates: [...ALLOWED_UPDATES] });
+    console.log('Bot polling (production webhook removed; redeploy to restore)');
+  }
+}
