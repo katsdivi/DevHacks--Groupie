@@ -99,6 +99,7 @@ async function startBot() {
     { command: 'join', description: 'Show who has joined' },
     { command: 'split', description: 'Show the fair split' },
     { command: 'avail', description: 'When is everyone free?' },
+    { command: 'meetlink', description: 'Set the meeting link or place' },
     { command: 'settings', description: 'Group settings' },
     { command: 'rename', description: 'Give me a new name' },
   ]);

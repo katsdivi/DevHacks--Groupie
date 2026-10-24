@@ -31,10 +31,23 @@ export const Member = z.object({
 });
 export type Member = z.infer<typeof Member>;
 
+export const MeetingSummary = z.object({
+  start: z.string(),
+  end: z.string(),
+  label: z.string(),
+  mode: z.string().nullable(),
+  join_url: z.string().nullable(),
+  location: z.string().nullable(),
+  calendar_url: z.string(),
+  event_url: z.string().nullable(),
+});
+export type MeetingSummary = z.infer<typeof MeetingSummary>;
+
 export const MeResponse = z.object({
   user: TgUser,
   member: Member.nullable(),
   group: GroupSummary.extend({
+    meeting: MeetingSummary.nullable(),
     assignment_title: z.string().nullable(),
     joined: z.number(),
     task_count: z.number(),

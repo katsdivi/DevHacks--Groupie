@@ -1,5 +1,6 @@
 import { colorName, type MeResponse, type Screen } from '@groupie/shared';
 import { haptic } from '../telegram.ts';
+import { MeetingCard } from '../components/MeetingCard.tsx';
 
 function Row({ title, sub, onClick, accent }: { title: string; sub: string; onClick: () => void; accent?: string }) {
   return (
@@ -35,6 +36,8 @@ export function Home({ me, go }: { me: MeResponse; go: (s: Screen) => void }) {
         <span className="text-muted">{group.nickname} is on </span>
         {group.title || 'your group'}
       </h1>
+
+      {group.meeting && <MeetingCard meeting={group.meeting} />}
 
       {hasAssignment && (
         <section className="mt-8 rounded-3xl border border-dashed border-line-strong p-5">

@@ -66,8 +66,13 @@ export function migrateGroupId(fromId: number, toId: number) {
 
 const PENDING_MS = 2 * 60 * 1000;
 
-export function setPending(groupId: number, tgUserId: number, kind: 'nickname' | 'rename') {
-  const expiresAt = new Date(Date.now() + PENDING_MS).toISOString();
+export function setPending(
+  groupId: number,
+  tgUserId: number,
+  kind: 'nickname' | 'rename' | 'meeting_link',
+  ttlMs = PENDING_MS,
+) {
+  const expiresAt = new Date(Date.now() + ttlMs).toISOString();
   db.insert(pendingInputs)
     .values({ groupId, tgUserId, kind, expiresAt })
     .onConflictDoUpdate({ target: [pendingInputs.groupId, pendingInputs.tgUserId], set: { kind, expiresAt } })

@@ -47,6 +47,15 @@ cloudflared tunnel --url http://localhost:3000
 
 Put the printed https URL in `PUBLIC_URL`.
 
+## Google Calendar (optional)
+
+Without keys, Groupie still shares the meeting: a card with the join link, an "Add to Google Calendar" button, an .ics file, and DMs. With keys it also creates the event on your Google account, adds a Meet link, and emails invites.
+
+1. In Google Cloud Console: enable the Google Calendar API, set up the OAuth consent screen (External, add your Gmail as a test user), and create an OAuth client ID of type Desktop app.
+2. Put `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in `.env`.
+3. Run `pnpm google:auth` and click Allow. It saves `GOOGLE_REFRESH_TOKEN` to `.env`.
+4. Set all three on Railway.
+
 ## Deploy
 
 One Railway service built from the `Dockerfile`, with a volume mounted at `/data` for SQLite.

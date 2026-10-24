@@ -15,6 +15,9 @@ export const env = {
   chatModel: process.env.GROQ_CHAT_MODEL ?? 'openai/gpt-oss-20b',
   fallbackModel: process.env.GROQ_FALLBACK_MODEL ?? 'qwen/qwen3.8-27b',
   linkSigningSecret: process.env.LINK_SIGNING_SECRET ?? '',
+  googleClientId: process.env.GOOGLE_CLIENT_ID ?? '',
+  googleClientSecret: process.env.GOOGLE_CLIENT_SECRET ?? '',
+  googleRefreshToken: process.env.GOOGLE_REFRESH_TOKEN ?? '',
   defaultTz: process.env.DEFAULT_TZ ?? 'America/Phoenix',
   // webhook: production. polling: local testing (takes the bot away from prod). off: no bot.
   botMode: (process.env.BOT_MODE ?? (isProd ? 'webhook' : 'off')) as 'webhook' | 'polling' | 'off',

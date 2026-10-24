@@ -1,5 +1,5 @@
 import { Composer, InlineKeyboard } from 'grammy';
-import { colorEmoji, formatMeeting } from '@groupie/shared';
+import { colorEmoji, formatMeeting, MEETING_MODES as MODES } from '@groupie/shared';
 import { appUrl, bot } from './core.ts';
 import { html } from './format.ts';
 import { getGroup } from '../groups.ts';
@@ -13,14 +13,9 @@ import {
   updateMeeting,
 } from '../availability.ts';
 import type { Group } from '../db/schema.ts';
+import { askForMeetingLink } from './meeting.ts';
 
 export const scheduleComposer = new Composer();
-
-const MODES = [
-  { key: 'meet', label: 'Google Meet' },
-  { key: 'zoom', label: 'Zoom' },
-  { key: 'in_person', label: 'In person' },
-] as const;
 
 function availText(group: Group): string {
   const hm = heatmap(group.id);
@@ -171,14 +166,13 @@ async function closePoll(groupId: number) {
 
 scheduleComposer.callbackQuery('cal:invite', async (ctx) => {
   const groupId = ctx.chat!.id;
+  const before = latestMeeting(groupId);
+  if (before?.mode) {
+    return void (await ctx.answerCallbackQuery({ text: 'Already sent! Use /meetlink to change the link or place.' }));
+  }
   const meeting = await closePoll(groupId);
   if (!meeting) return void (await ctx.answerCallbackQuery({ text: 'Lock a time first.' }));
-  await ctx.answerCallbackQuery();
-  const label = MODES.find((m) => m.key === meeting.mode)?.label ?? 'Google Meet';
-  const group = getGroup(groupId)!;
-  const when = formatMeeting(meeting.start, meeting.end, group.tz);
-  await ctx.reply(
-    `<b>Locked in:</b> ${html(when)} on <b>${label}</b>.\n${html(group.nickname)} will send the calendar invite as soon as Google Calendar is connected.`,
-    { parse_mode: 'HTML' },
-  );
+  await ctx.answerCallbackQuery({ text: `${MODES.find((m) => m.key === meeting.mode)?.label ?? 'Meeting'} it is!` });
+  await ctx.editMessageReplyMarkup().catch(() => {});
+  await askForMeetingLink(ctx, meeting);
 });

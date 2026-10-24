@@ -93,6 +93,8 @@ const MIGRATIONS = [
    ALTER TABLE meetings ADD COLUMN poll_message_id INTEGER;
    ALTER TABLE meetings ADD COLUMN created_at TEXT;
    CREATE INDEX availability_member ON availability(member_id);`,
+  `ALTER TABLE meetings ADD COLUMN location TEXT;
+   ALTER TABLE meetings ADD COLUMN event_link TEXT;`,
 ];
 
 export function openDb(file: string) {

@@ -3,14 +3,17 @@
   "private": true,
   "type": "module",
   "packageManager": "pnpm@12.15.0",
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "pnpm --parallel --filter @groupie/server --filter @groupie/web dev",
     "build": "pnpm --filter @groupie/web build",
     "start": "pnpm --filter @groupie/server start",
     "typecheck": "pnpm -r typecheck",
     "lint": "eslint .",
-    "test": "pnpm -r test"
+    "test": "pnpm -r test",
+    "google:auth": "pnpm --filter @groupie/server google:auth"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

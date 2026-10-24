@@ -22,7 +22,7 @@ export const pendingInputs = sqliteTable(
   {
     groupId: integer('group_id').notNull(),
     tgUserId: integer('tg_user_id').notNull(),
-    kind: text('kind', { enum: ['nickname', 'rename'] }).notNull(),
+    kind: text('kind', { enum: ['nickname', 'rename', 'meeting_link'] }).notNull(),
     expiresAt: text('expires_at').notNull(),
   },
   (t) => [primaryKey({ columns: [t.groupId, t.tgUserId] })],
@@ -75,6 +75,8 @@ export const meetings = sqliteTable('meetings', {
   pollId: text('poll_id'),
   pollMessageId: integer('poll_message_id'),
   createdAt: text('created_at'),
+  location: text('location'),
+  eventLink: text('event_link'),
 });
 
 export type Meeting = typeof meetings.$inferSelect;

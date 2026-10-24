@@ -7,9 +7,11 @@
     "dev": "tsx watch --env-file-if-exists=../../.env src/index.ts",
     "start": "tsx src/index.ts",
     "typecheck": "tsc -p tsconfig.json",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --passWithNoTests",
+    "google:auth": "tsx --env-file-if-exists=../../.env scripts/google-auth.ts"
   },
   "dependencies": {
+    "@googleapis/calendar": "^20.1.0",
     "@groupie/shared": "workspace:*",
     "better-sqlite3": "^13.0.3",
     "drizzle-orm": "^0.45.4",

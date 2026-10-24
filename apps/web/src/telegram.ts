@@ -15,6 +15,7 @@ export type WebApp = {
   platform: string;
   ready(): void;
   close(): void;
+  openLink?(url: string, options?: { try_instant_view?: boolean }): void;
   expand(): void;
   isVersionAtLeast(v: string): boolean;
   setHeaderColor(c: string): void;
@@ -80,3 +81,11 @@ export const haptic = {
   success: () => tg?.HapticFeedback.notificationOccurred('success'),
   error: () => tg?.HapticFeedback.notificationOccurred('error'),
 };
+
+/** Opens an external link: Telegram's browser inside the Mini App, a new tab elsewhere. */
+export function openExternal(url: string, e?: { preventDefault(): void }) {
+  if (tg?.openLink) {
+    e?.preventDefault();
+    tg.openLink(url);
+  }
+}

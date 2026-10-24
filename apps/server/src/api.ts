@@ -19,7 +19,8 @@ import { getMemberByTgUser, listMembers, memberDto, upsertMember } from './membe
 import { refreshJoinStatus } from './bot/joinStatus.ts';
 import { maybeRunSplit, postSplitCard } from './bot/split.ts';
 import { requestSwap, splitView, SwapError } from './splitService.ts';
-import { cleanSlots, getSlots, heatmap, respondedCount, setSlots } from './availability.ts';
+import { cleanSlots, getSlots, heatmap, latestMeeting, respondedCount, setSlots } from './availability.ts';
+import { meetingSummary } from './bot/meeting.ts';
 import { onAvailabilityChanged } from './bot/schedule.ts';
 import { html } from './bot/format.ts';
 import { announceRename } from './bot/index.ts';
@@ -39,6 +40,7 @@ function summary(g: Group): MeResponse['group'] {
     joined: listMembers(g.id).length,
     task_count: tasks.length,
     total_points: tasks.reduce((s, t) => s + t.effort, 0),
+    meeting: meetingSummary(g.id, latestMeeting(g.id)),
   };
 }
 

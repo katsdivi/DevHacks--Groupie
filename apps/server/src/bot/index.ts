@@ -18,6 +18,7 @@ import { html } from './format.ts';
 import { assignment } from './assignment.ts';
 import { maybeRunSplit, splitComposer } from './split.ts';
 import { onAvailabilityChanged, scheduleComposer } from './schedule.ts';
+import { applyMeetingLink, meetingComposer } from './meeting.ts';
 import { seedAvailability } from '../availability.ts';
 
 import { appButton, appUrl, bot } from './core.ts';
@@ -269,13 +270,15 @@ bot.command('reset', async (ctx) => {
 bot.use(assignment);
 bot.filter((ctx) => isGroupChat(ctx)).use(splitComposer);
 bot.filter((ctx) => isGroupChat(ctx)).use(scheduleComposer);
+bot.filter((ctx) => isGroupChat(ctx)).use(meetingComposer);
 
 // Capture the reply after [Name me] / [Rename].
 bot.on('message:text', async (ctx, next) => {
   if (!isGroupChat(ctx) || ctx.msg.text.startsWith('/')) return next();
   const pending = getPending(ctx.chat.id, ctx.from.id);
   if (!pending) return next();
-  await applyName(ctx, ctx.msg.text, pending.kind);
+  if (pending.kind === 'meeting_link') await applyMeetingLink(ctx, ctx.msg.text);
+  else await applyName(ctx, ctx.msg.text, pending.kind);
 });
 
 bot.catch((err) => {

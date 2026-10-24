@@ -69,7 +69,17 @@ Who I am, my member record if I joined, and a group summary.
 }
 ```
 
-`member` is `null` until the user submits the details form. `status` is one of `setup`, `collecting_members`, `split_ready`, `scheduling`, `active`.
+`member` is `null` until the user submits the details form. `group.meeting` is `null` until a time is locked, then:
+
+```json
+{
+  "start": "2026-10-25T23:00:00.000Z", "end": "2026-10-26T00:00:00.000Z", "label": "Sun, Oct 25 · 4 to 5 PM",
+  "mode": "zoom", "join_url": "https://zoom.us/j/999", "location": null,
+  "calendar_url": "https://calendar.google.com/calendar/render?action=TEMPLATE&...", "event_url": null
+}
+```
+
+`calendar_url` is an "Add to Google Calendar" link that works without our Google keys. `event_url` is the real event once Google Calendar is connected. `status` is one of `setup`, `collecting_members`, `split_ready`, `scheduling`, `active`.
 
 ### `POST /api/groups/:id/members`
 
@@ -205,6 +215,7 @@ Telegram or link auth.
 | `/join` | group | Repost the "N/5 joined" message with the details button |
 | `/split` | group | Repost the current split card |
 | `/avail` | group | Post the "When is everyone free?" message with the live counter |
+| `/meetlink <link or place>` | group | Set or change the meeting's Zoom/Meet link (or in-person place) and repost the meeting card |
 | `/app` | group | Button that opens the Mini App |
 | `/settings`, `/rename [name]` | group | Rename the bot for this group |
 | `/seed` | group, dev | Fill empty seats with pretend teammates and paint their free times |
