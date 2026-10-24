@@ -19,6 +19,16 @@ import { assignment } from './assignment.ts';
 
 export const bot = new Bot(env.botToken);
 
+if (env.devMode) {
+  bot.use((ctx, next) => {
+    const kind = Object.keys(ctx.update).find((k) => k !== 'update_id');
+    const msg = ctx.msg;
+    const what = msg?.document ? `document ${msg.document.mime_type}` : msg?.text ? 'text' : (ctx.callbackQuery?.data ?? '');
+    console.log(`[update] ${kind} chat=${ctx.chat?.id} ${what}`);
+    return next();
+  });
+}
+
 export const ALLOWED_UPDATES = ['message', 'callback_query', 'my_chat_member', 'poll_answer'] as const;
 
 const mention = (id: number, name: string) => `<a href="tg://user?id=${id}">${html(name)}</a>`;
