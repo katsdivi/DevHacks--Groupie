@@ -3,12 +3,16 @@ import { encodeStartParam, parseNickname, type Screen } from '@groupie/shared';
 import { env } from '../env.ts';
 import {
   clearPending,
+  deleteGroup,
   getGroup,
   getPending,
   migrateGroupId,
   setNickname,
   setPending,
+  setStatusMessage,
+  setTeamSize,
   upsertGroup,
+  type Group,
 } from '../groups.ts';
 
 export const bot = new Bot(env.botToken);
@@ -44,6 +48,30 @@ async function sendWelcome(ctx: Context) {
   );
 }
 
+const TEAM_SIZES = [3, 4, 5, 6];
+
+const askSizeText = (g: Group) => `<b>${html(g.nickname)} here.</b> How many people are on this project?`;
+const askSizeKeyboard = () => {
+  const kb = new InlineKeyboard();
+  for (const n of TEAM_SIZES) kb.text(String(n), `size:${n}`);
+  return kb;
+};
+const askPdfText = (g: Group) =>
+  `<b>Team of ${g.teamSize}.</b> Love that for us.\n\nNow drop the assignment PDF in this chat and I'll turn it into tasks with effort points.`;
+
+/** Posts the setup prompt and remembers it so later steps can edit it in place. */
+async function sendSetupPrompt(ctx: Context) {
+  const group = getGroup(ctx.chat!.id)!;
+  const msg = await ctx.reply(askSizeText(group), { parse_mode: 'HTML', reply_markup: askSizeKeyboard() });
+  setStatusMessage(group.id, msg.message_id);
+}
+
+/** Setup runs once, right after naming, unless it's already underway. */
+async function continueToSetup(ctx: Context) {
+  const group = getGroup(ctx.chat!.id);
+  if (group && group.status === 'setup' && !group.teamSize) await sendSetupPrompt(ctx);
+}
+
 async function askForName(ctx: Context, kind: 'nickname' | 'rename') {
   const user = ctx.from!;
   setPending(ctx.chat!.id, user.id, kind);
@@ -68,6 +96,7 @@ async function applyName(ctx: Context, raw: string, kind: 'nickname' | 'rename')
     parse_mode: 'HTML',
     reply_markup: appButton(ctx.chat!.id),
   });
+  if (kind === 'nickname') await continueToSetup(ctx);
 }
 
 // Added to a group (or re-added after being removed).
@@ -149,6 +178,48 @@ bot.callbackQuery('nick:keep', async (ctx) => {
       reply_markup: appButton(ctx.chat!.id),
     })
     .catch(() => {});
+  await continueToSetup(ctx);
+});
+
+bot.command('setup', async (ctx) => {
+  if (!isGroupChat(ctx)) return void (await ctx.reply(GROUP_ONLY));
+  const group = groupFromCtx(ctx);
+  if (group.status !== 'setup') {
+    await ctx.reply(`${html(group.nickname)} here. We're already set up. Use /reset to start over.`, { parse_mode: 'HTML' });
+    return;
+  }
+  await sendSetupPrompt(ctx);
+});
+
+bot.callbackQuery(/^size:(\d)$/, async (ctx) => {
+  const group = getGroup(ctx.chat!.id);
+  const size = Number(ctx.match[1]);
+  if (!group || !TEAM_SIZES.includes(size)) return void (await ctx.answerCallbackQuery());
+  if (group.status !== 'setup') {
+    return void (await ctx.answerCallbackQuery({ text: "Team's locked in. /reset to start over.", show_alert: true }));
+  }
+  setTeamSize(group.id, size);
+  setStatusMessage(group.id, ctx.callbackQuery.message!.message_id);
+  await ctx.answerCallbackQuery({ text: `Team of ${size}!` });
+  await ctx.editMessageText(askPdfText({ ...group, teamSize: size }), {
+    parse_mode: 'HTML',
+    reply_markup: new InlineKeyboard().text('Change team size', 'size:change'),
+  });
+});
+
+bot.callbackQuery('size:change', async (ctx) => {
+  const group = getGroup(ctx.chat!.id);
+  if (!group || group.status !== 'setup') return void (await ctx.answerCallbackQuery());
+  await ctx.answerCallbackQuery();
+  await ctx.editMessageText(askSizeText(group), { parse_mode: 'HTML', reply_markup: askSizeKeyboard() });
+});
+
+bot.command('reset', async (ctx) => {
+  if (!isGroupChat(ctx) || !env.devMode) return;
+  deleteGroup(ctx.chat.id);
+  await ctx.reply('Fresh start. Everything for this group is wiped.');
+  groupFromCtx(ctx);
+  await sendWelcome(ctx);
 });
 
 // Capture the reply after [Name me] / [Rename].

@@ -8,6 +8,7 @@ import { env } from './env.ts';
 import './db/index.ts';
 import { ALLOWED_UPDATES, bot } from './bot/index.ts';
 import { api } from './api.ts';
+import { devState } from './groups.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const webDist = path.resolve(here, '../../web/dist');
@@ -21,6 +22,12 @@ app.get('/health', (_req, res) => {
 });
 
 app.use('/api', api);
+
+if (env.devMode) {
+  app.get('/dev/state', (_req, res) => {
+    res.type('json').send(JSON.stringify({ groups: devState() }, null, 2));
+  });
+}
 
 if (env.botMode === 'webhook') {
   app.post('/tg/webhook', webhookCallback(bot, 'express', { secretToken: env.webhookSecret }));
@@ -51,6 +58,7 @@ async function startBot() {
   }
   await bot.api.setMyCommands([
     { command: 'app', description: 'Open Groupie' },
+    { command: 'setup', description: 'Set team size and get started' },
     { command: 'settings', description: 'Group settings' },
     { command: 'rename', description: 'Give me a new name' },
   ]);

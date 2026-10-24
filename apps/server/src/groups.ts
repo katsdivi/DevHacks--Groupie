@@ -3,7 +3,7 @@ export type { Group } from './db/schema.ts';
 import { db, schema } from './db/index.ts';
 import { env } from './env.ts';
 
-const { groups, pendingInputs } = schema;
+const { groups, pendingInputs, members, tasks } = schema;
 
 export function getGroup(id: number) {
   return db.select().from(groups).where(eq(groups.id, id)).get();
@@ -20,6 +20,35 @@ export function upsertGroup(id: number, title: string) {
     .values({ id, title, tz: env.defaultTz, createdAt: new Date().toISOString() })
     .returning()
     .get();
+}
+
+export function setTeamSize(id: number, teamSize: number | null) {
+  db.update(groups).set({ teamSize }).where(eq(groups.id, id)).run();
+}
+
+export function setStatusMessage(id: number, statusMessageId: number) {
+  db.update(groups).set({ statusMessageId }).where(eq(groups.id, id)).run();
+}
+
+/** Wipes the group and everything hanging off it (cascades). */
+export function deleteGroup(id: number) {
+  db.transaction((tx) => {
+    tx.delete(pendingInputs).where(eq(pendingInputs.groupId, id)).run();
+    tx.delete(groups).where(eq(groups.id, id)).run();
+  });
+}
+
+/** Dev snapshot: every group with member and task counts. */
+export function devState() {
+  return db
+    .select()
+    .from(groups)
+    .all()
+    .map((g) => ({
+      ...g,
+      members: db.select().from(members).where(eq(members.groupId, g.id)).all(),
+      tasks: db.select().from(tasks).where(eq(tasks.groupId, g.id)).all(),
+    }));
 }
 
 export function setNickname(id: number, nickname: string) {

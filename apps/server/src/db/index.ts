@@ -26,6 +26,62 @@ const MIGRATIONS = [
      expires_at TEXT NOT NULL,
      PRIMARY KEY (group_id, tg_user_id)
    );`,
+  `CREATE TABLE members (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     group_id INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE ON UPDATE CASCADE,
+     tg_user_id INTEGER,
+     name TEXT NOT NULL,
+     email TEXT,
+     color TEXT NOT NULL,
+     skills TEXT NOT NULL DEFAULT '[]',
+     weak_areas TEXT NOT NULL DEFAULT '[]',
+     is_seed INTEGER NOT NULL DEFAULT 0,
+     created_at TEXT NOT NULL
+   );
+   CREATE UNIQUE INDEX members_group_user ON members(group_id, tg_user_id) WHERE tg_user_id IS NOT NULL;
+   CREATE TABLE tasks (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     group_id INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE ON UPDATE CASCADE,
+     title TEXT NOT NULL,
+     description TEXT NOT NULL DEFAULT '',
+     effort INTEGER NOT NULL,
+     skill_tags TEXT NOT NULL DEFAULT '[]',
+     assignee_member_id INTEGER REFERENCES members(id) ON DELETE SET NULL,
+     status TEXT NOT NULL DEFAULT 'todo',
+     due_date TEXT
+   );
+   CREATE TABLE availability (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     member_id INTEGER NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+     slot_start TEXT NOT NULL,
+     slot_end TEXT NOT NULL,
+     UNIQUE (member_id, slot_start)
+   );
+   CREATE TABLE meetings (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     group_id INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE ON UPDATE CASCADE,
+     start TEXT NOT NULL,
+     end TEXT NOT NULL,
+     mode TEXT,
+     calendar_event_id TEXT,
+     meet_link TEXT
+   );
+   CREATE TABLE swap_requests (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     group_id INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE ON UPDATE CASCADE,
+     from_member_id INTEGER NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+     task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+     to_member_id INTEGER REFERENCES members(id) ON DELETE CASCADE,
+     status TEXT NOT NULL DEFAULT 'pending',
+     created_at TEXT NOT NULL
+   );
+   CREATE TABLE agent_messages (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     member_id INTEGER NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+     role TEXT NOT NULL,
+     content TEXT NOT NULL,
+     created_at TEXT NOT NULL
+   );`,
 ];
 
 export function openDb(file: string) {
