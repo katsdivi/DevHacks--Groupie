@@ -6,7 +6,6 @@ import {
   extractDocumentText,
   fileExtension,
   isReadableFormat,
-  SUPPORTED_FORMATS,
 } from '../parse.ts';
 import type { Group } from '../db/schema.ts';
 import { formatDue, html } from './format.ts';
@@ -34,6 +33,8 @@ import {
 export const assignment = new Composer();
 
 const MAX_BYTES = 20 * 1024 * 1024; // Bot API download limit
+/** The readable formats, short enough for a chat reply (the full list is SUPPORTED_FORMATS in parse.ts). */
+const FORMATS = 'PDF, Word, slides or plain text';
 
 export function taskListText(nickname: string, parsed: ParsedAssignment, tz: string): string {
   const points = parsed.tasks.reduce((s, t) => s + t.effort, 0);
@@ -45,7 +46,7 @@ export function taskListText(nickname: string, parsed: ParsedAssignment, tz: str
     '',
     ...lines,
     '',
-    `${html(nickname)} here. Next, everyone adds their details and I split this so nobody carries the team.`,
+    `${html(nickname)} here. Next, everyone adds their details and I split it fairly.`,
   ].join('\n');
 }
 
@@ -61,7 +62,7 @@ const isGroup = (ctx: Context) => ctx.chat?.type === 'group' || ctx.chat?.type =
 
 assignment.on('message:photo', async (ctx, next) => {
   if (!isGroup(ctx) || !expectingAssignment(getGroup(ctx.chat.id))) return next();
-  await ctx.reply(`I can't read photos yet. Send the assignment as a file instead: ${SUPPORTED_FORMATS}.`, {
+  await ctx.reply(`I can't read photos yet. Send it as a file: ${FORMATS}?`, {
     reply_parameters: { message_id: ctx.msg.message_id },
   });
 });
@@ -89,7 +90,7 @@ assignment.on('message:document', async (ctx, next) => {
     await reply(
       legacy
         ? `That's an older .${ext} file I can't open. Save it as PDF or .docx and send it again?`
-        : `I can't read ${ext ? `.${html(ext)}` : 'that kind of'} files. Send the assignment as ${SUPPORTED_FORMATS}.`,
+        : `I can't read ${ext ? `.${html(ext)}` : 'that kind of'} files. Try ${FORMATS}?`,
     );
     return;
   }
@@ -104,7 +105,7 @@ async function readAssignment(ctx: Context, group: Group, fileId: string, fileNa
   const reply = (text: string) =>
     ctx.reply(text, { parse_mode: 'HTML', reply_parameters: { message_id: ctx.msg!.message_id } });
   if (size > MAX_BYTES) {
-    await reply('That file is too big for me (20 MB max). Can you send a smaller one?');
+    await reply('That file is over 20 MB. Got a smaller one?');
     return false;
   }
   const status = await reply(`Reading <b>${html(fileName)}</b>. Give me a sec...`);
@@ -119,7 +120,7 @@ async function readAssignment(ctx: Context, group: Group, fileId: string, fileNa
   }
   if (ext === 'pdf' && text.replace(/\s/g, '').length < 50) {
     await ctx.api
-      .editMessageText(ctx.chat!.id, status.message_id, "Hmm, that PDF looks like a scan, so I can't read the text. Can you send one with selectable text?")
+      .editMessageText(ctx.chat!.id, status.message_id, "That PDF looks like a scan, so I can't read it. Got one with selectable text?")
       .catch(() => {});
     return false;
   }

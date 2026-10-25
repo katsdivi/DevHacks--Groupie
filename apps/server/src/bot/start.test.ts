@@ -2,6 +2,7 @@ import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { db, schema } from '../db/index.ts';
 import { getPrefs } from '../prefs.ts';
 import { bot, REMINDERS_READY } from './index.ts';
+import { featureGuide } from './guide.ts';
 
 const USER = 9301;
 const replies: { method: string; payload: Record<string, unknown> }[] = [];
@@ -52,20 +53,23 @@ describe('/start in a DM', () => {
     expect(replies[0]!.payload.text).toBe(REMINDERS_READY);
   });
 
-  it('marks can_dm true on a plain /start and explains every feature', async () => {
+  it('marks can_dm true on a plain /start and lists every command in a short guide', async () => {
     await start('/start');
     expect(getPrefs(USER).canDm).toBe(true);
     const text = String(replies[0]!.payload.text);
-    for (const feature of ['/setup', '/canvas', '/split', '/avail', '/checkin', '/progress', '/imessage', 'Reminders', 'Connect your calendar', 'What I remember', 'Privacy']) {
-      expect(text).toContain(feature);
+    for (const command of ['/setup', '/rename', '/canvas', '/split', '/avail', '/deadline', '/meetlink', '/checkin', '/progress', '/imessage', '/forgetchat']) {
+      expect(text).toContain(command);
     }
-    expect(text).toContain("You're set");
+    expect(text).toContain(REMINDERS_READY);
     const buttons = JSON.stringify(replies[0]!.payload.reply_markup);
     expect(buttons).toContain('startgroup=true');
   });
 
-  it('shows the same guide on /help', async () => {
+  it('shows the same guide on /help, short enough for one phone screen', async () => {
     await start('/help');
-    expect(String(replies.at(-1)!.payload.text)).toContain('Here\'s everything I do');
+    const text = String(replies.at(-1)!.payload.text);
+    expect(text).toBe(featureGuide());
+    expect(text.split('\n').length).toBeLessThanOrEqual(12);
+    expect(text).toContain('stay private');
   });
 });
