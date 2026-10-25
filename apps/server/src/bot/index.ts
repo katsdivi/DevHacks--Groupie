@@ -27,6 +27,9 @@ import { seedAvailability } from '../availability.ts';
 import { appButton, appUrl, bot } from './core.ts';
 import { postJoinStatus, refreshJoinStatus } from './joinStatus.ts';
 import { seedMembers } from '../members.ts';
+import { setCanDm } from '../prefs.ts';
+
+export const REMINDERS_READY = "You're set. I'll DM you reminders before things are due. Change them in Settings.";
 
 export { bot, appUrl };
 
@@ -134,7 +137,10 @@ bot.on('message:migrate_to_chat_id', (ctx) => {
 
 bot.command('start', async (ctx) => {
   if (!isGroupChat(ctx)) {
-    await ctx.reply("Hey, I'm Groupie, your group project's biggest fan. Add me to your project group chat and I'll take it from there.");
+    // A DM /start (including the "reminders" deep link) means Telegram now lets us DM them.
+    if (ctx.chat?.type === 'private' && ctx.from) setCanDm(ctx.from.id, true);
+    const intro = "Hey, I'm Groupie, your group project's biggest fan. Add me to your project group chat and I'll take it from there.";
+    await ctx.reply(ctx.match.trim() === 'reminders' ? REMINDERS_READY : `${intro}\n\n${REMINDERS_READY}`);
     return;
   }
   const known = getGroup(ctx.chat.id);

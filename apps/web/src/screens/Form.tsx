@@ -1,16 +1,18 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   colorName,
   MEMBER_COLORS,
   MemberRequest,
   type MeResponse,
   type MemberResponse,
+  type PrefsResponse,
   type SkillTag,
 } from '@groupie/shared';
 import { api, ApiError } from '../api.ts';
 import { haptic, tg } from '../telegram.ts';
 import { useMainButton } from '../useMainButton.ts';
 import { Chips } from '../components/Chips.tsx';
+import { DmStart } from '../components/DmStart.tsx';
 
 type Props = { me: MeResponse; onSaved: (res: MemberResponse) => void };
 
@@ -29,6 +31,19 @@ export function Form({ me, onSaved }: Props) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<MemberResponse | null>(null);
+  const [prefs, setPrefs] = useState<PrefsResponse | null>(null);
+
+  // After joining, check whether the bot can DM them; if not, offer the /start reminders link.
+  useEffect(() => {
+    if (!done) return;
+    let live = true;
+    api<PrefsResponse>('/me/prefs')
+      .then((p) => live && setPrefs(p))
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [done]);
 
   // Preview the color they'll get (the server has the final say).
   const accent = existing?.color ?? MEMBER_COLORS[Math.min(me.group.joined, MEMBER_COLORS.length - 1)].hex;
@@ -100,6 +115,11 @@ export function Form({ me, onSaved }: Props) {
           </b>{' '}
           joined
         </div>
+        {prefs && !prefs.can_dm && (
+          <div className="mt-8 w-full max-w-sm animate-enter">
+            <DmStart link={prefs.start_link} />
+          </div>
+        )}
         {!native && (
           <button onClick={submit} className="mt-8 rounded-full bg-text px-6 py-3 font-semibold text-ink">
             Back to the group
