@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ensureIntegrateTask, MAX_CHARS, normalize, truncateForLlm } from './parse.ts';
+import { buildParseMessages, ensureIntegrateTask, formatRubricContext, hasRubric, MAX_CHARS, normalize, truncateForLlm } from './parse.ts';
 
 describe('truncateForLlm', () => {
   it('leaves short text alone', () => {
@@ -40,5 +40,49 @@ describe('ensureIntegrateTask', () => {
   it('moves an existing one to the end', () => {
     const out = ensureIntegrateTask([t('Final integration and proofreading'), t('Write intro')]);
     expect(out.map((x) => x.title)).toEqual(['Write intro', 'Final integration and proofreading']);
+  });
+});
+
+describe('formatRubricContext', () => {
+  it('writes one line per criterion with points and ratings', () => {
+    const out = formatRubricContext({
+      criteria: [
+        { name: 'Implementation', points: 40, ratings: ['Full marks: all features work', ' Partial:  some  work '] },
+        { name: 'Presentation', points: 1, ratings: [] },
+      ],
+    });
+    expect(out.split('\n')).toEqual([
+      'Rubric (criterion (points): ratings):',
+      'Implementation (40 pts): Full marks: all features work; Partial: some work',
+      'Presentation (1 pt):',
+    ]);
+    expect(hasRubric(out)).toBe(true);
+  });
+  it('returns an empty string without criteria', () => {
+    expect(formatRubricContext(undefined)).toBe('');
+    expect(formatRubricContext({ criteria: [] })).toBe('');
+  });
+});
+
+describe('buildParseMessages', () => {
+  const doc = 'CSE 340 Project 2. Build a campus food finder app with a report and a demo.';
+  const now = new Date('2026-10-24T12:00:00Z');
+  it('adds rubric rules only when the extra context has a rubric', () => {
+    const rubric = formatRubricContext({ criteria: [{ name: 'Report', points: 30, ratings: ['Clear and complete'] }] });
+    const [sys, user] = buildParseMessages(doc, 4, rubric, now);
+    expect(sys.content).toContain('every rubric criterion is covered by at least one task');
+    expect(sys.content).toContain('criteria worth more points get more total effort');
+    expect(user.content).toContain('Today is 2026-10-24.');
+    expect(user.content).toContain('Report (30 pts): Clear and complete');
+    // Lines in the documented format count too, even without our header.
+    expect(buildParseMessages(doc, 4, 'Demo (20 pts): works live; slides', now)[0].content).toContain('Rubric rules');
+  });
+  it('keeps the plain prompt without a rubric', () => {
+    for (const extra of [undefined, 'Course: CSE 340. Points possible: 100.']) {
+      const [sys, user] = buildParseMessages(doc, 4, extra, now);
+      expect(sys.content).not.toContain('Rubric rules');
+      expect(sys.content).toContain('Return 8 to 14 tasks');
+      expect(user.content).toContain(doc);
+    }
   });
 });

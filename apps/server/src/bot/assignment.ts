@@ -1,22 +1,20 @@
 import { Composer, type Context } from 'grammy';
 import type { ParsedAssignment } from '@groupie/shared';
 import { env } from '../env.ts';
-import { countMembers, getGroup, saveAssignment } from '../groups.ts';
+import { getGroup } from '../groups.ts';
 import {
   extractDocumentText,
   fileExtension,
   isReadableFormat,
-  parseAssignment,
   SUPPORTED_FORMATS,
 } from '../parse.ts';
 import type { Group } from '../db/schema.ts';
 import { formatDue, html } from './format.ts';
-import { postJoinStatus } from './joinStatus.ts';
+import { ingestAssignment, expectingAssignment } from '../intake.ts';
 
 export const assignment = new Composer();
 
 const MAX_BYTES = 20 * 1024 * 1024; // Bot API download limit
-const inFlight = new Set<number>();
 
 export function taskListText(nickname: string, parsed: ParsedAssignment, tz: string): string {
   const points = parsed.tasks.reduce((s, t) => s + t.effort, 0);
@@ -41,9 +39,6 @@ async function download(ctx: Context, fileId: string): Promise<Uint8Array> {
 
 const isGroup = (ctx: Context) => ctx.chat?.type === 'group' || ctx.chat?.type === 'supergroup';
 
-/** True while Groupie is waiting for the assignment (so later shared drafts are ignored). */
-const expectingAssignment = (g: Group | undefined) =>
-  !!g && (g.status === 'setup' || (g.status === 'collecting_members' && countMembers(g.id) === 0));
 
 assignment.on('message:photo', async (ctx, next) => {
   if (!isGroup(ctx) || !expectingAssignment(getGroup(ctx.chat.id))) return next();
@@ -77,47 +72,30 @@ assignment.on('message:document', async (ctx, next) => {
 });
 
 async function readAssignment(ctx: Context, group: Group, fileId: string, fileName: string, ext: string, size: number) {
-  const chatId = ctx.chat!.id;
   const reply = (text: string) =>
     ctx.reply(text, { parse_mode: 'HTML', reply_parameters: { message_id: ctx.msg!.message_id } });
   if (size > MAX_BYTES) {
     await reply('That file is too big for me (20 MB max). Can you send a smaller one?');
     return;
   }
-  if (inFlight.has(group.id)) {
-    await reply('Still reading the last one. Give me a sec!');
-    return;
-  }
-
-  inFlight.add(group.id);
   const status = await reply(`Reading <b>${html(fileName)}</b>. Give me a sec...`);
-  const edit = (text: string) => ctx.api.editMessageText(chatId, status.message_id, text, { parse_mode: 'HTML' });
-  const typing = setInterval(() => ctx.replyWithChatAction('typing').catch(() => {}), 4500);
+  let text: string;
   try {
     await ctx.replyWithChatAction('typing').catch(() => {});
-    const text = await extractDocumentText(await download(ctx, fileId), ext);
-    if (text.replace(/\s/g, '').length < 50) {
-      await edit(
-        ext === 'pdf'
-          ? "Hmm, that PDF looks like a scan, so I can't read the text. Can you send one with selectable text?"
-          : "Hmm, I couldn't find any text in that file. Can you send it as a PDF or .docx?",
-      );
-      return;
-    }
-    const parsed = await parseAssignment(text, group.teamSize!, () => {
-      edit('Thinking, one sec...').catch(() => {});
-    });
-    saveAssignment(group.id, parsed);
-    if (group.statusMessageId) {
-      await ctx.api.editMessageReplyMarkup(chatId, group.statusMessageId).catch(() => {});
-    }
-    await edit(taskListText(group.nickname, parsed, group.tz));
-    await postJoinStatus(group.id);
+    text = await extractDocumentText(await download(ctx, fileId), ext);
   } catch (err) {
-    console.error('Assignment parse failed', err);
-    await edit("I couldn't make sense of that one. Try sending it again, or as a PDF?").catch(() => {});
-  } finally {
-    clearInterval(typing);
-    inFlight.delete(group.id);
+    console.error('Assignment download or extract failed', err);
+    await ctx.api.editMessageText(ctx.chat!.id, status.message_id, "I couldn't open that file. Try sending it again, or as a PDF?").catch(() => {});
+    return;
+  }
+  if (ext === 'pdf' && text.replace(/\s/g, '').length < 50) {
+    await ctx.api
+      .editMessageText(ctx.chat!.id, status.message_id, "Hmm, that PDF looks like a scan, so I can't read the text. Can you send one with selectable text?")
+      .catch(() => {});
+    return;
+  }
+  const result = await ingestAssignment(group.id, { text, sourceLabel: fileName, statusMessageId: status.message_id });
+  if (!result.ok && result.reason === 'busy') {
+    await ctx.api.editMessageText(ctx.chat!.id, status.message_id, 'Still reading the last one. Give me a sec!').catch(() => {});
   }
 }

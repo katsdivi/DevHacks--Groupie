@@ -2,6 +2,7 @@ import { Router, type Request, type Response } from 'express';
 import {
   MemberRequest,
   NicknameRequest,
+  WorkloadRequest,
   SwapRequest,
   AvailabilityPutRequest,
   ChatRequest,
@@ -9,6 +10,7 @@ import {
   parseNickname,
   type MeResponse,
   type MemberResponse,
+  type WorkloadResponse,
   type SplitResponse,
   type SwapResponse,
   type AvailabilityMeResponse,
@@ -21,7 +23,7 @@ import {
 } from '@groupie/shared';
 import { isGroupMember, linkAuth, requireAuth, tgUser } from './auth.ts';
 import { getGroup, getTasks, setNickname, type Group } from './groups.ts';
-import { getMemberByTgUser, listMembers, memberDto, upsertMember } from './members.ts';
+import { getMemberByTgUser, listMembers, memberDto, setShareWorkload, upsertMember } from './members.ts';
 import { refreshJoinStatus } from './bot/joinStatus.ts';
 import { maybeRunSplit, postSplitCard } from './bot/split.ts';
 import { requestSwap, splitView, SwapError } from './splitService.ts';
@@ -33,9 +35,11 @@ import { chatTurn, history, suggestions } from './agent.ts';
 import { onAvailabilityChanged } from './bot/schedule.ts';
 import { html } from './bot/format.ts';
 import { announceRename } from './bot/index.ts';
+import { canvasRouter } from './canvas/routes.ts';
 
 export const api = Router();
 api.use(requireAuth);
+api.use(canvasRouter);
 
 function summary(g: Group): MeResponse['group'] {
   const tasks = getTasks(g.id);
@@ -131,6 +135,24 @@ api.patch('/groups/:id/nickname', async (req, res) => {
     await announceRename(group.id, nickname).catch((err) => console.error('announceRename failed', err));
   }
   res.json({ nickname });
+});
+
+/** Opt in or out of the load-aware split. Telegram users only; the caller must have joined. */
+api.patch('/groups/:id/members/me/workload', async (req, res) => {
+  const group = await loadGroupFor(req, res, req.params.id);
+  if (!group) return;
+  const parsed = WorkloadRequest.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'bad_workload', message: 'Send shareWorkload as true or false.' });
+    return;
+  }
+  const me = getMemberByTgUser(group.id, tgUser(res).id);
+  if (!me) {
+    res.status(409).json({ error: 'not_joined', message: 'Add your details first, then pick this.' });
+    return;
+  }
+  const body: WorkloadResponse = { member: memberDto(setShareWorkload(me.id, parsed.data.shareWorkload)) };
+  res.json(body);
 });
 
 api.get('/groups/:id/split', async (req, res) => {

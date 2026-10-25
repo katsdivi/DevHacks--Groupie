@@ -36,9 +36,10 @@ export async function renderSplitPng(groupId: number): Promise<Buffer> {
 export async function postSplitCard(groupId: number, caption: string) {
   const group = getGroup(groupId);
   if (!group) return;
-  const png = await renderSplitPng(groupId);
+  const data = splitCardData(splitView(groupId, null));
+  const png = await renderPng(splitCardHtml(data));
   const msg = await bot.api.sendPhoto(groupId, new InputFile(png, 'fair-split.png'), {
-    caption,
+    caption: data.note ? `${caption}\n${html(data.note)}` : caption,
     parse_mode: 'HTML',
     reply_markup: splitKeyboard(groupId),
   });

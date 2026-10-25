@@ -30,3 +30,4 @@ export * from './swap.ts';
 export * from './time.ts';
 export * from './linkToken.ts';
 export * from './meeting.ts';
+export * from './canvas.ts';

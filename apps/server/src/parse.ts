@@ -6,6 +6,7 @@ import {
   sanitizeAssignment,
   SKILL_TAGS,
   type ParsedTask,
+  type RubricCriterion,
 } from '@groupie/shared';
 import { chat } from './llm.ts';
 import { env } from './env.ts';
@@ -120,7 +121,37 @@ export function ensureIntegrateTask(tasks: ParsedTask[]): ParsedTask[] {
   return [...rest, last].map((t) => ({ ...t, skill_tags: [...new Set(t.skill_tags)] }));
 }
 
-function systemPrompt(teamSize: number) {
+const RUBRIC_HEADER = 'Rubric (criterion (points): ratings):';
+const RUBRIC_LINE = /^.{1,200} \(\d+(\.\d+)? pts?\):/m;
+
+/**
+ * Rubric criteria as LLM extra context: a header, then one line per criterion,
+ * "Criterion name (N pts): rating; rating". Pass the result to `parseAssignment` as `extraContext`.
+ */
+export function formatRubricContext(rubric: { criteria: Pick<RubricCriterion, 'name' | 'points' | 'ratings'>[] } | null | undefined): string {
+  const criteria = rubric?.criteria ?? [];
+  if (!criteria.length) return '';
+  const clean = (s: string) => s.replace(/\s+/g, ' ').trim();
+  const lines = criteria.map((c) => {
+    const ratings = (c.ratings ?? []).map(clean).filter(Boolean);
+    return `${clean(c.name)} (${c.points} ${c.points === 1 ? 'pt' : 'pts'})${ratings.length ? `: ${ratings.join('; ')}` : ':'}`;
+  });
+  return [RUBRIC_HEADER, ...lines].join('\n');
+}
+
+/** True when extra context carries rubric criteria (our header or "Name (N pts):" lines). */
+export function hasRubric(extraContext: string | undefined): boolean {
+  return !!extraContext && (extraContext.includes(RUBRIC_HEADER) || RUBRIC_LINE.test(extraContext));
+}
+
+const RUBRIC_RULES = `
+Rubric rules (the extra context lists rubric criteria with points):
+- Map every task to the rubric: each task covers one criterion (or part of one), and every rubric criterion is covered by at least one task.
+- Name tasks after the work the criterion grades, so it is clear which criterion a task serves.
+- Effort follows rubric points: criteria worth more points get more total effort (bigger tasks or more of them) than criteria worth fewer points.
+- Use the ratings to tell what full marks need, and put that in the task description.`;
+
+function systemPrompt(teamSize: number, rubric = false) {
   return `You break university group assignments into tasks for a team of ${teamSize} students.
 
 Rules:
@@ -132,7 +163,7 @@ Rules:
 - The last task must be "Integrate and proofread".
 - assignment_title: the assignment's name as written in the document, short.
 - due_date: YYYY-MM-DD if the document states a due date, else null. If the year is missing, pick the next upcoming date.
-- Only use what's in the document. Do not invent requirements.`;
+- Only use what's in the document. Do not invent requirements.${rubric ? RUBRIC_RULES : ''}`;
 }
 
 function extractJson(raw: string): unknown {
@@ -144,13 +175,24 @@ function extractJson(raw: string): unknown {
 
 export class ParseError extends Error {}
 
-export async function parseAssignment(text: string, teamSize: number, onWait?: () => void): Promise<ParsedAssignment> {
-  const today = new Date().toISOString().slice(0, 10);
-  const user = `Today is ${today}.\n\nAssignment document:\n"""\n${truncateForLlm(text)}\n"""`;
-  const messages = [
-    { role: 'system' as const, content: systemPrompt(teamSize) },
+/** System and user messages for the parse call. Pure, so the prompt can be tested without Groq. */
+export function buildParseMessages(text: string, teamSize: number, extraContext?: string, now = new Date()) {
+  const today = now.toISOString().slice(0, 10);
+  const extra = extraContext ? `\n\nExtra context:\n"""\n${extraContext.slice(0, 4000)}\n"""` : '';
+  const user = `Today is ${today}.\n\nAssignment document:\n"""\n${truncateForLlm(text)}\n"""${extra}`;
+  return [
+    { role: 'system' as const, content: systemPrompt(teamSize, hasRubric(extraContext)) },
     { role: 'user' as const, content: user },
   ];
+}
+
+export async function parseAssignment(
+  text: string,
+  teamSize: number,
+  onWait?: () => void,
+  extraContext?: string,
+): Promise<ParsedAssignment> {
+  const messages = buildParseMessages(text, teamSize, extraContext);
   const attempts = [
     { model: env.parseModel, strict: true },
     { model: env.parseModel, strict: true },

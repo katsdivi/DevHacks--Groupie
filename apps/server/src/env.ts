@@ -18,7 +18,40 @@ export const env = {
   googleClientId: process.env.GOOGLE_CLIENT_ID ?? '',
   googleClientSecret: process.env.GOOGLE_CLIENT_SECRET ?? '',
   googleRefreshToken: process.env.GOOGLE_REFRESH_TOKEN ?? '',
+  /**
+   * Signs POST /api/cubbie/import. Public by design: Cubbie cannot host team keys, so this value ships
+   * inside the public Skill (its GROUPIE_SIGNING_KEY). It is integrity and spam friction only; single-use
+   * pair codes plus rate limits are the real protection. Never reuse another secret here.
+   */
+  cubbiePublicSigningKey: process.env.CUBBIE_PUBLIC_SIGNING_KEY ?? '',
+  /** 32 bytes, base64. Encrypts calendar feed URLs at rest. */
+  feedEncryptionKey: process.env.FEED_ENCRYPTION_KEY ?? '',
+  /** Set to 'true' to turn on calendar-load-aware splitting. */
+  loadAwareSplit: process.env.LOAD_AWARE_SPLIT === 'true',
   defaultTz: process.env.DEFAULT_TZ ?? 'America/Phoenix',
   // webhook: production. polling: local testing (takes the bot away from prod). off: no bot.
   botMode: (process.env.BOT_MODE ?? (isProd ? 'webhook' : 'off')) as 'webhook' | 'polling' | 'off',
 };
+
+/** The real secrets the public signing key and the feed key must never equal. */
+const OTHER_SECRETS = ['BOT_TOKEN', 'WEBHOOK_SECRET', 'LINK_SIGNING_SECRET', 'GROQ_API_KEY', 'GOOGLE_CLIENT_SECRET', 'GOOGLE_REFRESH_TOKEN'] as const;
+
+/**
+ * Throws if CUBBIE_PUBLIC_SIGNING_KEY (which is public) or FEED_ENCRYPTION_KEY reuses another secret's value.
+ * The message names variables only, never values. Called at startup before listening.
+ */
+export function assertDistinctSecrets(vars: Record<string, string | undefined> = process.env): void {
+  const clashes: string[] = [];
+  const check = (name: string, others: readonly string[]) => {
+    const value = vars[name];
+    if (!value) return;
+    for (const other of others) if (vars[other] === value) clashes.push(`${name} equals ${other}`);
+  };
+  check('CUBBIE_PUBLIC_SIGNING_KEY', ['FEED_ENCRYPTION_KEY', ...OTHER_SECRETS]);
+  check('FEED_ENCRYPTION_KEY', OTHER_SECRETS);
+  if (clashes.length) {
+    throw new Error(
+      `Refusing to start: ${clashes.join(', ')}. CUBBIE_PUBLIC_SIGNING_KEY ships inside the public Skill and FEED_ENCRYPTION_KEY must stay private, so give each its own value (openssl rand -hex 32).`,
+    );
+  }
+}
