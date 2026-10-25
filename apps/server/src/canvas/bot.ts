@@ -11,7 +11,7 @@ export const canvasComposer = new Composer();
 canvasComposer.use(linkComposer);
 
 const minutes = PAIR_CODE_TTL_MS / 60_000;
-/** The public Groupie import Skill that Cubbie installs from a link. */
+/** The public Groupie Skill that Cubbie installs from a link (import, link, status). */
 export const SKILL_URL = 'https://github.com/katsdivi/groupie-cubbie-skill/tree/main/groupie-import';
 
 /** The /canvas reply: the code, the exact Cubbie message, and a button to the Canvas screen. */
@@ -32,7 +32,10 @@ export function canvasCodeText(code: string): string {
 /** The /canvas reply in a private chat: a personal code, so the plan comes back here. */
 export function personalCanvasCodeText(code: string): string {
   return [
-    `Text this to Cubbie: <code>${html(cubbieMessage(code, '<assignment name>'))}</code>`,
+    '<b>1. First time only:</b> text Cubbie this and wait for it to say the skill is installed:',
+    `<code>Install this skill: ${SKILL_URL}</code>`,
+    '',
+    `<b>2.</b> Then text Cubbie this and say yes when it asks: <code>${html(cubbieMessage(code, '<assignment name>'))}</code>`,
     "I'll send you a plan here.",
     '',
     `The code works once, for ${minutes} minutes. For a group project, send /canvas in the project group instead.`,

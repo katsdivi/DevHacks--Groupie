@@ -99,8 +99,11 @@ async function newLink(user = OWNER): Promise<string> {
 
 describe('bot texts', () => {
   it('tells the student exactly what to text Cubbie', () => {
-    expect(linkCodeText('K7Q2MX')).toContain('Text Cubbie: <code>Groupie link K7Q2MX</code>');
-    expect(personalCanvasCodeText('K7Q2MX')).toContain('Text this to Cubbie: <code>Groupie import K7Q2MX &lt;assignment name&gt;</code>');
+    expect(linkCodeText('K7Q2MX')).toContain('Then text Cubbie: <code>Groupie link K7Q2MX</code>');
+    expect(personalCanvasCodeText('K7Q2MX')).toContain('<code>Groupie import K7Q2MX &lt;assignment name&gt;</code>');
+    for (const t of [linkCodeText('K7Q2MX'), personalCanvasCodeText('K7Q2MX')]) {
+      expect(t).toContain('Install this skill: https://github.com/katsdivi/groupie-cubbie-skill/tree/main/groupie-import');
+    }
     expect(personalCanvasCodeText('K7Q2MX')).toContain("I'll send you a plan here.");
   });
 });

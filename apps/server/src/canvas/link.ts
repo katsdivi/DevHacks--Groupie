@@ -1,3 +1,4 @@
+import { SKILL_URL } from './bot.ts';
 import { createHash, randomBytes } from 'node:crypto';
 import { and, eq, isNull } from 'drizzle-orm';
 import { Composer, InlineKeyboard } from 'grammy';
@@ -223,7 +224,10 @@ const minutes = PAIR_CODE_TTL_MS / 60_000;
 /** The /imessage reply in a private chat. */
 export function linkCodeText(code: string): string {
   return [
-    `Text Cubbie: <code>${html(cubbieLinkMessage(code))}</code>`,
+    '<b>1. First time only:</b> text Cubbie this and wait for it to say the skill is installed:',
+    `<code>Install this skill: ${SKILL_URL}</code>`,
+    '',
+    `<b>2.</b> Then text Cubbie: <code>${html(cubbieLinkMessage(code))}</code>`,
     '',
     `The code works once, for ${minutes} minutes. After that, text Cubbie "Groupie status" to see your tasks, deadlines and next meeting in iMessage.`,
   ].join('\n');
