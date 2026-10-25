@@ -1,4 +1,5 @@
 import { Composer, InlineKeyboard, InputFile } from 'grammy';
+import { colorEmoji } from '@groupie/shared';
 import { appUrl, bot } from './core.ts';
 import { html } from './format.ts';
 import { getGroup } from '../groups.ts';
@@ -13,7 +14,7 @@ import {
   splitView,
 } from '../splitService.ts';
 import { renderPng } from '../cards/render.ts';
-import { splitCardHtml } from '../cards/splitCard.ts';
+import { splitCardHtml, type SplitCardData } from '../cards/splitCard.ts';
 import { postAvailStatus } from './schedule.ts';
 
 export const splitComposer = new Composer();
@@ -32,19 +33,52 @@ export async function renderSplitPng(groupId: number): Promise<Buffer> {
   return renderPng(splitCardHtml(splitCardData(splitView(groupId, null))));
 }
 
-/** Posts the current split as a card and makes it the live one (older card loses its buttons). */
+/** The split as plain text, for when the card will not render. Same facts as the card, never silent. */
+export function splitFallbackText(data: SplitCardData, caption: string): string {
+  const lines = data.members.map((m) => {
+    const busy = m.busyLabel ? ` <i>(${html(m.busyLabel)})</i>` : '';
+    const tasks = m.tasks.length ? m.tasks.map((t) => html(t.title)).join(', ') : 'nothing yet';
+    return `${colorEmoji(m.color)} <b>${html(m.name)}</b>${busy}: ${pts(m.points)}. ${tasks}`;
+  });
+  return [
+    caption,
+    '',
+    '<b>Fair split</b> (card is shy today):',
+    ...lines,
+    ...(data.note ? ['', html(data.note)] : []),
+    '',
+    `Max difference: ${pts(data.maxGap)}.`,
+  ].join('\n');
+}
+
+/**
+ * Posts the current split as a card and makes it the live one (older card loses its buttons).
+ * If the card fails to render or send, the same split goes out as text so the group never waits on nothing.
+ */
 export async function postSplitCard(groupId: number, caption: string) {
   const group = getGroup(groupId);
   if (!group) return;
+  await bot.api.sendChatAction(groupId, 'upload_photo').catch(() => {});
   const data = splitCardData(splitView(groupId, null));
-  const png = await renderPng(splitCardHtml(data));
-  const msg = await bot.api.sendPhoto(groupId, new InputFile(png, 'fair-split.png'), {
-    caption: data.note ? `${caption}\n${html(data.note)}` : caption,
-    parse_mode: 'HTML',
-    reply_markup: splitKeyboard(groupId),
-  });
+  let messageId: number;
+  try {
+    const png = await renderPng(splitCardHtml(data));
+    const msg = await bot.api.sendPhoto(groupId, new InputFile(png, 'fair-split.png'), {
+      caption: data.note ? `${caption}\n${html(data.note)}` : caption,
+      parse_mode: 'HTML',
+      reply_markup: splitKeyboard(groupId),
+    });
+    messageId = msg.message_id;
+  } catch (err) {
+    console.error('Split card failed, sending text instead', err);
+    const msg = await bot.api.sendMessage(groupId, splitFallbackText(data, caption), {
+      parse_mode: 'HTML',
+      reply_markup: splitKeyboard(groupId),
+    });
+    messageId = msg.message_id;
+  }
   if (group.splitMessageId) await bot.api.editMessageReplyMarkup(groupId, group.splitMessageId).catch(() => {});
-  setSplitMessage(groupId, msg.message_id);
+  setSplitMessage(groupId, messageId);
 }
 
 /** Runs the first split once everyone has joined. Safe to call after every join. */
@@ -67,7 +101,6 @@ splitComposer.command('split', async (ctx) => {
     await ctx.reply('No split yet. It lands as soon as everyone has joined.');
     return;
   }
-  await ctx.replyWithChatAction('upload_photo').catch(() => {});
   const view = splitView(group.id, null);
   await postSplitCard(group.id, `<b>${html(group.nickname)} here.</b> Here's the current split. Max difference: ${pts(view.max_gap)}.`);
 });

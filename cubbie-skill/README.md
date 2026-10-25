@@ -6,7 +6,7 @@ splits group projects; Cubbie is the iMessage assistant that already has the stu
 ## What it does
 
 1. In the Telegram group, a teammate types `/canvas`. Groupie replies with a one-time code (6 characters, single
-   use, 15 minutes) and the exact text to send Cubbie, such as `Groupie import K7Q2MX`.
+   use, 30 minutes) and the exact text to send Cubbie, such as `Groupie import K7Q2MX`.
 2. The student texts that to Cubbie, optionally with the assignment name: `Groupie import K7Q2MX Project 2`.
 3. Cubbie reads the assignment from Canvas (course, title, due date with time zone, points if shown, description,
    link) and the text of its attached files, shows the student a short summary, and asks before sending.
@@ -21,7 +21,7 @@ Groupie plans that assignment for one person, DMs the student the steps, adds th
 ## iMessage link
 
 1. In a private chat with @CubbieGroupieBot, the student sends `/imessage`. Groupie replies with a one-time link
-   code (same alphabet, single use, 15 minutes): "Text Cubbie: Groupie link K7Q2MX".
+   code (same alphabet, single use, 30 minutes): "Text Cubbie: Groupie link K7Q2MX".
 2. The student texts that to Cubbie. `scripts/link.py` sends the signed code to `POST /api/cubbie/link`, and
    Groupie returns a token once. The script saves it to `~/.config/groupie/token` (mode 600, folder 700) in the
    student's own Cubbie sandbox and never prints it. Groupie DMs the student that the link worked.
@@ -76,7 +76,7 @@ the student. Canvas must be connected to Cubbie.
 `scripts/send.py` signs every request with HMAC-SHA256 in the `X-Groupie-Signature: sha256=<hex>` header. The key
 is the constant `GROUPIE_SIGNING_KEY` (read from the `GROUPIE_SIGNING_KEY` environment variable if set, else the
 placeholder `REPLACE_AT_PUBLISH`), and it must equal the Groupie server's `CUBBIE_PUBLIC_SIGNING_KEY`. Cubbie cannot host a team's keys, so anyone who installs the Skill can read the
-key. It is integrity and spam friction only; the real gate is the single-use, 15 minute pair code plus the
+key. It is integrity and spam friction only; the real gate is the single-use, 30 minute pair code plus the
 server's rate limits (10 imports per user per hour, 30 per IP per hour). The script never prints the key.
 
 ## Publishing
@@ -105,10 +105,13 @@ GROUPIE_URL=http://localhost:3000 python3 scripts/send.py --file payload.json --
 The base URL is `--url`, else `$GROUPIE_URL`, else production. Requests time out after 20 seconds and are retried
 once on a network error (never on an HTTP error).
 
-`send.py` exit codes: 0 sent, 2 bad arguments or unreadable file, 3 bad pair code, 4 payload missing something or over a
-limit, 5 network error, 6 server said 400, 7 server said 401 (signature), 8 code unknown (404) or used or expired
-(409), 9 group not expecting an assignment (409 `not_expecting`), 10 rate limited (429), 11 other server error.
-The 409 cases are told apart by the `error` field of the server's `{ "error", "message" }` body.
+`send.py` prints only the student's line on stdout (Cubbie texts it word for word) and short notes on stderr (the
+server's error code and `requestId`, or what to fix). Exit codes: 0 sent, 2 bad arguments or unreadable file,
+3 bad pair code, 4 payload missing something or over a limit, 5 network error or timeout, 6 `invalid_payload`,
+7 `bad_signature`, 8 `code_expired` or `code_unknown`, 9 `not_expecting`, 10 `rate_limited`, 11 `server_error`
+or any other answer (unlisted code, no code, a body that is not JSON), 12 `code_used`, 13 `payload_too_large`
+even after the one automatic retry without attachments. The server's `{ "error", "message", "requestId" }`
+body decides, not the HTTP status (except that a 413 with no JSON counts as `payload_too_large`).
 
 `link.py` exit codes: 0 linked, 2 bad arguments, 3 bad code, 5 network error, 7 bad signature, 8 code unknown,
 used or expired, 10 rate limited, 11 other server error or the token could not be saved. `status.py` exit codes:
@@ -127,15 +130,17 @@ python3 cubbie-skill/tests/harness.py --url http://localhost:3000 --code K7Q2MX 
 
 The offline harness starts a stub HTTP server on a random local port that recomputes the signature over the raw
 body, enforces single-use codes, and returns contract-shaped responses (`ZZZZZZ` unknown, `XXXXXX` expired,
-`NNNNNN` not expecting, `RRRRRR` rate limited). It then links with a throwaway HOME, checks status, unlinks,
+`NNNNNN` not expecting, `RRRRRR` rate limited, `SSSSSS` server error, `VVVVVV` invalid payload, `QQQQQQ` an
+unlisted error code, `HHHHHH` an HTML body, `BBBBBB` too large while it has attachments, `TTTTTT` always too
+large). It then links with a throwaway HOME, checks status, unlinks,
 and checks that the token is never printed and the token file is gone. Against a real server, codes are single use, so only the first
 fixture can succeed per code.
 
 ## Assumptions
 
-- Server error bodies are `{ "error": "<code>", "message": "..." }`, like the rest of the Groupie API, with the
-  error codes listed in `API.md` (`bad_payload`, `bad_signature`, `unknown_code`, `code_used`, `code_expired`,
-  `not_expecting`, `rate_limited`).
+- Import error bodies are `{ "error": "<code>", "message": "...", "requestId": "..." }` with `code_expired`,
+  `code_used`, `code_unknown`, `bad_signature`, `payload_too_large`, `invalid_payload`, `rate_limited`,
+  `server_error` or `not_expecting`. The older names `unknown_code` and `bad_payload` are still understood.
 - `SKILL.md` describes the payload fields in plain words and points Cubbie at `assets/sample_payload.json` as the
   template, because kit rules keep JSON out of `SKILL.md`.
 - Due dates must include seconds and an offset (`Z` or `+HH:MM`), slightly stricter than the server, so a

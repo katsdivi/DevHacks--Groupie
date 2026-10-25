@@ -27,6 +27,9 @@
   50% { opacity: 0.9; }
 }
 
+/* The brand palette is always dark, whatever Telegram theme is on, so native controls match it. */
+:root { color-scheme: dark; }
+html { background: var(--color-ink); }
 html, body, #root { min-height: 100%; }
 body {
   background: var(--color-ink);
@@ -34,4 +37,6 @@ body {
   margin: 0;
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
+  overflow-x: hidden;
+  -webkit-text-size-adjust: 100%;
 }

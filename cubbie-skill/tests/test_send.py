@@ -109,17 +109,34 @@ class ExitCodes(unittest.TestCase):
             code, line = quiet(send.main, ["--sample", "--url", "http://stub.test"])
         return code, line
 
+    def test_user_agent_is_version_2(self):
+        seen = {}
+
+        def fake_post(url, body, headers):
+            seen.update(headers)
+            return 200, b'{"ok": true, "importId": 1}'
+
+        with mock.patch.object(send, "post", fake_post):
+            quiet(send.main, ["--sample", "--url", "http://stub.test"])
+        self.assertEqual(seen["User-Agent"], "groupie-import-skill/2")
+
     def test_exit_code_per_status(self):
         cases = [
             (200, {"ok": True, "importId": 3, "message": "Sent to Groupie. Check your group."}, send.EXIT_OK),
             (400, {"error": "bad_payload"}, send.EXIT_BAD_PAYLOAD),
             (401, {"error": "bad_signature"}, send.EXIT_SIGNATURE),
             (404, {"error": "unknown_code"}, send.EXIT_FRESH_CODE),
-            (409, {"error": "code_used"}, send.EXIT_FRESH_CODE),
+            (409, {"error": "code_used"}, send.EXIT_CODE_USED),
             (409, {"error": "code_expired"}, send.EXIT_FRESH_CODE),
             (409, {"error": "not_expecting"}, send.EXIT_NOT_EXPECTING),
             (429, {"error": "rate_limited"}, send.EXIT_RATE),
             (500, {"error": "boom"}, send.EXIT_SERVER),
+            (422, {"error": "invalid_payload"}, send.EXIT_BAD_PAYLOAD),
+            (500, {"error": "server_error"}, send.EXIT_SERVER),
+            (410, {"error": "code_expired"}, send.EXIT_FRESH_CODE),
+            (404, {"error": "code_unknown"}, send.EXIT_FRESH_CODE),
+            (413, {}, send.EXIT_TOO_LARGE),
+            (200, {"message": "no ok field"}, send.EXIT_SERVER),
         ]
         for status, body, expected in cases:
             with self.subTest(status=status, error=body.get("error")):
@@ -127,7 +144,8 @@ class ExitCodes(unittest.TestCase):
 
     def test_distinct_codes(self):
         codes = [send.EXIT_ARGS, send.EXIT_CODE, send.EXIT_PAYLOAD, send.EXIT_NETWORK, send.EXIT_BAD_PAYLOAD,
-                 send.EXIT_SIGNATURE, send.EXIT_FRESH_CODE, send.EXIT_NOT_EXPECTING, send.EXIT_RATE, send.EXIT_SERVER]
+                 send.EXIT_SIGNATURE, send.EXIT_FRESH_CODE, send.EXIT_NOT_EXPECTING, send.EXIT_RATE, send.EXIT_SERVER,
+                 send.EXIT_CODE_USED, send.EXIT_TOO_LARGE]
         self.assertEqual(len(set(codes)), len(codes))
         self.assertNotIn(send.EXIT_OK, codes)
 

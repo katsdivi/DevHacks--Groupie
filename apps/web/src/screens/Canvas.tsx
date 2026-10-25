@@ -26,7 +26,7 @@ const card = 'rounded-3xl border border-dashed border-line-strong';
 const primary =
   'w-full rounded-full bg-text py-3.5 text-[16px] font-semibold text-ink transition-transform active:scale-[0.98] disabled:opacity-50';
 const secondary =
-  'rounded-full border border-dashed border-line-strong px-5 py-2.5 text-[15px] font-medium transition-transform active:scale-[0.98] disabled:opacity-50';
+  'min-h-11 rounded-full border border-dashed border-line-strong px-5 py-2.5 text-[15px] font-medium transition-transform active:scale-[0.98] disabled:opacity-50';
 const LIME = '#A6E35A';
 const CYAN = '#4FD8E8';
 const CORAL = '#FF6B5B';
@@ -192,7 +192,7 @@ function CopyRow({ text, big = false }: { text: string; big?: boolean }) {
     <div className="mt-2 flex items-center gap-2 rounded-2xl border border-line bg-panel p-1.5 pl-4">
       <code className={`min-w-0 flex-1 font-mono leading-snug font-semibold break-words select-all ${big ? 'text-[14px]' : 'text-[12px]'}`}>{text}</code>
       <button
-        className="shrink-0 rounded-xl px-4 py-2.5 text-[14px] font-semibold transition-all active:scale-95"
+        className="min-h-11 min-w-[84px] shrink-0 rounded-xl px-4 py-2.5 text-[14px] font-semibold transition-all active:scale-95"
         style={done ? { background: LIME, color: '#1E1E1E' } : { background: CYAN, color: '#1E1E1E' }}
         onClick={onCopy}
         aria-live="polite"
@@ -251,14 +251,14 @@ function InstallStep() {
         Teach Cubbie the Groupie import. Copy this, paste it in your chat with Cubbie in Messages, and wait for Cubbie to say it is installed.
       </p>
       <CopyRow text={INSTALL_MESSAGE} />
-      <button className="mt-3 w-full rounded-full border border-dashed border-line-strong py-3 text-[15px] font-semibold active:scale-[0.98]" onClick={() => mark(true)}>
+      <button className="mt-3 min-h-11 w-full rounded-full border border-dashed border-line-strong py-3 text-[15px] font-semibold active:scale-[0.98]" onClick={() => mark(true)}>
         Done, Cubbie installed it
       </button>
     </div>
   );
 }
 
-function ImportCard({ me }: { me: MeResponse }) {
+function ImportCard({ me, go }: { me: MeResponse; go: (s: Screen) => void }) {
   const { group } = me;
   const nick = group.nickname;
   const expecting =
@@ -394,6 +394,17 @@ function ImportCard({ me }: { me: MeResponse }) {
             </p>
           </div>
         )}
+        {!expecting && (
+          <button
+            className={`${secondary} mt-4 w-full`}
+            onClick={() => {
+              haptic.tap();
+              go(group.task_count > 0 && group.joined >= (group.team_size ?? 1) ? 'split' : 'form');
+            }}
+          >
+            {group.task_count > 0 && group.joined >= (group.team_size ?? 1) ? 'See the split' : 'Add my details'}
+          </button>
+        )}
 
         {expecting && !pair && (
           <>
@@ -432,7 +443,7 @@ function ImportCard({ me }: { me: MeResponse }) {
             </div>
           )}
           <p className="mx-auto mt-4 max-w-xs text-[14px] leading-relaxed text-muted">
-            {nick} posted the task list. Everyone taps Join, adds their details, and the split happens.
+            {nick} posted the task list. Everyone taps Add my details, then the split lands in the group.
           </p>
           <div className="mt-6 rounded-2xl border border-line bg-ink/40 p-4 text-left">
             <Stepper status="imported" nick={nick} />
@@ -470,12 +481,14 @@ function ImportCard({ me }: { me: MeResponse }) {
                 Open Messages on your phone, paste it in your chat with Cubbie, and send. Add the assignment name after the code if you have more than one, like{' '}
                 <span className="font-mono text-text">{pair.cubbieMessage} Project 2</span>.
               </p>
-              <div className="mt-3 flex items-center justify-center gap-2 text-[12px] text-muted" aria-live="polite">
+              <div className="mt-3 flex min-h-5 items-center justify-center gap-2 text-[12px] text-muted tabular-nums" aria-live="polite">
                 <span className="relative flex h-2 w-2">
                   <span className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-60" style={{ background: CYAN }} />
                   <span className="relative inline-flex h-2 w-2 rounded-full" style={{ background: CYAN }} />
                 </span>
-                {checkedAgo === null ? 'Watching for Cubbie...' : `Live. Checked ${checkedAgo < 2 ? 'just now' : `${checkedAgo}s ago`}`}
+                <span className="min-w-[150px]">
+                  {checkedAgo === null ? 'Watching for Cubbie...' : `Live. Checked ${checkedAgo < 2 ? 'just now' : `${checkedAgo}s ago`}`}
+                </span>
               </div>
               {waitingTooLong && (
                 <div className="mt-4 rounded-2xl border px-4 py-3 text-[14px] leading-relaxed" style={{ borderColor: `${AMBER}55`, background: `${AMBER}10` }}>
@@ -504,7 +517,7 @@ function ImportCard({ me }: { me: MeResponse }) {
           {current === 'expired' && (
             <div className="mt-5 text-center">
               <p className="text-[15px] leading-relaxed text-muted">
-                Codes last 15 minutes and work once. Grab a fresh one and text it to Cubbie.
+                Codes last 30 minutes and work once. Grab a fresh one and text it to Cubbie.
               </p>
               <button className={`${primary} mt-4`} onClick={getCode} disabled={requesting}>
                 {requesting ? 'Making a new code...' : 'Get a new code'}
@@ -711,7 +724,7 @@ function CalendarCard({ go }: { go: (s: Screen) => void }) {
                 <button
                   type="button"
                   onClick={paste}
-                  className="shrink-0 rounded-xl bg-line px-4 py-2.5 text-[14px] font-semibold active:scale-95"
+                  className="min-h-11 shrink-0 rounded-xl bg-line px-4 py-2.5 text-[14px] font-semibold active:scale-95"
                 >
                   Paste
                 </button>
@@ -776,7 +789,7 @@ function CalendarCard({ go }: { go: (s: Screen) => void }) {
 
           {!confirming ? (
             <button
-              className="mt-3 w-full py-2 text-[14px] font-medium text-muted active:opacity-70"
+              className="mt-3 min-h-11 w-full py-2 text-[14px] font-medium text-muted active:opacity-70"
               onClick={() => {
                 haptic.tap();
                 setConfirming(true);
@@ -795,7 +808,7 @@ function CalendarCard({ go }: { go: (s: Screen) => void }) {
                   Keep it
                 </button>
                 <button
-                  className="flex-1 rounded-full py-2.5 text-[15px] font-semibold text-ink active:scale-[0.98] disabled:opacity-50"
+                  className="min-h-11 flex-1 rounded-full py-2.5 text-[15px] font-semibold text-ink active:scale-[0.98] disabled:opacity-50"
                   style={{ background: CORAL }}
                   onClick={disconnect}
                   disabled={disconnecting}
@@ -869,7 +882,7 @@ function WorkloadCard({ me, onMember }: { me: MeResponse; onMember?: (m: Member)
           aria-checked={on}
           aria-labelledby="workload-label"
           onClick={toggle}
-          className={`relative mt-0.5 h-8 w-[52px] shrink-0 rounded-full border transition-colors duration-300 active:scale-95 ${
+          className={`relative mt-0.5 h-8 w-[52px] shrink-0 rounded-full border transition-colors duration-300 after:absolute after:-inset-[7px] after:content-[''] active:scale-95 ${
             on ? 'border-transparent' : 'border-dashed border-line-strong bg-ink'
           }`}
           style={on ? { background: LIME } : undefined}
@@ -896,7 +909,7 @@ export function Canvas({ me, go, onMember }: Props) {
       <style>{MOTION}</style>
       <h1 className="mt-6 text-[28px] font-bold tracking-tight">Connect Canvas</h1>
       <p className="mt-1 text-[15px] text-muted">Import the assignment, sync your due dates.</p>
-      <ImportCard me={me} />
+      <ImportCard me={me} go={go} />
       <CalendarCard go={go} />
       {me.member && <WorkloadCard me={me} onMember={onMember} />}
     </div>

@@ -11,6 +11,19 @@ import { progressCardHtml, type ProgressCardData } from '../cards/progressCard.t
 import { db, schema } from '../db/index.ts';
 import { weekAheadText } from '../context.ts';
 import type { Member } from '../db/schema.ts';
+import {
+  ALL_DONE,
+  BUTTON,
+  checkinHead,
+  NO_CHECKIN_YET,
+  NO_PROGRESS_YET,
+  notYourTask,
+  PROGRESS_ALL_DONE,
+  progressHead,
+  progressStuck,
+  STATUS_TOAST,
+  TASK_GONE,
+} from '../copy.ts';
 
 export const checkinComposer = new Composer();
 
@@ -44,13 +57,13 @@ export async function runCheckin(groupId: number) {
   const week = weekAheadText(groupId);
   await bot.api.sendMessage(
     groupId,
-    `<b>Check-in time!</b> ${html(group.nickname)} here. Tap how each task is going. Only the owner's taps count.${week ? `\n\n${week}` : ''}`,
+    checkinHead(group.nickname, week),
     { parse_mode: 'HTML' },
   );
   for (const m of members) {
     const { text, kb, open } = memberCheckin(m, groupId);
     if (!open) {
-      await bot.api.sendMessage(groupId, `${text}\nAll done. Absolute legend.`, { parse_mode: 'HTML' });
+      await bot.api.sendMessage(groupId, `${text}\n${ALL_DONE}`, { parse_mode: 'HTML' });
       continue;
     }
     await bot.api.sendMessage(groupId, text, { parse_mode: 'HTML', reply_markup: kb });
@@ -90,15 +103,15 @@ export async function postProgressCard(groupId: number) {
   const when =
     p.days_left === null ? '' : p.days_left < 0 ? `, ${-p.days_left} days overdue` : p.days_left === 0 ? ', due today' : `, ${p.days_left} days left`;
   const caption = [
-    `<b>${html(group.nickname)} here.</b> ${p.percent}% done${when}.`,
-    ...(stuck.length ? [`Stuck: ${html(stuck.join('; '))}. Someone help a friend out?`] : []),
-    ...(p.percent === 100 ? ['Everything is done. I am so proud of you all.'] : []),
+    progressHead(group.nickname, p.percent, when),
+    ...(stuck.length ? [progressStuck(stuck.join('; '))] : []),
+    ...(p.percent === 100 ? [PROGRESS_ALL_DONE] : []),
   ].join('\n');
   const png = await renderProgressPng(groupId);
   await bot.api.sendPhoto(groupId, new InputFile(png, 'progress.png'), {
     caption,
     parse_mode: 'HTML',
-    reply_markup: new InlineKeyboard().url('Update my tasks', appUrl(groupId, 'progress')),
+    reply_markup: new InlineKeyboard().url(BUTTON.updateTasks, appUrl(groupId, 'progress')),
   });
 }
 
@@ -120,7 +133,7 @@ export function scheduleProgressCard(groupId: number, delayMs = PROGRESS_CARD_DE
 checkinComposer.command('checkin', async (ctx) => {
   const group = getGroup(ctx.chat.id);
   if (!group || !getTasks(group.id).some((t) => t.assigneeMemberId)) {
-    return void (await ctx.reply('Nothing to check in on yet. The split comes first!'));
+    return void (await ctx.reply(NO_CHECKIN_YET));
   }
   await runCheckin(group.id);
 });
@@ -128,7 +141,7 @@ checkinComposer.command('checkin', async (ctx) => {
 checkinComposer.command('progress', async (ctx) => {
   const group = getGroup(ctx.chat.id);
   if (!group || !getTasks(group.id).some((t) => t.assigneeMemberId)) {
-    return void (await ctx.reply('No progress to show yet. The split comes first!'));
+    return void (await ctx.reply(NO_PROGRESS_YET));
   }
   await ctx.replyWithChatAction('upload_photo').catch(() => {});
   await postProgressCard(group.id);
@@ -137,23 +150,23 @@ checkinComposer.command('progress', async (ctx) => {
 checkinComposer.callbackQuery(/^ck:(\d+):(info|done|on_track|stuck)$/, async (ctx) => {
   const groupId = ctx.chat!.id;
   const task = getTask(Number(ctx.match[1]));
-  if (!task || task.groupId !== groupId) return void (await ctx.answerCallbackQuery({ text: 'That task is gone.' }));
+  if (!task || task.groupId !== groupId) return void (await ctx.answerCallbackQuery({ text: TASK_GONE }));
   const owner = listMembers(groupId).find((m) => m.id === task.assigneeMemberId);
   if (ctx.match[2] === 'info') {
     return void (await ctx.answerCallbackQuery({ text: `${task.title} (${task.effort} pt), ${STATUS_WORD[task.status as TaskStatus]}`, show_alert: false }));
   }
   if (owner?.tgUserId && owner.tgUserId !== ctx.from.id) {
-    return void (await ctx.answerCallbackQuery({ text: `That's ${owner.name}'s task. Nice try!` }));
+    return void (await ctx.answerCallbackQuery({ text: notYourTask(owner.name) }));
   }
   const status = ctx.match[2] as TaskStatus;
   setTaskStatus(task.id, status);
   await ctx.answerCallbackQuery({
-    text: status === 'done' ? 'Done! Love to see it.' : status === 'stuck' ? "Flagged. I'll ask the team to help." : 'On track. Keep going!',
+    text: STATUS_TOAST[status === 'todo' ? 'on_track' : status],
   });
   if (owner) {
     const { text, kb, open } = memberCheckin(owner, groupId);
     await ctx
-      .editMessageText(open ? text : `${text}\nAll done. Absolute legend.`, { parse_mode: 'HTML', reply_markup: open ? kb : undefined })
+      .editMessageText(open ? text : `${text}\n${ALL_DONE}`, { parse_mode: 'HTML', reply_markup: open ? kb : undefined })
       .catch(() => {});
   }
   scheduleProgressCard(groupId);

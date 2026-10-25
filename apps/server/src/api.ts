@@ -1,6 +1,7 @@
 import { memoryRouter } from './routes/memory.ts';
 import { prefsRouter } from './routes/prefs.ts';
 import { calendarRouter } from './routes/calendar.ts';
+import { chatRouter } from './routes/chat.ts';
 import { Router, type Request, type Response } from 'express';
 import {
   MemberRequest,
@@ -48,6 +49,7 @@ api.use(memoryRouter);
 api.use(prefsRouter);
 api.use(calendarRouter);
 api.use(canvasRouter);
+api.use(chatRouter);
 
 function summary(g: Group): MeResponse['group'] {
   const tasks = getTasks(g.id);
@@ -151,7 +153,7 @@ api.patch('/groups/:id/members/me/workload', async (req, res) => {
   if (!group) return;
   const parsed = WorkloadRequest.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: 'bad_workload', message: 'Send shareWorkload as true or false.' });
+    res.status(400).json({ error: 'bad_workload', message: 'Something went wrong saving that. Try the switch again?' });
     return;
   }
   const me = getMemberByTgUser(group.id, tgUser(res).id);

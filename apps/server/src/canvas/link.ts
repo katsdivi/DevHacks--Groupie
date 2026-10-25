@@ -27,6 +27,9 @@ import { takeRateLimit } from './importer.ts';
 import { claimPairCode, createPairCode, getPairCode } from './pairCodes.ts';
 import { canvasDueLabel } from './personal.ts';
 import { clientIp } from './routes.ts';
+import { BUTTON, IMESSAGE_IN_GROUP, LINK_ERR, LINKED_DM, LINKED_MESSAGE, NOT_LINKED, UNLINK_IN_GROUP, UNLINKED } from '../copy.ts';
+
+export { LINKED_DM, LINKED_MESSAGE };
 
 /**
  * iMessage link (Telegram to Cubbie). /imessage makes a link code; the Skill trades it for a token
@@ -35,12 +38,10 @@ import { clientIp } from './routes.ts';
 
 const { cubbieLinks, members } = schema;
 
-export const LINKED_DM = "Your iMessage is linked to Groupie. Text Cubbie 'Groupie status' any time. Send /unlink to disconnect.";
-export const LINKED_MESSAGE = "Linked to Groupie. Text me 'Groupie status' any time.";
 
 type Reply = { status: number; body: object };
 const fail = (status: number, error: string, message: string): Reply => ({ status, body: { error, message } });
-const RATE_LIMITED = () => fail(429, 'rate_limited', 'Too many requests. Try again in a few minutes.');
+const RATE_LIMITED = () => fail(429, 'rate_limited', LINK_ERR.busy);
 
 /** sha256 hex. The only form of a token the server keeps. */
 export const hashToken = (token: string) => createHash('sha256').update(token, 'utf8').digest('hex');
@@ -72,7 +73,7 @@ export function findLink(token: string) {
 /** POST /api/cubbie/link: a signed, single-use link code in, a token out (once). */
 export async function handleLink(rawBody: Buffer | undefined, signature: string | undefined, ip: string, now = new Date()): Promise<Reply> {
   const secret = env.cubbiePublicSigningKey;
-  if (!secret) return fail(503, 'links_off', 'Cubbie links are not set up on this server.');
+  if (!secret) return fail(503, 'links_off', LINK_ERR.off);
   const L = CUBBIE_LINK_RATE_LIMITS.linkPerIp;
   if (!takeRateLimit(`cubbie-link-ip:${ip}`, L.limit, now.getTime(), L.windowMs)) return RATE_LIMITED();
   if (!rawBody || !verifySignature(secret, rawBody, signature)) return fail(401, 'bad_signature', 'Signature check failed.');
@@ -80,16 +81,16 @@ export async function handleLink(rawBody: Buffer | undefined, signature: string 
   try {
     json = JSON.parse(rawBody.toString('utf8'));
   } catch {
-    return fail(400, 'bad_payload', 'Body is not JSON.');
+    return fail(400, 'bad_payload', LINK_ERR.unreadable);
   }
   const parsed = CubbieLinkRequest.safeParse(json);
-  if (!parsed.success) return fail(400, 'bad_payload', 'pairCode must be a 6 character Groupie code.');
+  if (!parsed.success) return fail(400, 'bad_payload', LINK_ERR.badCode);
   const pc = getPairCode(parsed.data.pairCode);
   // An import code looks the same as a missing one here.
-  if (!pc || pc.purpose !== 'link') return fail(404, 'unknown_code', 'That link code does not exist. Send /imessage to Groupie for a new one.');
-  if (pc.usedAt) return fail(409, 'code_used', 'That link code was already used. Send /imessage to Groupie for a new one.');
-  if (pc.expiresAt <= now.toISOString()) return fail(409, 'code_expired', 'That link code expired. Send /imessage to Groupie for a new one.');
-  if (!claimPairCode(pc.code, now)) return fail(409, 'code_used', 'That link code was already used. Send /imessage to Groupie for a new one.');
+  if (!pc || pc.purpose !== 'link') return fail(404, 'unknown_code', LINK_ERR.unknown);
+  if (pc.usedAt) return fail(409, 'code_used', LINK_ERR.used);
+  if (pc.expiresAt <= now.toISOString()) return fail(409, 'code_expired', LINK_ERR.expired);
+  if (!claimPairCode(pc.code, now)) return fail(409, 'code_used', LINK_ERR.used);
 
   const token = newToken();
   db.transaction((tx) => {
@@ -111,7 +112,7 @@ export function bearer(header: string | undefined): string | null {
   return m ? m[1]! : null;
 }
 
-const UNAUTHORIZED = () => fail(401, 'not_linked', 'This Cubbie is not linked. Send /imessage to Groupie in Telegram.');
+const UNAUTHORIZED = () => fail(401, 'not_linked', LINK_ERR.notLinked);
 
 /** Checks the per-IP and per-token limits and the token. Returns the link or a reply to send. */
 function authorize(header: string | undefined, ip: string, now: Date) {
@@ -195,7 +196,7 @@ export function handleRevoke(header: string | undefined, ip: string, now = new D
   const auth = authorize(header, ip, now);
   if (!auth.link) return auth.reply;
   db.update(cubbieLinks).set({ revokedAt: now.toISOString() }).where(eq(cubbieLinks.id, auth.link.id)).run();
-  return { status: 200, body: { ok: true, message: 'Unlinked from Groupie.' } };
+  return { status: 200, body: { ok: true, message: LINK_ERR.unlinked } };
 }
 
 /** Public: mounted at /api/cubbie before the authed /api router. POST /link needs the raw body parser. */
@@ -238,8 +239,8 @@ export const linkComposer = new Composer();
 linkComposer.command('imessage', async (ctx) => {
   if (!ctx.from) return;
   if (ctx.chat.type !== 'private') {
-    return void (await ctx.reply('Linking iMessage is personal, so DM me /imessage and I will send your code there.', {
-      reply_markup: new InlineKeyboard().url('DM Groupie', `https://t.me/${env.botUsername}`),
+    return void (await ctx.reply(IMESSAGE_IN_GROUP, {
+      reply_markup: new InlineKeyboard().url(BUTTON.dmMe, `https://t.me/${env.botUsername}`),
     }));
   }
   const pc = createPairCode(ctx.from.id, null, new Date(), undefined, 'link');
@@ -248,7 +249,7 @@ linkComposer.command('imessage', async (ctx) => {
 
 linkComposer.command('unlink', async (ctx) => {
   if (!ctx.from) return;
-  if (ctx.chat.type !== 'private') return void (await ctx.reply('DM me /unlink to disconnect your iMessage.'));
+  if (ctx.chat.type !== 'private') return void (await ctx.reply(UNLINK_IN_GROUP));
   const n = revokeAllLinks(ctx.from.id);
-  await ctx.reply(n ? 'Done. Your iMessage is no longer linked to Groupie. Send /imessage to link it again.' : 'Your iMessage is not linked to Groupie. Send /imessage to link it.');
+  await ctx.reply(n ? UNLINKED : NOT_LINKED);
 });

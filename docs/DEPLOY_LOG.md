@@ -25,3 +25,10 @@
 - **Deployed:** merge `647a1b9` on main, Railway SUCCESS, boot clean. `user_version` 9, integrity ok, all 6 new tables present, existing groups kept. Webhook set, 0 pending, no errors.
 - **Smoke tests (all pass):** `/health`; `GET /api/me/prefs` (defaults 48/24/3); `GET /api/calendar/status` (`google_available=false` until per-user Google keys are set); `GET /api/me/memory`; memory without auth 401; `/api/cubbie/me` bad token 401; unsafe ICS link 400.
 - **Skill republished:** `katsdivi/groupie-cubbie-skill` commit `8c1eec2` adds `link.py`, `status.py`, `groupie_link.py`. Secret scan clean (pattern grep, .env value comparison, gitleaks), kit validator OK, fresh clone runs `send.py --sample` and `status.py`.
+
+## Step 18 + import fixes (2026-10-24)
+
+- **Rollback point (main before merge):** `3ccad4452de7442f44373bb496d92add80591ee5` ("ops: step 18a deploy results").
+- **Backup:** `backups/pre-step18-import-fixes-20261024-2154.db`, integrity ok, user_version 9, groups=2 members=0 tasks=0.
+- **Migrations in this deploy:** 10 (`dm_messages`), 11 (`groups.canvas_import_id, canvas_file_at, assignment_file_id/name/mime`), 12 (`groups.assignment_text`). Additive only. Rehearsed on a copy of the backup: 9 to 12, integrity ok, `dm_messages` and all new columns present.
+- **Rollback:** `git revert -m 1 <merge sha> && git push`, then confirm `/health`. The new columns and table are additive, so old code runs on the migrated DB. Restore the DB only after asking Divyam.

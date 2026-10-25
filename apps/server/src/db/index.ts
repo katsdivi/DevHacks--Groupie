@@ -202,6 +202,22 @@ const MIGRATIONS = [
    );
    CREATE INDEX cubbie_links_user ON cubbie_links(telegram_user_id);
    ALTER TABLE cubbie_pair_codes ADD COLUMN purpose TEXT NOT NULL DEFAULT 'import';`,
+  `CREATE TABLE dm_messages (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     telegram_user_id INTEGER NOT NULL,
+     role TEXT NOT NULL,
+     content TEXT NOT NULL,
+     created_at TEXT NOT NULL
+   );
+   CREATE INDEX dm_messages_user ON dm_messages(telegram_user_id, id);`,
+  // import-fixes: which Cubbie import gave the group its assignment, when a dropped file was attached, and the assignment's Telegram file.
+  `ALTER TABLE groups ADD COLUMN canvas_import_id INTEGER;
+   ALTER TABLE groups ADD COLUMN canvas_file_at TEXT;
+   ALTER TABLE groups ADD COLUMN assignment_file_id TEXT;
+   ALTER TABLE groups ADD COLUMN assignment_file_name TEXT;
+   ALTER TABLE groups ADD COLUMN assignment_file_mime TEXT;`,
+  // import-fixes: the assignment's full text (any intake path), for questions about it and a PDF re-send.
+  `ALTER TABLE groups ADD COLUMN assignment_text TEXT;`,
 ];
 
 export function openDb(file: string) {

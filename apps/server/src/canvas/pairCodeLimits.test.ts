@@ -1,4 +1,5 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { PAIR_CODE_TTL_MS } from '@groupie/shared';
 import { resetRateLimits, takeRateLimit } from './importer.ts';
 import { createPairCode } from './pairCodes.ts';
 import { PAIR_CODE_RATE_LIMITS } from './routes.ts';
@@ -51,11 +52,11 @@ describe('pair code rate limits', () => {
     expect((await call('GET', `/cubbie/pair-code/${pc.code}`, '10.3.0.2')).status).toBe(200);
   });
 
-  it('lets the Mini App poll every 2.5 s for the whole 15 minutes from one IP', async () => {
+  it('lets the Mini App poll every 2.5 s for the whole code lifetime from one IP', async () => {
     const pc = createPairCode(USER, null);
     vi.useFakeTimers({ toFake: ['Date'] });
     const start = Date.now();
-    const polls = (15 * 60 * 1000) / 2500;
+    const polls = PAIR_CODE_TTL_MS / 2500;
     for (let i = 0; i < polls; i++) {
       vi.setSystemTime(start + i * 2500);
       const r = await call('GET', `/cubbie/pair-code/${pc.code}`, '10.4.0.1');

@@ -1,10 +1,11 @@
-import { Composer, InlineKeyboard } from 'grammy';
-import { PAIR_CODE_TTL_MS, cubbieMessage } from '@groupie/shared';
+import { Composer, InlineKeyboard, type Context } from 'grammy';
+import { PAIR_CODE_TTL_MS, PairCodeString, cubbieMessage } from '@groupie/shared';
 import { appUrl } from '../bot/core.ts';
 import { html } from '../bot/format.ts';
 import { getGroup } from '../groups.ts';
 import { expectingAssignment } from '../intake.ts';
-import { createPairCode } from './pairCodes.ts';
+import { createPairCode, getPairCode, type PairCode } from './pairCodes.ts';
+import { BUTTON, wrongAppText } from '../copy.ts';
 import { linkComposer } from './link.ts';
 
 export const canvasComposer = new Composer();
@@ -54,10 +55,73 @@ canvasComposer.command('canvas', async (ctx) => {
   if (!expectingAssignment(group)) {
     return void (await ctx.reply('This group already has its assignment, so there is nothing to import. Use /reset to start over.'));
   }
-  if (!group.teamSize) return void (await ctx.reply('Set the team size first: send /setup, then /canvas again.'));
   const pc = createPairCode(ctx.from.id, group.id);
   await ctx.reply(canvasCodeText(pc.code), {
     parse_mode: 'HTML',
-    reply_markup: new InlineKeyboard().url('Open Canvas in Groupie', appUrl(group.id, 'canvas')),
+    reply_markup: new InlineKeyboard().url('Open Groupie', appUrl(group.id, 'canvas')),
   });
 });
+
+// ---------------------------------------------------------------- wrong app catch
+
+/** Room for the code and words inside Telegram's 256 character copy button. */
+const MAX_WRONG_APP_REST = 200;
+/** "Groupie import K7Q2MX", optionally followed by assignment words. */
+const WRONG_APP_RE = /^\s*groupie\s+import\s+([A-Z0-9]{6})\b([\s\S]*)$/i;
+
+/** The code (uppercased) and any trailing words when the text is the Cubbie import message. Pure. */
+export function matchWrongApp(text: string): { code: string; rest: string } | null {
+  const m = WRONG_APP_RE.exec(text);
+  if (!m) return null;
+  return { code: m[1]!.toUpperCase(), rest: m[2]!.trim().replace(/\s+/g, ' ').slice(0, MAX_WRONG_APP_REST).trim() };
+}
+
+/** The group a code may still import into, or null for a personal code. */
+const importableGroup = (groupChatId: number | null) => {
+  if (groupChatId == null) return null;
+  const g = getGroup(groupChatId);
+  return g && expectingAssignment(g) ? g.id : null;
+};
+
+/**
+ * The sender's own live import code, or null. Someone else's code counts as unknown, so the reply
+ * never says anything about codes that are not theirs.
+ */
+function ownLiveCode(code: string, userId: number, now: Date): PairCode | null {
+  const parsed = PairCodeString.safeParse(code);
+  const pc = parsed.success ? getPairCode(parsed.data) : undefined;
+  if (!pc || pc.purpose !== 'import' || pc.telegramUserId !== userId) return null;
+  if (pc.usedAt || pc.expiresAt <= now.toISOString()) return null;
+  if (pc.groupChatId != null && importableGroup(pc.groupChatId) == null) return null;
+  return pc;
+}
+
+/**
+ * If the message is the Cubbie import message sent to Groupie by mistake, replies with the exact
+ * message to send Cubbie (a fresh code if the old one is unknown, used, or expired) and returns true.
+ * No model call. Group chats get a code for this group; DMs reuse the old code's group if it was the
+ * sender's, else a personal code.
+ */
+export async function catchWrongApp(ctx: Context, now = new Date()): Promise<boolean> {
+  const text = ctx.msg?.text;
+  const from = ctx.from;
+  const chat = ctx.chat;
+  if (!text || !from || !chat) return false;
+  const m = matchWrongApp(text);
+  if (!m) return false;
+  let code = ownLiveCode(m.code, from.id, now)?.code ?? null;
+  const fresh = code == null;
+  if (code == null) {
+    const old = getPairCode(m.code);
+    const oldGroup = old && old.telegramUserId === from.id ? old.groupChatId : null;
+    const groupId = chat.type === 'private' ? importableGroup(oldGroup) : importableGroup(chat.id);
+    code = createPairCode(from.id, groupId, now).code;
+  }
+  const message = cubbieMessage(code, m.rest || undefined);
+  await ctx.reply(wrongAppText(message, fresh), {
+    parse_mode: 'HTML',
+    reply_markup: new InlineKeyboard().copyText(BUTTON.copy, message),
+    ...(chat.type === 'private' ? {} : { reply_parameters: { message_id: ctx.msg!.message_id, allow_sending_without_reply: true } }),
+  });
+  return true;
+}

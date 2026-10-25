@@ -4,27 +4,21 @@ import { buildDmContext, voice, type DmContext } from '../context.ts';
 import { renderContext } from '../contextPolicy.ts';
 import { memoryReply } from '../agent.ts';
 import { talk, type ChatMessage } from '../llm.ts';
+import { appendDm, clearMyChat, dmHistoryForAsker } from '../dmHistory.ts';
+import { catchWrongApp } from '../canvas/bot.ts';
+import { NO_ASSIGNMENT_FILE } from '../copy.ts';
+import { groupsWithAssignment, sendAssignment, wantsAssignmentFile } from './assignmentFile.ts';
 
 /**
  * Plain-text conversation in a private chat with the bot. Identity is ctx.from.id; context comes
- * only from buildDmContext (which only calls buildContext). History lives in memory per Telegram
- * user (agent_messages is keyed by member id, and a DM user may be in no group or several).
+ * only from buildDmContext (which only calls buildContext). History lives in dm_messages per
+ * Telegram user (agent_messages is keyed by member id, and a DM user may be in no group or several),
+ * so it survives restarts.
  */
 export const dmComposer = new Composer();
 
-const HISTORY_TURNS = 12;
-const histories = new Map<number, ChatMessage[]>();
-
-/** The last turns of this user's DM, oldest first. Never anyone else's. */
-export const dmHistory = (userId: number): ChatMessage[] => histories.get(userId) ?? [];
-
-function remember(userId: number, user: string, assistant: string) {
-  const next = [...dmHistory(userId), { role: 'user' as const, content: user }, { role: 'assistant' as const, content: assistant }];
-  histories.set(userId, next.slice(-HISTORY_TURNS * 2));
-}
-
-/** For tests. */
-export const clearDmHistory = () => histories.clear();
+/** The reply to /forgetchat. */
+export const FORGOT_CHAT = 'Done. Our chat is wiped; your tasks and reminders are untouched.';
 
 const nicknameFor = (c: DmContext) => (c.groups.length === 1 ? c.groups[0]!.group!.nickname : 'Groupie');
 
@@ -58,15 +52,32 @@ ${sections.join('\n\n')}`,
 /** One DM turn for the verified sender. Memory intents are handled without the model. */
 export async function answerDm(userId: number, message: string, now = new Date()): Promise<string> {
   const c = buildDmContext(userId, now);
+  const past = dmHistoryForAsker(c.own.asker, userId);
   const quick = memoryReply(userId, nicknameFor(c), message);
-  const answer = quick ?? (await talk(buildDmMessages(c, dmHistory(userId), message), { maxTokens: 500 })).slice(0, 2000);
-  remember(userId, message, answer);
+  const answer = quick ?? (await talk(buildDmMessages(c, past, message), { maxTokens: 500 })).slice(0, 2000);
+  appendDm(userId, 'user', message);
+  appendDm(userId, 'assistant', answer);
   return answer;
 }
 
+// Wipes the sender's DM and Mini App chat history. Identity is ctx.from.id only.
+dmComposer.command('forgetchat', async (ctx) => {
+  if (ctx.chat.type !== 'private' || !ctx.from) return;
+  clearMyChat(ctx.from.id);
+  await ctx.reply(FORGOT_CHAT);
+});
+
 dmComposer.on('message:text', async (ctx, next) => {
   if (ctx.chat.type !== 'private' || ctx.msg.text.startsWith('/')) return next();
+  // The Cubbie import message sent here by mistake: point it at Cubbie, before history or the model.
+  if (await catchWrongApp(ctx)) return;
   if (getPending(ctx.chat.id, ctx.from.id)) return next();
+  // "Send me the assignment" in a DM: the newest assignment from the sender's own groups.
+  if (wantsAssignmentFile(ctx.msg.text)) {
+    const [groupId] = groupsWithAssignment(ctx.from.id);
+    if (groupId === undefined) return void (await ctx.reply(NO_ASSIGNMENT_FILE));
+    return void (await sendAssignment(ctx.chat.id, groupId, ctx.msg.message_id));
+  }
   await ctx.replyWithChatAction('typing').catch(() => {});
   try {
     await ctx.reply(await answerDm(ctx.from.id, ctx.msg.text));

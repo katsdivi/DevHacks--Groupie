@@ -20,6 +20,16 @@ export const groups = sqliteTable('groups', {
   canvasCourse: text('canvas_course'),
   /** Optional: lock the meeting at this time even if not everyone has answered. */
   availDeadlineAt: text('avail_deadline_at'),
+  /** The cubbie_imports row that gave this group its assignment (null for a dropped file). */
+  canvasImportId: integer('canvas_import_id'),
+  /** When a file was dropped in and attached to that Canvas import. */
+  canvasFileAt: text('canvas_file_at'),
+  /** Telegram file behind the current assignment (dropped in, or posted after a Cubbie import). */
+  assignmentFileId: text('assignment_file_id'),
+  assignmentFileName: text('assignment_file_name'),
+  assignmentFileMime: text('assignment_file_mime'),
+  /** The assignment's text as Groupie read it (file, paste, or Canvas), capped. Group-safe: the whole group has the assignment. */
+  assignmentText: text('assignment_text'),
 });
 
 export const pendingInputs = sqliteTable(
@@ -248,3 +258,14 @@ export const cubbieLinks = sqliteTable('cubbie_links', {
 });
 
 export type CubbieLink = typeof cubbieLinks.$inferSelect;
+
+/** Step 18: the bot DM conversation, one row per turn side, keyed by the verified Telegram user id. */
+export const dmMessages = sqliteTable('dm_messages', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  telegramUserId: integer('telegram_user_id').notNull(),
+  role: text('role', { enum: ['user', 'assistant'] }).notNull(),
+  content: text('content').notNull(),
+  createdAt: text('created_at').notNull(),
+});
+
+export type DmMessage = typeof dmMessages.$inferSelect;

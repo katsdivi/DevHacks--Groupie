@@ -10,3 +10,6 @@ data/
 test-results/
 playwright-report/
 backups/
+
+# Demo team fixture (real Telegram ids). Commit demo.config.example.json instead.
+demo.config.json

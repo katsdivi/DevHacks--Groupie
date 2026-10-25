@@ -1,7 +1,7 @@
 import express from 'express';
 import { once } from 'node:events';
 import type { AddressInfo } from 'node:net';
-import { cubbieImportRouter, canvasRouter } from './routes.ts';
+import { cubbieImportErrors, cubbieImportRouter, canvasRouter } from './routes.ts';
 import { cubbieLinkRouter } from './link.ts';
 
 /**
@@ -13,14 +13,14 @@ export async function startTestApp() {
   app.use(
     ['/api/cubbie/import', '/api/cubbie/link'],
     express.json({
-      limit: '16mb',
+      limit: '15mb',
       verify: (req, _res, buf) => {
         (req as unknown as { rawBody: Buffer }).rawBody = buf;
       },
     }),
   );
   app.use(express.json());
-  app.use('/api/cubbie/import', cubbieImportRouter);
+  app.use('/api/cubbie/import', cubbieImportRouter, cubbieImportErrors);
   app.use('/api/cubbie', cubbieLinkRouter);
   app.use('/api', (req, res, next) => {
     const id = Number(req.header('x-test-user'));

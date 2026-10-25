@@ -134,7 +134,7 @@ describe('/canvas reply', () => {
   it('shows the code, the exact Cubbie message, and the time limit', () => {
     const t = canvasCodeText('K7Q2MX');
     expect(t).toContain('<code>Groupie import K7Q2MX</code>');
-    expect(t).toContain('text Cubbie this within 15 minutes');
+    expect(t).toContain('text Cubbie this within 30 minutes');
     expect(t).toContain('Install this skill: https://github.com/katsdivi/groupie-cubbie-skill/tree/main/groupie-import');
   });
 });

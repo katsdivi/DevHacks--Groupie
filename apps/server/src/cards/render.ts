@@ -53,3 +53,16 @@ export async function closeRenderer(): Promise<void> {
   const r = await pending.catch(() => null);
   await r?.browser.close().catch(() => {});
 }
+
+/** Renders a full HTML document to a Letter-size PDF with the same long-lived browser. */
+export async function renderPdf(html: string): Promise<Buffer> {
+  const { context } = await getRenderer();
+  const page = await context.newPage();
+  try {
+    await page.setContent(html, { waitUntil: 'load' });
+    await page.evaluate(() => document.fonts.ready.then(() => undefined));
+    return await page.pdf({ format: 'Letter', printBackground: true, margin: { top: '0.7in', bottom: '0.7in', left: '0.8in', right: '0.8in' } });
+  } finally {
+    await page.close().catch(() => {});
+  }
+}

@@ -21,7 +21,7 @@ export function featureGuide(nickname = 'Groupie'): string {
     '• /imessage: link Cubbie so you can text "Groupie status" from iMessage.',
     '• In the app: Upcoming (all your Canvas due dates), Connect your calendar, and What I remember (you choose what your group sees).',
     '',
-    '<b>Privacy</b>: your chats with me, your other classes, and your calendar details never go to the group. Only what you choose to share does.',
+    '<b>Privacy</b>: your chats with me, your other classes, and your calendar details never go to the group. Only what you choose to share does. Send /forgetchat here to wipe our chat.',
     '',
     'Send /help any time to see this again.',
   ].join('\n');

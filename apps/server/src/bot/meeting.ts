@@ -76,6 +76,11 @@ export async function finalizeMeeting(groupId: number) {
   if (!group || !meeting) return;
   const members = listMembers(groupId);
   const notes: string[] = [];
+  // Loading state: this message turns into the meeting card once the calendar work is done.
+  const pending = await bot.api
+    .sendMessage(groupId, `${html(group.nickname)} here. Setting up your meeting, one sec...`, { parse_mode: 'HTML' })
+    .catch(() => null);
+  await bot.api.sendChatAction(groupId, 'typing').catch(() => {});
 
   if (googleConfigured() && !meeting.calendarEventId) {
     const emails = members.map((x) => x.email).filter((e): e is string => Boolean(e));
@@ -121,11 +126,19 @@ export async function finalizeMeeting(groupId: number) {
     notes.push('No place yet. Add one with /meetlink Hayden Library, room 2B');
   }
 
-  await bot.api.sendMessage(groupId, meetingText(groupId, meeting, '📅 <b>Team meeting is on!</b>') + (notes.length ? `\n\n${notes.join('\n')}` : ''), {
-    parse_mode: 'HTML',
+  const card = meetingText(groupId, meeting, '📅 <b>Team meeting is on!</b>') + (notes.length ? `\n\n${notes.join('\n')}` : '');
+  const cardOpts = {
+    parse_mode: 'HTML' as const,
     reply_markup: meetingKeyboard(groupId, meeting),
     link_preview_options: { is_disabled: true },
-  });
+  };
+  const edited =
+    pending !== null &&
+    (await bot.api.editMessageText(groupId, pending.message_id, card, cardOpts).then(
+      () => true,
+      () => false,
+    ));
+  if (!edited) await bot.api.sendMessage(groupId, card, cardOpts);
   const ics = icsFile({ ...meetingInfo(groupId, meeting), uid: `groupie-${groupId}-${meeting.id}@groupie` });
   await bot.api
     .sendDocument(groupId, new InputFile(Buffer.from(ics), 'team-meeting.ics'), {

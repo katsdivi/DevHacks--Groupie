@@ -82,6 +82,10 @@ The signing key is public by design. Cubbie cannot host team keys, so the value 
 - `PREFILL_START_HOUR`, `PREFILL_END_HOUR`: the hours the availability grid treats as reasonable when prefilling (default 8 and 22).
 - Background jobs started with the server: reminders (15 min), calendar sync (30 min), availability deadlines (5 min), feed poller (30 min), weekly check-in.
 
+## Demo
+
+Operator tools for the 5 demo moments: `pnpm demo:reset | demo:seed | demo:fill | demo:remind | demo:warm` (locally) and `scripts/demo/remote.sh <cmd> ... --yes` (production). Every command needs `--as <admin id>` and refuses production without `--prod-ok`. `DEMO_MODE=true` turns on the LLM safety net. See `docs/DEMO_TOOLS.md` and the stage script in `docs/DEMO_RUNBOOK.md`.
+
 ## Deploy
 
 One Railway service built from the `Dockerfile`, with a volume mounted at `/data` for SQLite.
