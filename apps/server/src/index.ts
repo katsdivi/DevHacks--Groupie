@@ -20,6 +20,16 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const webDist = path.resolve(here, '../../web/dist');
 
 const app = express();
+// The Cubbie import is signed over its raw body and may carry attachments, so it gets its own parser.
+app.use(
+  '/api/cubbie/import',
+  express.json({
+    limit: '16mb',
+    verify: (req, _res, buf) => {
+      (req as unknown as { rawBody: Buffer }).rawBody = buf;
+    },
+  }),
+);
 app.use(express.json());
 
 app.get('/health', (_req, res) => {

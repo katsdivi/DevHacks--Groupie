@@ -97,6 +97,52 @@ const MIGRATIONS = [
    ALTER TABLE meetings ADD COLUMN event_link TEXT;`,
   `ALTER TABLE groups ADD COLUMN last_checkin_at TEXT;
    CREATE INDEX agent_messages_member ON agent_messages(member_id, id);`,
+  `CREATE TABLE cubbie_pair_codes (
+     code TEXT PRIMARY KEY,
+     telegram_user_id INTEGER NOT NULL,
+     group_chat_id INTEGER REFERENCES groups(id) ON DELETE CASCADE ON UPDATE CASCADE,
+     expires_at TEXT NOT NULL,
+     used_at TEXT,
+     created_at TEXT NOT NULL
+   );
+   CREATE TABLE cubbie_imports (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     pair_code TEXT,
+     telegram_user_id INTEGER NOT NULL,
+     group_chat_id INTEGER REFERENCES groups(id) ON DELETE SET NULL ON UPDATE CASCADE,
+     payload TEXT NOT NULL,
+     status TEXT NOT NULL DEFAULT 'received',
+     error TEXT,
+     created_at TEXT NOT NULL
+   );
+   CREATE INDEX cubbie_imports_user ON cubbie_imports(telegram_user_id, created_at);
+   CREATE TABLE calendar_feeds (
+     telegram_user_id INTEGER PRIMARY KEY,
+     feed_url_encrypted TEXT NOT NULL,
+     etag TEXT,
+     last_modified TEXT,
+     last_polled_at TEXT,
+     last_error TEXT,
+     failures INTEGER NOT NULL DEFAULT 0,
+     next_poll_at TEXT,
+     created_at TEXT NOT NULL
+   );
+   CREATE TABLE calendar_events (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     telegram_user_id INTEGER NOT NULL,
+     uid TEXT NOT NULL,
+     course TEXT,
+     title TEXT NOT NULL,
+     due_at TEXT NOT NULL,
+     description TEXT,
+     url TEXT,
+     kind TEXT NOT NULL,
+     removed_at TEXT,
+     updated_at TEXT NOT NULL,
+     UNIQUE (telegram_user_id, uid)
+   );
+   CREATE INDEX calendar_events_due ON calendar_events(telegram_user_id, due_at);
+   ALTER TABLE groups ADD COLUMN canvas_course TEXT;`,
 ];
 
 export function openDb(file: string) {

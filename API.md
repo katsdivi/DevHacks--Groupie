@@ -239,6 +239,79 @@ My private chat with Groupie, oldest first, plus starter prompts. Only ever the 
 
 Returns `{ "user": ChatMessage, "reply": ChatMessage }`. The model sees my profile, my tasks, my last 12 messages, and group-level facts (tasks, owners, statuses, due date, meeting). It never sees anyone else's private chat. `503 llm_unavailable` if Groq is down.
 
+## Canvas via Cubbie
+
+Students never open Canvas for Groupie. Our Track 1 Cubbie Skill asks Cubbie (which already has the student's Canvas) to read an assignment and send it here with a one-time pair code. A pasted Canvas calendar feed keeps due dates in sync. Schemas: `packages/shared/src/canvas.ts`. What Cubbie can and cannot do: `docs/CANVAS_RECON.md`.
+
+### `POST /api/cubbie/pair-code`
+
+Telegram auth. Makes a single-use code (6 characters, no lookalikes, 15 minutes).
+
+```json
+{ "groupChatId": -5254546157 }
+```
+
+`groupChatId` is optional; when set, the caller must be in that group, and the import posts there. Response:
+
+```json
+{ "code": "K7Q2MX", "expiresAt": "2026-10-25T02:15:00.000Z", "cubbieMessage": "Groupie import K7Q2MX" }
+```
+
+`cubbieMessage` is the exact text the student sends Cubbie.
+
+### `GET /api/cubbie/pair-code/:code`
+
+Telegram auth, only the code's owner. Live status for the Mini App: `waiting`, `received`, `imported`, `failed`, or `expired`.
+
+```json
+{ "code": "K7Q2MX", "status": "imported", "expiresAt": "...", "assignmentTitle": "Project 2: Campus Food Finder", "error": null }
+```
+
+### `POST /api/cubbie/import`
+
+Called by the Cubbie Skill script. No Telegram auth: the single-use pair code in the body is the gate, plus a signature header and rate limits.
+
+```
+X-Groupie-Signature: sha256=<hex HMAC-SHA256(CUBBIE_HMAC_SECRET, raw body)>
+```
+
+The HMAC secret ships inside the public Skill, so it is integrity and spam friction, not a real secret (Cubbie cannot host team keys). Body (`CubbieImportPayload`):
+
+```json
+{
+  "pairCode": "K7Q2MX",
+  "course": { "name": "CSE 340: Software Engineering", "code": "CSE 340" },
+  "assignment": {
+    "title": "Project 2: Campus Food Finder",
+    "dueAt": "2026-11-20T23:59:00-07:00",
+    "pointsPossible": 100,
+    "descriptionText": "In teams of 4 to 6, design and build...",
+    "url": "https://canvas.asu.edu/courses/123456/assignments/7654321"
+  },
+  "rubric": { "criteria": [{ "name": "Implementation", "points": 30, "ratings": ["Works end to end", "Partly", "Not working"] }] },
+  "attachments": [{ "filename": "spec.pdf", "mimeType": "application/pdf", "text": "extracted text..." }]
+}
+```
+
+`rubric` and `attachments` are optional. Attachments may carry `text` (what the Skill sends), `base64` (goes through the normal file intake), or `url` (shown to people, never downloaded). The server runs the same intake as a Telegram file upload, uses the Canvas due date as the real due date, and posts the task list in the linked group. Response:
+
+```json
+{ "ok": true, "importId": 12, "message": "Sent to Groupie. Check your group." }
+```
+
+Errors: `400 bad_payload`, `401 bad_signature`, `404 unknown_code`, `409 code_used` or `code_expired`, `409 not_expecting` (the group already has its assignment), `429 rate_limited`.
+
+### `PUT /api/feed`, `DELETE /api/feed`, `GET /api/feed/status`, `GET /api/feed/upcoming`
+
+Telegram auth, per Telegram user (not per group).
+
+- `PUT /api/feed` `{ "feedUrl": "https://canvas.asu.edu/feeds/calendars/user_....ics" }` saves the Canvas calendar feed (encrypted at rest, AES-256-GCM) and polls it right away. Only `https://canvas.asu.edu/feeds/...` is accepted (`webcal://` is rewritten). The URL is never logged, returned, or shown in chat.
+- `DELETE /api/feed` disconnects and deletes the stored events.
+- `GET /api/feed/status`: `{ "connected": true, "lastPolledAt": "...", "lastError": null, "eventCount": 9, "courses": ["CSE 340 (Fall 2026)", "HST 101 (Fall 2026)"] }`
+- `GET /api/feed/upcoming`: `{ "events": [FeedEvent, ...] }`, the caller's own items, soonest first.
+
+The server polls each feed every 30 minutes with conditional GETs (ETag / If-Modified-Since) and backs off on errors. `POST /api/cubbie/feed` (Cubbie handing over the feed URL) is not built: the feed URL is a credential, and Cubbie Skills may not send credentials to a team's server.
+
 ## Dev only (`DEV_MODE=true`, no auth)
 
 | Route | What it shows |
@@ -257,6 +330,7 @@ Returns `{ "user": ChatMessage, "reply": ChatMessage }`. The model sees my profi
 | `/setup` | group | Ask the team size |
 | `/join` | group | Repost the "N/5 joined" message with the details button |
 | `/split` | group | Repost the current split card |
+| `/canvas` | group | Make a Cubbie pair code for this group and show the exact message to text Cubbie |
 | `/checkin` | group | Post [Done] [On track] [Stuck] for each member's open tasks (also runs Mondays at 10 AM) |
 | `/progress` | group | Post the progress card |
 | `<nickname>, ...` or `@CubbieGroupieBot ...` | group | Ask about tasks, owners, due dates, the meeting. Replies to Groupie's messages work too |

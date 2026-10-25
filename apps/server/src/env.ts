@@ -18,6 +18,12 @@ export const env = {
   googleClientId: process.env.GOOGLE_CLIENT_ID ?? '',
   googleClientSecret: process.env.GOOGLE_CLIENT_SECRET ?? '',
   googleRefreshToken: process.env.GOOGLE_REFRESH_TOKEN ?? '',
+  /** Shared with the public Cubbie Skill, so treat it as public: integrity and spam friction only. */
+  cubbieHmacSecret: process.env.CUBBIE_HMAC_SECRET ?? '',
+  /** 32 bytes, base64. Encrypts calendar feed URLs at rest. */
+  feedEncryptionKey: process.env.FEED_ENCRYPTION_KEY ?? '',
+  /** Set to 'true' to turn on calendar-load-aware splitting. */
+  loadAwareSplit: process.env.LOAD_AWARE_SPLIT === 'true',
   defaultTz: process.env.DEFAULT_TZ ?? 'America/Phoenix',
   // webhook: production. polling: local testing (takes the bot away from prod). off: no bot.
   botMode: (process.env.BOT_MODE ?? (isProd ? 'webhook' : 'off')) as 'webhook' | 'polling' | 'off',

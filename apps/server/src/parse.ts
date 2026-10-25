@@ -144,9 +144,15 @@ function extractJson(raw: string): unknown {
 
 export class ParseError extends Error {}
 
-export async function parseAssignment(text: string, teamSize: number, onWait?: () => void): Promise<ParsedAssignment> {
+export async function parseAssignment(
+  text: string,
+  teamSize: number,
+  onWait?: () => void,
+  extraContext?: string,
+): Promise<ParsedAssignment> {
   const today = new Date().toISOString().slice(0, 10);
-  const user = `Today is ${today}.\n\nAssignment document:\n"""\n${truncateForLlm(text)}\n"""`;
+  const extra = extraContext ? `\n\nExtra context:\n"""\n${extraContext.slice(0, 4000)}\n"""` : '';
+  const user = `Today is ${today}.\n\nAssignment document:\n"""\n${truncateForLlm(text)}\n"""${extra}`;
   const messages = [
     { role: 'system' as const, content: systemPrompt(teamSize) },
     { role: 'user' as const, content: user },

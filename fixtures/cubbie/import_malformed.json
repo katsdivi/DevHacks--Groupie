@@ -1,0 +1,13 @@
+{
+  "pairCode": "0O1IL!",
+  "course": {},
+  "assignment": {
+    "dueAt": "next friday",
+    "descriptionText": 42
+  },
+  "attachments": [
+    {
+      "filename": "x.pdf"
+    }
+  ]
+}
