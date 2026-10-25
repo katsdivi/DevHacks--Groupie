@@ -1,7 +1,7 @@
 import { SKILL_URL } from './bot.ts';
 import { createHash, randomBytes } from 'node:crypto';
 import { and, eq, isNull } from 'drizzle-orm';
-import { Composer, InlineKeyboard } from 'grammy';
+import { Composer, InlineKeyboard, type Context } from 'grammy';
 import { Router } from 'express';
 import {
   CUBBIE_LINK_RATE_LIMITS,
@@ -238,6 +238,13 @@ export function linkCodeText(code: string): string {
 
 export const linkComposer = new Composer();
 
+/** The private /imessage reply: a fresh link code and the two Cubbie texts. Also used by /start imessage and [Link iMessage]. */
+export async function sendLinkCode(ctx: Context) {
+  if (!ctx.from) return;
+  const pc = createPairCode(ctx.from.id, null, new Date(), undefined, 'link');
+  await ctx.reply(linkCodeText(pc.code), { parse_mode: 'HTML' });
+}
+
 linkComposer.command('imessage', async (ctx) => {
   if (!ctx.from) return;
   if (ctx.chat.type !== 'private') {
@@ -245,8 +252,7 @@ linkComposer.command('imessage', async (ctx) => {
       reply_markup: new InlineKeyboard().url(BUTTON.dmMe, `https://t.me/${env.botUsername}`),
     }));
   }
-  const pc = createPairCode(ctx.from.id, null, new Date(), undefined, 'link');
-  await ctx.reply(linkCodeText(pc.code), { parse_mode: 'HTML' });
+  await sendLinkCode(ctx);
 });
 
 linkComposer.command('unlink', async (ctx) => {

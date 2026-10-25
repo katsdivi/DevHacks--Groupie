@@ -65,6 +65,9 @@ describe('PATCH /api/groups/:id/members/me/workload', () => {
   it('starts off, turns on, and shows up in /me', async () => {
     const before = MeResponse.parse(JSON.parse((await call('GET', `/me?group=${G}`, ME)).text));
     expect(before.member?.share_workload).toBe(false);
+    // The setup checklist rides along, scoped to this group, with details already done.
+    expect(before.setup?.group?.id).toBe(G);
+    expect(before.setup?.steps.find((s) => s.key === 'details')?.done).toBe(true);
 
     const on = await call('PATCH', `/groups/${G}/members/me/workload`, ME, { shareWorkload: true });
     expect(on.status).toBe(200);
