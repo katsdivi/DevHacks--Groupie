@@ -4,7 +4,7 @@ import { getGroup, getTasks } from './groups.ts';
 import { listMembers } from './members.ts';
 import { latestMeeting } from './availability.ts';
 import { daysLeft } from './progress.ts';
-import { addDays, eventsForMembersInCourse, otherCourseCounts, upcomingForUser } from './calendarQueries.ts';
+import { addDays, eventsForMembersInCourse, upcomingForUser } from './calendarQueries.ts';
 import { html } from './bot/format.ts';
 import type { CalendarEvent, Member } from './db/schema.ts';
 
@@ -115,26 +115,16 @@ export function memberContext(member: Member, groupId: number, now = new Date())
 }
 
 /**
- * Weekly check-in lines (Telegram HTML): this group's course items due in the next 7 days, then
- * per member counts of their other courses (numbers only, never titles). Empty without a Canvas course.
+ * Weekly check-in line (Telegram HTML): this group's course items due in the next 7 days. Nothing
+ * about other courses, not even counts. Empty without a Canvas course or items.
  */
 export function weekAheadText(groupId: number, now = new Date()): string {
   const group = getGroup(groupId);
   if (!group?.canvasCourse) return '';
-  const to = addDays(now, 7);
-  const items = groupCourseItems(groupId, now, to);
-  const lines: string[] = [];
-  if (items.length) {
-    const fmt = (e: CalendarEvent) => DateTime.fromMillis(Date.parse(e.dueAt), { zone: group.tz }).toFormat('ccc');
-    lines.push(`<b>Due this week:</b> ${items.map(({ event }) => `${html(event.title)} (${fmt(event)})`).join(', ')}`);
-  }
-  const members = listMembers(groupId).filter((m) => m.tgUserId !== null);
-  const counts = otherCourseCounts(members.map((m) => m.tgUserId!), group.canvasCourse, now, to);
-  for (const m of members) {
-    const n = counts[m.tgUserId!] ?? 0;
-    if (n > 0) lines.push(`${html(m.name)} has ${n} other ${n === 1 ? 'thing' : 'things'} due this week.`);
-  }
-  return lines.join('\n');
+  const items = groupCourseItems(groupId, now, addDays(now, 7));
+  if (!items.length) return '';
+  const fmt = (e: CalendarEvent) => DateTime.fromMillis(Date.parse(e.dueAt), { zone: group.tz }).toFormat('ccc');
+  return `<b>Due this week:</b> ${items.map(({ event }) => `${html(event.title)} (${fmt(event)})`).join(', ')}`;
 }
 
 export const voice = (nickname: string) =>

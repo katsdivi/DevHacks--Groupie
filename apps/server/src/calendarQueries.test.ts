@@ -4,7 +4,6 @@ import {
   courseCode,
   eventsForMembersInCourse,
   loadScores,
-  otherCourseCounts,
   projectWindowEnd,
   sameCourse,
   upcomingForUser,
@@ -58,7 +57,6 @@ describe('calendar queries', () => {
       'Later',
     ]);
     expect(eventsForMembersInCourse([1, 2], null, now, to)).toEqual([]);
-    expect(otherCourseCounts([1, 2, 3], 'CSE 340: Software Engineering', now, to)).toEqual({ 1: 1, 2: 0, 3: 0 });
   });
 
   it('scores load over the project window, counting the next 7 days double', () => {

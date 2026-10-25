@@ -13,7 +13,7 @@ import type { Member, Task } from './db/schema.ts';
 import { getGroup, getTasks } from './groups.ts';
 import { listMembers } from './members.ts';
 import { formatDue } from './bot/format.ts';
-import type { SplitCardData } from './cards/splitCard.ts';
+import { adjustmentLine, type SplitCardData } from './cards/splitCard.ts';
 import { env } from './env.ts';
 import { BUSY_THRESHOLD, loadScores, projectWindowEnd, type LoadScore } from './calendarQueries.ts';
 
@@ -38,20 +38,55 @@ export function swapConstraints(groupId: number): Required<SplitConstraints> {
   return { locked, forbidden };
 }
 
-/** memberId -> calendar load over the project window, for members with a Telegram account. */
+/** Members whose calendar may shape the split: opted in, with a Telegram account, and only while the flag is on. */
+function sharingMembers(groupId: number): Member[] {
+  if (!env.loadAwareSplit) return [];
+  return listMembers(groupId).filter((m) => m.shareWorkload && m.tgUserId !== null);
+}
+
+/**
+ * memberId -> calendar load over the project window, for opted-in members only (see sharingMembers).
+ * Everyone else is absent, which the split treats as load 0.
+ */
 export function memberLoads(groupId: number, now = new Date()): Record<number, LoadScore> {
+  const members = sharingMembers(groupId);
+  if (!members.length) return {};
   const group = getGroup(groupId)!;
-  const members = listMembers(groupId).filter((m) => m.tgUserId !== null);
   const scores = loadScores(members.map((m) => m.tgUserId!), now, projectWindowEnd(group.dueDate, now));
   return Object.fromEntries(members.map((m) => [m.id, scores[m.tgUserId!]!]));
 }
 
+/** Member ids that got fewer points with load than in the no-load baseline. Pure. */
+export function fewerPointsThanBaseline(baseline: SplitResult, result: SplitResult): number[] {
+  return Object.keys(result.totals)
+    .map(Number)
+    .filter((id) => result.totals[id]! < (baseline.totals[id] ?? 0))
+    .sort((a, b) => a - b);
+}
+
+export type SplitWithBaseline = { result: SplitResult; baseline: SplitResult; adjusted: number[] };
+
+/**
+ * The split plus the no-load baseline it is compared against. Load is only computed and passed when
+ * the flag is on and someone opted in; otherwise `result` is exactly the no-load split.
+ */
+export function computeSplitWithBaseline(
+  groupId: number,
+  constraints: SplitConstraints = swapConstraints(groupId),
+  now = new Date(),
+): SplitWithBaseline {
+  const tasks = getTasks(groupId).map(toSplitTask);
+  const members = listMembers(groupId).map(toSplitMember);
+  const baseline = split(tasks, members, constraints);
+  const loads = memberLoads(groupId, now);
+  if (!Object.keys(loads).length) return { result: baseline, baseline, adjusted: [] };
+  const load = Object.fromEntries(Object.entries(loads).map(([id, l]) => [id, l.score]));
+  const result = split(tasks, members, constraints, { load });
+  return { result, baseline, adjusted: fewerPointsThanBaseline(baseline, result) };
+}
+
 export function computeSplit(groupId: number, constraints: SplitConstraints = swapConstraints(groupId)): SplitResult {
-  const members = listMembers(groupId);
-  const options = env.loadAwareSplit
-    ? { load: Object.fromEntries(Object.entries(memberLoads(groupId)).map(([id, l]) => [id, l.score])) }
-    : undefined;
-  return split(getTasks(groupId).map(toSplitTask), members.map(toSplitMember), constraints, options);
+  return computeSplitWithBaseline(groupId, constraints).result;
 }
 
 /** Writes assignees, clears "looks fair" votes, and marks the group split_ready. */
@@ -105,19 +140,30 @@ export function splitView(groupId: number, meMemberId: number | null, preview?: 
   };
 }
 
-/** "Busy week · 4 due" for members with 3+ calendar items due in the next 7 days (load-aware split only). */
+/** "Busy week" for opted-in members with 3+ calendar items due in the next 7 days. Never a count or a course. */
 export function busyLabels(groupId: number, now = new Date()): Record<number, string> {
-  if (!env.loadAwareSplit) return {};
   const out: Record<number, string> = {};
   for (const [id, l] of Object.entries(memberLoads(groupId, now))) {
-    if (l.dueSoon >= BUSY_THRESHOLD) out[Number(id)] = `Busy week · ${l.dueSoon} due`;
+    if (l.dueSoon >= BUSY_THRESHOLD) out[Number(id)] = 'Busy week';
   }
   return out;
+}
+
+/**
+ * Members on this view who got fewer points because of their busy week: the load-aware split gave
+ * them less than the no-load one, and the view still shows that load-aware share.
+ */
+export function adjustedMembers(view: SplitResponse, now = new Date()): number[] {
+  const { result, adjusted } = computeSplitWithBaseline(view.group_id, swapConstraints(view.group_id), now);
+  const shown = new Map(view.members.map((m) => [m.id, m.points]));
+  return adjusted.filter((id) => shown.get(id) === result.totals[id]);
 }
 
 export function splitCardData(view: SplitResponse, now = new Date()): SplitCardData {
   const group = getGroup(view.group_id)!;
   const busy = busyLabels(view.group_id, now);
+  const adjusted = new Set(adjustedMembers(view, now));
+  const note = adjustmentLine(view.members.filter((m) => adjusted.has(m.id)).map((m) => m.name));
   return {
     assignmentTitle: view.assignment_title ?? 'Group project',
     dueLabel: formatDue(view.due_date, group.tz),
@@ -130,6 +176,7 @@ export function splitCardData(view: SplitResponse, now = new Date()): SplitCardD
       tasks: m.tasks.map((t) => ({ title: t.title, effort: t.effort })),
       ...(busy[m.id] ? { busyLabel: busy[m.id] } : {}),
     })),
+    ...(note ? { note } : {}),
   };
 }
 

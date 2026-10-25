@@ -61,14 +61,6 @@ export function eventsForMembersInCourse(tgUserIds: number[], course: string | n
   return liveEvents(tgUserIds, from, to).filter((e) => sameCourse(e.course, course));
 }
 
-/** Per user count of items due in [from, to) that are NOT in `course`. Counts only, never titles. */
-export function otherCourseCounts(tgUserIds: number[], course: string | null, from: Date, to: Date): Record<number, number> {
-  const out: Record<number, number> = {};
-  for (const id of tgUserIds) out[id] = 0;
-  for (const e of liveEvents(tgUserIds, from, to)) if (!sameCourse(e.course, course)) out[e.telegramUserId]!++;
-  return out;
-}
-
 export type LoadScore = { score: number; dueSoon: number };
 
 /**

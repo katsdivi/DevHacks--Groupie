@@ -99,6 +99,16 @@ Skills and weak areas come from `writing`, `research`, `coding`, `design`, `data
 
 Side effects: edits the group's "N/5 joined" message. When the last seat fills, runs the split and posts the split card.
 
+### `PATCH /api/groups/:id/members/me/workload`
+
+Opt in or out of the load-aware split (Telegram auth only; off by default).
+
+```json
+{ "shareWorkload": true }
+```
+
+Response: `{ "member": { "id": 1, "share_workload": true, "...": "..." } }`. `409 not_joined` if I have not joined, `400 bad_workload` for a bad body. When on (and `LOAD_AWARE_SPLIT=true`), my Canvas calendar can give me fewer points in a busy week. The group only ever sees a "Busy week" tag and "<name> got fewer points this time: busy week." on the split card, never my other courses or how many items I have due. `share_workload` is also on every `member` object (for example in `GET /api/me`).
+
 ### `PATCH /api/groups/:id/nickname`
 
 ```json

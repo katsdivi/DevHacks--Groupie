@@ -10,10 +10,19 @@ export type SplitCardData = {
     color: string;
     points: number;
     tasks: { title: string; effort: number }[];
-    /** Small amber tag under the name, e.g. "Busy week · 4 due". */
+    /** Small amber tag under the name: only ever "Busy week", for members who opted in. */
     busyLabel?: string;
   }[];
+  /** One muted line above the footer, e.g. "Divyam got fewer points this time: busy week." */
+  note?: string;
 };
+
+/** "Divyam got...", "Divyam and Ava got...", "Divyam, Ava and Jay got...". Empty for nobody. */
+export function adjustmentLine(names: string[]): string {
+  if (!names.length) return '';
+  const who = names.length === 1 ? names[0]! : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+  return `${who} got fewer points this time: busy week.`;
+}
 
 export const BRAND_COLORS = ['#FF6B5B', '#FFB547', '#A6E35A', '#4FD8E8', '#A88BFF', '#FF7AC6'];
 
@@ -168,6 +177,9 @@ body {
 .total { text-align: right; align-self: start; padding-top: 1px; }
 .total .n { font-variant-numeric: tabular-nums; font-size: 40px; font-weight: 750; letter-spacing: -0.04em; line-height: 1; }
 .total .u { margin-top: 6px; font-size: 14px; font-weight: 600; color: #9A9A9A; text-transform: uppercase; letter-spacing: 0.12em; }
+.note { margin-top: 26px; font-size: 19px; color: #9A9A9A; font-weight: 500; position: relative; display: flex; align-items: center; gap: 12px; }
+.note i { width: 8px; height: 8px; border-radius: 50%; background: #FFB547; display: block; flex: none; }
+.note + .foot { margin-top: 16px; }
 .foot { margin-top: 30px; display: flex; align-items: center; justify-content: space-between; gap: 20px; font-size: 19px; color: #9A9A9A; font-weight: 500; position: relative; }
 .foot .gap { display: inline-flex; align-items: center; gap: 12px; }
 .foot .gap b { color: #F5F5F5; font-weight: 650; }
@@ -242,7 +254,7 @@ export function splitCardHtml(data: SplitCardData): string {
   <div class="rows">
 ${rows}
   </div>
-  <div class="foot">
+  ${data.note ? `<div class="note"><i></i><span>${escapeHtml(data.note)}</span></div>\n  ` : ''}<div class="foot">
     <span class="gap"><span class="ok">${CHECK('#A6E35A', 18)}</span><span>Max difference: <b>${pts(data.maxGap)}</b></span></span>
     <span class="by">${dots('mini')}<span>Split by <b>${escapeHtml(data.nickname)}</b></span></span>
   </div>

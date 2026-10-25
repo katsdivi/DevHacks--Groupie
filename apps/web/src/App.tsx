@@ -99,7 +99,7 @@ export default function App() {
         {screen === 'avail' && <Availability groupId={me.group.id} nickname={me.group.nickname} go={go} />}
         {screen === 'progress' && <Progress me={me} go={go} />}
         {screen === 'chat' && <Chat me={me} />}
-        {screen === 'canvas' && <Canvas me={me} go={go} />}
+        {screen === 'canvas' && <Canvas me={me} go={go} onMember={(member) => setMe((m) => (m ? { ...m, member } : m))} />}
         {screen === 'upcoming' && <Upcoming me={me} go={go} />}
         {!['home', 'settings', 'form', 'split', 'avail', 'progress', 'chat', 'canvas', 'upcoming'].includes(screen) && (
           <Soon nickname={me.group.nickname} />

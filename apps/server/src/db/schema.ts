@@ -45,6 +45,8 @@ export const members = sqliteTable('members', {
   skills: json('skills'),
   weakAreas: json('weak_areas'),
   isSeed: integer('is_seed', { mode: 'boolean' }).notNull().default(false),
+  /** Opt-in: let the load-aware split go easier on this member in busy weeks. */
+  shareWorkload: integer('share_workload', { mode: 'boolean' }).notNull().default(false),
   createdAt: text('created_at').notNull(),
 });
 

@@ -61,5 +61,6 @@ export const sampleSplitCardData: SplitCardData = {
 /** Same split with one member having a busy Canvas week, to check the amber tag. */
 export const sampleBusySplitCardData: SplitCardData = {
   ...sampleSplitCardData,
-  members: sampleSplitCardData.members.map((m) => (m.name === 'Ava' ? { ...m, busyLabel: 'Busy week · 4 due' } : m)),
+  members: sampleSplitCardData.members.map((m) => (m.name === 'Ava' ? { ...m, busyLabel: 'Busy week' } : m)),
+  note: 'Ava got fewer points this time: busy week.',
 };

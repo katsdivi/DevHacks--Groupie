@@ -28,6 +28,8 @@ export const Member = z.object({
   skills: z.array(z.enum(SKILL_TAGS)),
   weak_areas: z.array(z.enum(SKILL_TAGS)),
   is_seed: z.boolean(),
+  /** Opted in to the load-aware split. The group only ever sees "Busy week", never counts or courses. */
+  share_workload: z.boolean(),
 });
 export type Member = z.infer<typeof Member>;
 
@@ -77,6 +79,12 @@ export type MemberRequest = z.input<typeof MemberRequest>;
 
 export const MemberResponse = z.object({ member: Member, joined: z.number(), team_size: z.number() });
 export type MemberResponse = z.infer<typeof MemberResponse>;
+
+export const WorkloadRequest = z.object({ shareWorkload: z.boolean() });
+export type WorkloadRequest = z.infer<typeof WorkloadRequest>;
+
+export const WorkloadResponse = z.object({ member: Member });
+export type WorkloadResponse = z.infer<typeof WorkloadResponse>;
 
 export const NicknameRequest = z.object({ nickname: z.string() });
 export type NicknameRequest = z.infer<typeof NicknameRequest>;

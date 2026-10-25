@@ -1,8 +1,12 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { db, schema } from './db/index.ts';
 import { groupContext, memberContext, weekAheadText } from './context.ts';
 import type { Member } from './db/schema.ts';
+import { getGroup } from './groups.ts';
+import { bot } from './bot/core.ts';
+import { runCheckin } from './bot/checkin.ts';
+import { buildQaMessages } from './bot/qa.ts';
 
 const now = new Date('2026-10-26T17:00:00Z'); // Mon 10 AM Phoenix
 const inDays = (d: number) => new Date(now.getTime() + d * 86_400_000).toISOString();
@@ -82,13 +86,54 @@ describe('memberContext Canvas items', () => {
 });
 
 describe('weekAheadText', () => {
-  it("lists this week's course items and only counts other courses", () => {
+  it("lists this week's course items and nothing about other courses, not even counts", () => {
     const out = weekAheadText(G, now);
-    expect(out).toBe(['<b>Due this week:</b> Homework 5: Testing (Tue)', 'Divyam has 3 other things due this week.', 'Ava has 1 other thing due this week.'].join('\n'));
-    expect(out).not.toContain('Essay');
-    expect(out).not.toContain('private lab');
+    expect(out).toBe('<b>Due this week:</b> Homework 5: Testing (Tue)');
+    expect(out).not.toMatch(/\bother\b/);
   });
   it('is empty without a Canvas course', () => {
     expect(weekAheadText(OTHER, now)).toBe('');
+  });
+});
+
+const HIDDEN = ['HST', 'MAT 265', 'PSY', 'Essay', 'Reading response', 'Calc quiz', 'private lab'];
+const COUNTS = /\d+\s+other\b|\d+\s+(things?|items?|assignments?)\s+due|\d+\s*due\b/i;
+
+describe('group views never leak other courses', () => {
+  it('groupContext has no other-course names or counts', () => {
+    const out = groupContext(G, now);
+    for (const h of HIDDEN) expect(out).not.toContain(h);
+    expect(out).not.toMatch(COUNTS);
+  });
+
+  it('runCheckin posts only this course, with no per-member counts', async () => {
+    db.insert(schema.tasks).values({ groupId: G, title: 'Write tests', effort: 3, assigneeMemberId: divyam.id }).run();
+    const sent: string[] = [];
+    const spy = vi.spyOn(bot.api, 'sendMessage').mockImplementation(async (_chat, text) => {
+      sent.push(text);
+      return {} as never;
+    });
+    try {
+      await runCheckin(G);
+    } finally {
+      spy.mockRestore();
+    }
+    const all = sent.join('\n');
+    expect(all).toContain('Due this week:</b> Homework 5: Testing');
+    for (const h of HIDDEN) expect(all).not.toContain(h);
+    expect(all).not.toMatch(COUNTS);
+    expect(all).not.toMatch(/has \d+/);
+  });
+
+  it('the group Q&A facts block has no other-course names or counts', () => {
+    const messages = buildQaMessages(getGroup(G)!, 'Ava', 'what is Divyam doing this week?', now);
+    expect(messages.map((m) => m.role)).toEqual(['system', 'user']);
+    const system = messages[0]!.content;
+    const facts = system.slice(system.indexOf('GROUP FACTS'));
+    expect(facts).toContain('Homework 5: Testing');
+    for (const h of HIDDEN) expect(facts).not.toContain(h);
+    expect(facts).not.toMatch(COUNTS);
+    expect(system).toContain('say you only know this project');
+    expect(messages[1]!.content).toBe('Ava asks: what is Divyam doing this week?');
   });
 });
