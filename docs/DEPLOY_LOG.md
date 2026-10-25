@@ -22,3 +22,6 @@
 - **Rollback point:** `4eef61616de9befaef074b855a514295ac80efc3` ("Merge hotfix/canvas-connect").
 - **Backup:** `backups/pre-step18a-20261024-2038.db`, integrity ok, user_version 7, groups=2.
 - **Migrations in this deploy:** 8 (user_memory, user_prefs, reminders_sent, calendar_connections, busy_blocks, groups.avail_deadline_at) and 9 (cubbie_links, cubbie_pair_codes.purpose). Additive only.
+- **Deployed:** merge `647a1b9` on main, Railway SUCCESS, boot clean. `user_version` 9, integrity ok, all 6 new tables present, existing groups kept. Webhook set, 0 pending, no errors.
+- **Smoke tests (all pass):** `/health`; `GET /api/me/prefs` (defaults 48/24/3); `GET /api/calendar/status` (`google_available=false` until per-user Google keys are set); `GET /api/me/memory`; memory without auth 401; `/api/cubbie/me` bad token 401; unsafe ICS link 400.
+- **Skill republished:** `katsdivi/groupie-cubbie-skill` commit `8c1eec2` adds `link.py`, `status.py`, `groupie_link.py`. Secret scan clean (pattern grep, .env value comparison, gitleaks), kit validator OK, fresh clone runs `send.py --sample` and `status.py`.
