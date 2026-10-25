@@ -197,6 +197,48 @@ Telegram or link auth.
 
 `slots` only lists times with at least one person free. `best` holds up to 5 one-hour windows ranked by how many people are free for the whole hour, then earliest.
 
+### `GET /api/groups/:id/progress`
+
+```json
+{
+  "group_id": -5254546157, "assignment_title": "Campus Food Finder", "due_date": "2026-11-20", "days_left": 27,
+  "total_points": 37, "done_points": 8, "percent": 22,
+  "members": [
+    { "id": 1, "name": "Divyam", "color": "#FF6B5B", "is_me": true, "points": 8, "done_points": 8, "percent": 100,
+      "tasks": [{ "id": 5, "title": "Implement frontend prototype", "effort": 8, "status": "done" }] }
+  ]
+}
+```
+
+`days_left` is whole days in the group's time zone (negative when overdue, `null` without a due date).
+
+### `PATCH /api/tasks/:id`
+
+```json
+{ "status": "done" }
+```
+
+Status is `todo`, `on_track`, `stuck`, or `done`. Only the task's owner may change it (`403 not_your_task`). Returns `{ "task": {...}, "progress": {...} }`. A fresh progress card posts in the group about 6 seconds after the last change.
+
+### `GET /api/agent/history?group=<id>`
+
+My private chat with Groupie, oldest first, plus starter prompts. Only ever the caller's own messages.
+
+```json
+{
+  "messages": [{ "id": 1, "role": "user", "content": "What should I work on first?", "created_at": "2026-10-25T01:00:00.000Z" }],
+  "suggestions": ["What should I work on first?", "Break \"Implement frontend prototype\" into steps", "When is our next meeting?"]
+}
+```
+
+### `POST /api/agent/chat`
+
+```json
+{ "group_id": -5254546157, "message": "What should I work on first?" }
+```
+
+Returns `{ "user": ChatMessage, "reply": ChatMessage }`. The model sees my profile, my tasks, my last 12 messages, and group-level facts (tasks, owners, statuses, due date, meeting). It never sees anyone else's private chat. `503 llm_unavailable` if Groq is down.
+
 ## Dev only (`DEV_MODE=true`, no auth)
 
 | Route | What it shows |
@@ -204,6 +246,7 @@ Telegram or link auth.
 | `GET /dev/state` | Every group with its members and tasks, as JSON |
 | `GET /dev/split?group=<id>` | A split computed right now (not saved), drawn as the card |
 | `GET /dev/links?group=<id>` | Each member's signed browser link to the availability page |
+| `GET /cards/progress?group=<id>&preview=1` | The progress card as HTML (PNG without `preview`) |
 | `GET /cards/split?group=<id>&preview=1` | The saved split card as HTML, for design work |
 | `GET /cards/split?group=<id>` | The same card as the PNG the bot posts |
 
@@ -214,6 +257,9 @@ Telegram or link auth.
 | `/setup` | group | Ask the team size |
 | `/join` | group | Repost the "N/5 joined" message with the details button |
 | `/split` | group | Repost the current split card |
+| `/checkin` | group | Post [Done] [On track] [Stuck] for each member's open tasks (also runs Mondays at 10 AM) |
+| `/progress` | group | Post the progress card |
+| `<nickname>, ...` or `@CubbieGroupieBot ...` | group | Ask about tasks, owners, due dates, the meeting. Replies to Groupie's messages work too |
 | `/avail` | group | Post the "When is everyone free?" message with the live counter |
 | `/meetlink <link or place>` | group | Set or change the meeting's Zoom/Meet link (or in-person place) and repost the meeting card |
 | `/app` | group | Button that opens the Mini App |

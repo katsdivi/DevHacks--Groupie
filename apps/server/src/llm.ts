@@ -62,3 +62,35 @@ export async function chat(opts: ChatOpts): Promise<string> {
   }
   throw new LlmError('Groq rate limit did not clear');
 }
+
+/** Strips model thinking and swaps em or en dashes used as punctuation for commas. */
+export function cleanReply(raw: string): string {
+  return raw
+    .replace(/<think>[\s\S]*?<\/think>/g, '')
+    .replace(/(\d)\u2013(\d)/g, '$1 to $2')
+    .replace(/\s*[\u2014\u2013]\s*/g, ', ')
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u201C\u201D]/g, '"')
+    .trim();
+}
+
+/** Conversational reply with the chat model, falling back to the backup model on failure. */
+export async function talk(messages: ChatMessage[], opts: { maxTokens?: number; onWait?: () => void } = {}): Promise<string> {
+  for (const model of [env.chatModel, env.fallbackModel]) {
+    try {
+      const raw = await chat({
+        model,
+        messages,
+        temperature: 0.5,
+        maxTokens: opts.maxTokens ?? 700,
+        reasoningEffort: model.startsWith('openai/gpt-oss') ? 'low' : undefined,
+        onWait: opts.onWait,
+      });
+      const text = cleanReply(raw);
+      if (text) return text;
+    } catch (err) {
+      console.warn(`[talk] ${model} failed:`, err instanceof Error ? err.message.slice(0, 200) : err);
+    }
+  }
+  throw new LlmError('No model could answer');
+}

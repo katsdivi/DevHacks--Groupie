@@ -19,6 +19,8 @@ import { assignment } from './assignment.ts';
 import { maybeRunSplit, splitComposer } from './split.ts';
 import { onAvailabilityChanged, scheduleComposer } from './schedule.ts';
 import { applyMeetingLink, meetingComposer } from './meeting.ts';
+import { checkinComposer } from './checkin.ts';
+import { qaComposer } from './qa.ts';
 import { seedAvailability } from '../availability.ts';
 
 import { appButton, appUrl, bot } from './core.ts';
@@ -271,6 +273,7 @@ bot.use(assignment);
 bot.filter((ctx) => isGroupChat(ctx)).use(splitComposer);
 bot.filter((ctx) => isGroupChat(ctx)).use(scheduleComposer);
 bot.filter((ctx) => isGroupChat(ctx)).use(meetingComposer);
+bot.filter((ctx) => isGroupChat(ctx)).use(checkinComposer);
 
 // Capture the reply after [Name me] / [Rename].
 bot.on('message:text', async (ctx, next) => {
@@ -280,6 +283,9 @@ bot.on('message:text', async (ctx, next) => {
   if (pending.kind === 'meeting_link') await applyMeetingLink(ctx, ctx.msg.text);
   else await applyName(ctx, ctx.msg.text, pending.kind);
 });
+
+// "Max, what's due?" and @mentions: answered last, after every other handler passed.
+bot.filter((ctx) => isGroupChat(ctx)).use(qaComposer);
 
 bot.catch((err) => {
   console.error('Bot error', err.error);

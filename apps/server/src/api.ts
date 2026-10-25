@@ -4,6 +4,8 @@ import {
   NicknameRequest,
   SwapRequest,
   AvailabilityPutRequest,
+  ChatRequest,
+  TaskStatusRequest,
   parseNickname,
   type MeResponse,
   type MemberResponse,
@@ -12,6 +14,10 @@ import {
   type AvailabilityMeResponse,
   type AvailabilityPutResponse,
   type HeatmapResponse,
+  type ChatHistoryResponse,
+  type ChatResponse,
+  type ProgressResponse,
+  type TaskStatusResponse,
 } from '@groupie/shared';
 import { isGroupMember, linkAuth, requireAuth, tgUser } from './auth.ts';
 import { getGroup, getTasks, setNickname, type Group } from './groups.ts';
@@ -21,6 +27,9 @@ import { maybeRunSplit, postSplitCard } from './bot/split.ts';
 import { requestSwap, splitView, SwapError } from './splitService.ts';
 import { cleanSlots, getSlots, heatmap, latestMeeting, respondedCount, setSlots } from './availability.ts';
 import { meetingSummary } from './bot/meeting.ts';
+import { getTask, progressView, setTaskStatus } from './progress.ts';
+import { scheduleProgressCard } from './bot/checkin.ts';
+import { chatTurn, history, suggestions } from './agent.ts';
 import { onAvailabilityChanged } from './bot/schedule.ts';
 import { html } from './bot/format.ts';
 import { announceRename } from './bot/index.ts';
@@ -205,4 +214,56 @@ api.get('/groups/:id/heatmap', async (req, res) => {
   if (!group) return;
   const body: HeatmapResponse = heatmap(group.id);
   res.json(body);
+});
+
+api.get('/groups/:id/progress', async (req, res) => {
+  const group = await loadGroupFor(req, res, req.params.id);
+  if (!group) return;
+  const me = getMemberByTgUser(group.id, tgUser(res).id);
+  const body: ProgressResponse = progressView(group.id, me?.id ?? null);
+  res.json(body);
+});
+
+api.patch('/tasks/:id', async (req, res) => {
+  const task = getTask(Number(req.params.id));
+  if (!task) return void res.status(404).json({ error: 'task_not_found', message: 'That task is gone.' });
+  const group = await loadGroupFor(req, res, task.groupId);
+  if (!group) return;
+  const parsed = TaskStatusRequest.safeParse(req.body);
+  if (!parsed.success) return void res.status(400).json({ error: 'bad_status', message: 'Pick To do, On track, Stuck, or Done.' });
+  const me = getMemberByTgUser(group.id, tgUser(res).id);
+  if (!me || task.assigneeMemberId !== me.id) {
+    return void res.status(403).json({ error: 'not_your_task', message: "That one isn't yours, so only its owner can update it." });
+  }
+  setTaskStatus(task.id, parsed.data.status);
+  scheduleProgressCard(group.id);
+  const progress = progressView(group.id, me.id);
+  const updated = progress.members.flatMap((m) => m.tasks).find((t) => t.id === task.id)!;
+  const body: TaskStatusResponse = { task: updated, progress };
+  res.json(body);
+});
+
+api.get('/agent/history', async (req, res) => {
+  const group = await loadGroupFor(req, res, req.query.group);
+  if (!group) return;
+  const me = getMemberByTgUser(group.id, tgUser(res).id);
+  if (!me) return void res.status(409).json(NOT_JOINED);
+  const body: ChatHistoryResponse = { messages: history(me.id), suggestions: suggestions(me, group.id) };
+  res.json(body);
+});
+
+api.post('/agent/chat', async (req, res) => {
+  const parsed = ChatRequest.safeParse(req.body);
+  if (!parsed.success) return void res.status(400).json({ error: 'bad_message', message: 'Say something (up to 1000 characters).' });
+  const group = await loadGroupFor(req, res, parsed.data.group_id);
+  if (!group) return;
+  const me = getMemberByTgUser(group.id, tgUser(res).id);
+  if (!me) return void res.status(409).json(NOT_JOINED);
+  try {
+    const body: ChatResponse = await chatTurn(me, group.id, parsed.data.message);
+    res.json(body);
+  } catch (err) {
+    console.error('agent chat failed', err);
+    res.status(503).json({ error: 'llm_unavailable', message: `${group.nickname} is thinking too hard. Try again in a few seconds?` });
+  }
 });

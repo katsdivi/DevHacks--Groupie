@@ -95,6 +95,8 @@ const MIGRATIONS = [
    CREATE INDEX availability_member ON availability(member_id);`,
   `ALTER TABLE meetings ADD COLUMN location TEXT;
    ALTER TABLE meetings ADD COLUMN event_link TEXT;`,
+  `ALTER TABLE groups ADD COLUMN last_checkin_at TEXT;
+   CREATE INDEX agent_messages_member ON agent_messages(member_id, id);`,
 ];
 
 export function openDb(file: string) {

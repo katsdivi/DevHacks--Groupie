@@ -169,3 +169,60 @@ export const HeatmapResponse = z.object({
   best: z.array(HeatmapBest),
 });
 export type HeatmapResponse = z.infer<typeof HeatmapResponse>;
+
+export const ProgressTask = z.object({
+  id: z.number(),
+  title: z.string(),
+  effort: z.number(),
+  status: TaskStatus,
+});
+export type ProgressTask = z.infer<typeof ProgressTask>;
+
+export const ProgressMember = z.object({
+  id: z.number(),
+  name: z.string(),
+  color: z.string(),
+  is_me: z.boolean(),
+  points: z.number(),
+  done_points: z.number(),
+  /** 0 to 100, share of this member's points that are done. */
+  percent: z.number(),
+  tasks: z.array(ProgressTask),
+});
+export type ProgressMember = z.infer<typeof ProgressMember>;
+
+export const ProgressResponse = z.object({
+  group_id: z.number(),
+  assignment_title: z.string().nullable(),
+  due_date: z.string().nullable(),
+  /** Whole days from today (group tz) to the due date; negative if overdue. */
+  days_left: z.number().nullable(),
+  total_points: z.number(),
+  done_points: z.number(),
+  percent: z.number(),
+  members: z.array(ProgressMember),
+});
+export type ProgressResponse = z.infer<typeof ProgressResponse>;
+
+export const TaskStatusRequest = z.object({ status: TaskStatus });
+export type TaskStatusRequest = z.infer<typeof TaskStatusRequest>;
+
+export const TaskStatusResponse = z.object({ task: ProgressTask, progress: ProgressResponse });
+export type TaskStatusResponse = z.infer<typeof TaskStatusResponse>;
+
+export const ChatMessage = z.object({
+  id: z.number(),
+  role: z.enum(['user', 'assistant']),
+  content: z.string(),
+  created_at: z.string(),
+});
+export type ChatMessage = z.infer<typeof ChatMessage>;
+
+export const ChatHistoryResponse = z.object({ messages: z.array(ChatMessage), suggestions: z.array(z.string()) });
+export type ChatHistoryResponse = z.infer<typeof ChatHistoryResponse>;
+
+export const ChatRequest = z.object({ group_id: z.number(), message: z.string().trim().min(1).max(1000) });
+export type ChatRequest = z.infer<typeof ChatRequest>;
+
+export const ChatResponse = z.object({ user: ChatMessage, reply: ChatMessage });
+export type ChatResponse = z.infer<typeof ChatResponse>;

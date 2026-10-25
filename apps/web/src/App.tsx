@@ -12,6 +12,8 @@ import { Form } from './screens/Form.tsx';
 import { Split } from './screens/Split.tsx';
 import { Availability } from './screens/Availability.tsx';
 import { Soon } from './screens/Soon.tsx';
+import { Progress } from './screens/Progress.tsx';
+import { Chat } from './screens/Chat.tsx';
 
 const BOT_LINK = 'https://t.me/CubbieGroupieBot';
 const route = decodeStartParam(startParam());
@@ -93,7 +95,11 @@ export default function App() {
         {screen === 'form' && <Form me={me} onSaved={onSaved} />}
         {screen === 'split' && <Split me={me} go={go} />}
         {screen === 'avail' && <Availability groupId={me.group.id} nickname={me.group.nickname} go={go} />}
-        {!['home', 'settings', 'form', 'split', 'avail'].includes(screen) && <Soon nickname={me.group.nickname} />}
+        {screen === 'progress' && <Progress me={me} go={go} />}
+        {screen === 'chat' && <Chat me={me} />}
+        {!['home', 'settings', 'form', 'split', 'avail', 'progress', 'chat'].includes(screen) && (
+          <Soon nickname={me.group.nickname} />
+        )}
       </main>
     </div>
   );

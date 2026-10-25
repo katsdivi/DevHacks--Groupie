@@ -94,6 +94,12 @@ export function Home({ me, go }: { me: MeResponse; go: (s: Screen) => void }) {
         {hasAssignment && member && (
           <Row title="Availability" sub="When you're free this week" onClick={() => go('avail')} />
         )}
+        {member && group.status !== 'setup' && group.status !== 'collecting_members' && (
+          <Row title="Progress" sub="Check off your tasks, see the team" onClick={() => go('progress')} />
+        )}
+        {member && (
+          <Row title={`Chat with ${group.nickname}`} sub="Private to you. Ask anything about your tasks" onClick={() => go('chat')} />
+        )}
         {member && <Row title="My details" sub="Name, email, skills" accent={member.color} onClick={() => go('form')} />}
         <Row title="Settings" sub={`Rename ${group.nickname} for this group`} onClick={() => go('settings')} />
       </nav>

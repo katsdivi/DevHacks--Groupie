@@ -15,6 +15,7 @@ export const groups = sqliteTable('groups', {
   createdAt: text('created_at').notNull(),
   splitMessageId: integer('split_message_id'),
   availMessageId: integer('avail_message_id'),
+  lastCheckinAt: text('last_checkin_at'),
 });
 
 export const pendingInputs = sqliteTable(

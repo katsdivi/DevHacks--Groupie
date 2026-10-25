@@ -14,6 +14,7 @@ import { splitCardHtml } from './cards/splitCard.ts';
 import { renderPng } from './cards/render.ts';
 import { listMembers } from './members.ts';
 import { signLinkToken } from './linkToken.ts';
+import { progressPreviewHtml, renderProgressPng, startWeeklyCheckins } from './bot/checkin.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const webDist = path.resolve(here, '../../web/dist');
@@ -52,6 +53,14 @@ if (env.devMode) {
         url: `${env.publicUrl}/?t=${signLinkToken({ g: group.id, m: m.id, n: m.name }, env.linkSigningSecret)}`,
       })),
     );
+  });
+
+  // Progress card: HTML with ?preview=1, otherwise the PNG we post.
+  app.get('/cards/progress', async (req, res) => {
+    const group = getGroup(Number(req.query.group));
+    if (!group) return void res.status(404).type('text').send('Unknown group. See /dev/state for ids.');
+    if (req.query.preview) return void res.type('html').send(progressPreviewHtml(group.id));
+    res.type('png').send(await renderProgressPng(group.id));
   });
 
   // Saved split as the card: HTML with ?preview=1, otherwise the PNG we post.
@@ -100,9 +109,12 @@ async function startBot() {
     { command: 'split', description: 'Show the fair split' },
     { command: 'avail', description: 'When is everyone free?' },
     { command: 'meetlink', description: 'Set the meeting link or place' },
+    { command: 'checkin', description: 'How is everyone doing?' },
+    { command: 'progress', description: 'Show the progress card' },
     { command: 'settings', description: 'Group settings' },
     { command: 'rename', description: 'Give me a new name' },
   ]);
+  startWeeklyCheckins();
   if (env.botMode === 'webhook') {
     await bot.api.setWebhook(`${env.publicUrl}/tg/webhook`, {
       secret_token: env.webhookSecret,
