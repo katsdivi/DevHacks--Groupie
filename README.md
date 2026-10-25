@@ -63,6 +63,8 @@ Without keys, Groupie still shares the meeting: a card with the join link, an "A
 
 The feed poller starts with the server and checks each feed every 30 minutes. Code lives in `apps/server/src/canvas/`.
 
+Inspect production, read-only: `pnpm canvas:inspect [N]` (latest imports: status, rubric, attachment kinds and sizes, never the text) and `pnpm feed:inspect <telegram_user_id>` (calendar item stats, never the feed link). Both accept `--local <db>` for a backup copy. They use the app's `better-sqlite3` in read-only mode because the container has no `sqlite3` CLI. What Cubbie can and cannot do, with live evidence: `docs/CUBBIE_CAPABILITIES.md`.
+
 The signing key is public by design. Cubbie cannot host team keys, so the value ships inside the public Skill (as `GROUPIE_SIGNING_KEY` in `cubbie-skill/scripts/send.py`) and anyone can read it. It is integrity and spam friction only; single-use, 15 minute pair codes plus rate limits are the real protection. Never reuse another secret for it: the server refuses to start if `CUBBIE_PUBLIC_SIGNING_KEY` equals `FEED_ENCRYPTION_KEY`, `BOT_TOKEN`, `WEBHOOK_SECRET`, `LINK_SIGNING_SECRET`, `GROQ_API_KEY`, `GOOGLE_CLIENT_SECRET` or `GOOGLE_REFRESH_TOKEN`, or if `FEED_ENCRYPTION_KEY` equals any of the others.
 
 ## Deploy
