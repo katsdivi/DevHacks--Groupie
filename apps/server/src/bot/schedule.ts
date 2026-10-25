@@ -277,10 +277,14 @@ scheduleComposer.command('avail', async (ctx) => {
   await postAvailStatus(group.id);
 });
 
+/** Why a lock or deadline button does nothing: a time vote is open, or the meeting is set. */
+const notSchedulingText = (groupId: number) =>
+  latestMeeting(groupId) ? 'Already locked in!' : 'Voting on a time now. Tap Confirm time when ready.';
+
 scheduleComposer.callbackQuery('avail:lock', async (ctx) => {
   const group = getGroup(ctx.chat!.id);
   if (!group || group.status !== 'scheduling') {
-    return void (await ctx.answerCallbackQuery({ text: 'Already locked in!' }));
+    return void (await ctx.answerCallbackQuery({ text: group ? notSchedulingText(group.id) : 'Already locked in!' }));
   }
   if (heatmap(group.id).responded < 2) {
     return void (await ctx.answerCallbackQuery({ text: 'I need at least 2 people to answer first.', show_alert: true }));
@@ -292,7 +296,7 @@ scheduleComposer.callbackQuery('avail:lock', async (ctx) => {
 scheduleComposer.callbackQuery(/^avail:deadline:(24|48)$/, async (ctx) => {
   const group = getGroup(ctx.chat!.id);
   if (!group || group.status !== 'scheduling') {
-    return void (await ctx.answerCallbackQuery({ text: 'Already locked in!' }));
+    return void (await ctx.answerCallbackQuery({ text: group ? notSchedulingText(group.id) : 'Already locked in!' }));
   }
   const hours = Number(ctx.match[1]);
   await ctx.answerCallbackQuery({ text: `I'll pick times in ${hours} hours.` });

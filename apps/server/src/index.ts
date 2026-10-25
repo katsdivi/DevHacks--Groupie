@@ -1,3 +1,4 @@
+import { startAvailDeadlines } from './bot/schedule.ts';
 import { googleCallbackRouter } from './routes/googleCallback.ts';
 import { startReminderScheduler } from './reminders.ts';
 import { startCalendarSync } from './calendarSync.ts';
@@ -117,6 +118,7 @@ app.listen(env.port, (err) => {
   startFeedPoller();
   startReminderScheduler();
   startCalendarSync();
+  startAvailDeadlines();
   startBot().catch((err) => console.error('Bot failed to start', err));
 });
 
@@ -132,6 +134,7 @@ async function startBot() {
     { command: 'split', description: 'Show the fair split' },
     { command: 'canvas', description: 'Import the assignment from Canvas via Cubbie' },
     { command: 'avail', description: 'When is everyone free?' },
+    { command: 'deadline', description: 'Pick times automatically after 24h or 48h' },
     { command: 'meetlink', description: 'Set the meeting link or place' },
     { command: 'checkin', description: 'How is everyone doing?' },
     { command: 'progress', description: 'Show the progress card' },
