@@ -18,7 +18,9 @@ import { CANVAS_PDF_CAPTION, FILE_SEND_FAILED, fileCaption, NO_ASSIGNMENT_FILE, 
 const THING = '(?:assignment|pdf|file|doc|docx|document|instructions|handout|spec|template|brief|prompt)';
 const THE = '(?:the|a copy of(?: the)?|that|this|our)';
 const ASKS = [
-  new RegExp(`\\b(?:send|give|share|post|forward|resend|re-send|attach|drop|get|grab|dm)\\s+(?:me|us|everyone|it|over)?\\s*${THE}?\\s*(?:original\\s+|assignment\\s+|canvas\\s+)?${THING}\\b`, 'i'),
+  new RegExp(`\\b(?:send|give|share|post|forward|resend|re-send|attach|drop|dm)\\s+(?:me|us|everyone|it|over)?\\s*${THE}?\\s*(?:original\\s+|assignment\\s+|canvas\\s+)?${THING}\\b`, 'i'),
+  // "get" only with a recipient, so "did you get the assignment?" stays a question.
+  new RegExp(`\\b(?:get|grab)\\s+(?:me|us)\\s+${THE}?\\s*(?:original\\s+|assignment\\s+|canvas\\s+)?${THING}\\b`, 'i'),
   new RegExp(`\\b(?:i|we)\\s+(?:need|want|would like)\\s+${THE}\\s+(?:original\\s+|assignment\\s+)?${THING}\\b`, 'i'),
   new RegExp(`\\bcan\\s+(?:i|we)\\s+(?:have|get|see|download)\\s+${THE}\\s+(?:original\\s+|assignment\\s+)?${THING}\\b`, 'i'),
   new RegExp(`\\bwhere(?:'?s|\\s+is|\\s+can\\s+i\\s+find)\\s+the\\s+(?:assignment\\s+)?(?:pdf|file|doc|document|handout|instructions|template)\\b`, 'i'),

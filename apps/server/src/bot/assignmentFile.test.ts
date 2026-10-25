@@ -99,6 +99,7 @@ describe('wantsAssignmentFile', () => {
     'resend the doc',
     'the pdf please',
     'dm me a copy of the assignment',
+    'get me the pdf',
   ])('asks for the file: %s', (q) => expect(wantsAssignmentFile(q)).toBe(true));
   it.each([
     'do we need to submit a pdf?',
@@ -106,6 +107,7 @@ describe('wantsAssignmentFile', () => {
     'how long should the report be?',
     "what's due this week?",
     'who has the file upload task?',
+    'did you get the assignment?',
   ])('is a question, not a file request: %s', (q) => expect(wantsAssignmentFile(q)).toBe(false));
 });
 
