@@ -20,6 +20,14 @@ export const groups = sqliteTable('groups', {
   canvasCourse: text('canvas_course'),
   /** Optional: lock the meeting at this time even if not everyone has answered. */
   availDeadlineAt: text('avail_deadline_at'),
+  /** The cubbie_imports row that gave this group its assignment (null for a dropped file). */
+  canvasImportId: integer('canvas_import_id'),
+  /** When a file was dropped in and attached to that Canvas import. */
+  canvasFileAt: text('canvas_file_at'),
+  /** Telegram file behind the current assignment (dropped in, or posted after a Cubbie import). */
+  assignmentFileId: text('assignment_file_id'),
+  assignmentFileName: text('assignment_file_name'),
+  assignmentFileMime: text('assignment_file_mime'),
 });
 
 export const pendingInputs = sqliteTable(

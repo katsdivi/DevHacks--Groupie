@@ -55,34 +55,60 @@ export const RubricCriterion = z.object({
 });
 export type RubricCriterion = z.infer<typeof RubricCriterion>;
 
+/** Max extracted text kept per attachment (characters). Longer ones are dropped by the server, not rejected. */
+export const MAX_ATTACHMENT_TEXT = 60_000;
+
+/** A URL field that never fails the payload: a bad or missing value becomes undefined. */
+const looseUrl = z.string().url().max(2000).optional().catch(undefined);
+
+/**
+ * One attachment. Loose on purpose: unknown fields pass through, and an attachment with neither text nor
+ * base64 (nor url) is ignored by the server with a log line instead of failing the whole import. Size caps
+ * (MAX_ATTACHMENT_BYTES, MAX_ATTACHMENT_TEXT) are enforced by the server, which drops the file and goes on.
+ */
 export const CubbieAttachment = z
   .object({
-    filename: z.string().trim().min(1).max(200),
-    mimeType: z.string().trim().max(120).default('application/octet-stream'),
-    /** Extracted text. What the Skill sends (Cubbie reads PDFs; raw bytes are UNCLEAR). */
-    text: z.string().max(60_000).optional(),
-    /** Raw file, base64. Accepted for completeness; goes through the normal file intake. */
-    base64: z.string().max(Math.ceil((10 * 1024 * 1024 * 4) / 3) + 8).optional(),
+    filename: z.string().trim().min(1).max(200).catch('attachment'),
+    mimeType: z.string().trim().max(120).nullish().transform((m) => m || 'application/octet-stream'),
+    /** Extracted text. What the Skill sends today (Cubbie reads the file and sends its text). */
+    text: z.string().optional(),
+    /** Raw file, base64. Accepted; posted to the group as a document and read through the normal file intake. */
+    base64: z.string().optional(),
     /** A link for people (Canvas file links need a login, so the server never downloads these). */
-    url: z.string().url().max(2000).optional(),
+    url: looseUrl,
   })
-  .refine((a) => a.text || a.base64 || a.url, { message: 'An attachment needs text, base64, or url' });
+  .loose();
 export type CubbieAttachment = z.infer<typeof CubbieAttachment>;
 
-export const CubbieImportPayload = z.object({
-  pairCode: PairCodeString,
-  course: z.object({ name: z.string().trim().min(1).max(200), code: z.string().trim().max(60).optional() }),
-  assignment: z.object({
-    title: z.string().trim().min(1).max(300),
-    /** ISO 8601 with offset, or null when Canvas has no due date. */
-    dueAt: z.string().datetime({ offset: true }).nullable(),
-    pointsPossible: z.number().min(0).max(100000).nullable().optional(),
-    descriptionText: z.string().max(60_000).default(''),
-    url: z.string().url().max(2000).optional(),
-  }),
-  rubric: z.object({ criteria: z.array(RubricCriterion).min(1).max(40) }).optional(),
-  attachments: z.array(CubbieAttachment).max(MAX_ATTACHMENTS).optional(),
-});
+/**
+ * What the Skill POSTs. Extra fields anywhere are tolerated. `assignment.descriptionText` is the
+ * description (the older `description` key is still read). `attachments` and `rubric` are optional.
+ */
+export const CubbieImportPayload = z
+  .object({
+    pairCode: PairCodeString,
+    course: z.object({ name: z.string().trim().min(1).max(200), code: z.string().trim().max(60).nullish() }).loose(),
+    assignment: z
+      .object({
+        title: z.string().trim().min(1).max(300),
+        /** ISO 8601 with offset, or null (or missing) when Canvas has no due date. */
+        dueAt: z
+          .string()
+          .datetime({ offset: true })
+          .nullish()
+          .transform((d) => d ?? null),
+        pointsPossible: z.number().min(0).max(100000).nullable().optional().catch(null),
+        descriptionText: z.string().max(60_000).nullish(),
+        /** Older name for descriptionText. */
+        description: z.string().max(60_000).nullish(),
+        url: looseUrl,
+      })
+      .loose()
+      .transform(({ description, descriptionText, ...a }) => ({ ...a, descriptionText: descriptionText || description || '' })),
+    rubric: z.object({ criteria: z.array(RubricCriterion).min(1).max(40) }).loose().optional(),
+    attachments: z.array(CubbieAttachment).max(50).optional(),
+  })
+  .loose();
 export type CubbieImportPayload = z.infer<typeof CubbieImportPayload>;
 
 export const CubbieImportResponse = z.object({

@@ -1,0 +1,21 @@
+{
+  "pairCode": "K7Q2MX",
+  "course": {
+    "name": "PLACEHOLDER 101: Course Name",
+    "code": "PLC 101"
+  },
+  "assignment": {
+    "title": "Placeholder Group Project",
+    "dueAt": "2026-11-20T23:59:00-07:00",
+    "pointsPossible": 100,
+    "descriptionText": "",
+    "url": "https://canvas.asu.edu/courses/111111/assignments/222222"
+  },
+  "attachments": [
+    {
+      "filename": "placeholder-assignment-brief.docx",
+      "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "text": "Placeholder brief. This stands in for the extracted attachment text Cubbie sends. Part one: placeholder research step with a short written summary. Part two: placeholder design step with sketches and a review. Part three: placeholder build step with tests. Part four: placeholder report and a short presentation to the class."
+    }
+  ]
+}

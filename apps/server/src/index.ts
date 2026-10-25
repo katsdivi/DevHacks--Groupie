@@ -19,7 +19,7 @@ import { renderPng } from './cards/render.ts';
 import { listMembers } from './members.ts';
 import { signLinkToken } from './linkToken.ts';
 import { progressPreviewHtml, renderProgressPng, startWeeklyCheckins } from './bot/checkin.ts';
-import { cubbieImportRouter } from './canvas/routes.ts';
+import { cubbieImportErrors, cubbieImportRouter } from './canvas/routes.ts';
 import { cubbieLinkRouter } from './canvas/link.ts';
 import { startFeedPoller } from './canvas/poller.ts';
 
@@ -31,7 +31,7 @@ const app = express();
 app.use(
   ['/api/cubbie/import', '/api/cubbie/link'],
   express.json({
-    limit: '16mb',
+    limit: '15mb',
     verify: (req, _res, buf) => {
       (req as unknown as { rawBody: Buffer }).rawBody = buf;
     },
@@ -45,7 +45,7 @@ app.get('/health', (_req, res) => {
 });
 
 // Public: the Cubbie Skill has no Telegram login. The pair code and signature gate it.
-app.use('/api/cubbie/import', cubbieImportRouter);
+app.use('/api/cubbie/import', cubbieImportRouter, cubbieImportErrors);
 // Public: the iMessage link and status. A signed single-use code, then a bearer token, gate them.
 app.use('/api/cubbie', cubbieLinkRouter);
 app.use('/api', googleCallbackRouter);

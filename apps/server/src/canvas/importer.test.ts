@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { IMPORT_RATE_LIMIT, PAIR_CODE_TTL_MS } from '@groupie/shared';
+import { IMPORT_RATE_LIMIT, MAX_ATTACHMENT_TEXT, PAIR_CODE_TTL_MS } from '@groupie/shared';
 import { env } from '../env.ts';
 import { db, schema } from '../db/index.ts';
 import { bot } from '../bot/core.ts';
@@ -9,7 +9,8 @@ import { setTeamSize, upsertGroup } from '../groups.ts';
 import { ingestAssignment } from '../intake.ts';
 import { parseAssignment } from '../parse.ts';
 import { signBody } from './crypto.ts';
-import { buildIntakeText, formatRubric, resetRateLimits, storablePayload } from './importer.ts';
+import { buildIntakeText, formatRubric, prepareIntake, resetRateLimits, storablePayload } from './importer.ts';
+import { TEXT_ONLY_LINE } from './afterImport.ts';
 import { createPairCode } from './pairCodes.ts';
 import { applyFeedEvents } from './poller.ts';
 import { deleteFeed } from './feeds.ts';
@@ -86,22 +87,22 @@ describe('signature and payload checks', () => {
     const sig = signBody(SECRET, JSON.stringify(body));
     expect((await post({ ...body, course: { name: 'Other' } }, { sig })).status).toBe(401);
   });
-  it('turns imports off with 503 when the server has no secret', async () => {
+  it('turns imports off with server_error when the server has no secret', async () => {
     env.cubbiePublicSigningKey = '';
     const r = await post(withCode(textOnly), { sig: signBody('', JSON.stringify(textOnly)) });
-    expect(r.status).toBe(503);
+    expect(r).toMatchObject({ status: 500, body: { error: 'server_error' } });
   });
   it('rejects the malformed fixture with the first issue', async () => {
     const r = await post(malformed);
     expect(r.status).toBe(400);
-    expect(r.body.error).toBe('bad_payload');
+    expect(r.body.error).toBe('invalid_payload');
     expect(String(r.body.message).length).toBeGreaterThan(0);
   });
 });
 
 describe('pair code checks', () => {
   it('404s an unknown code', async () => {
-    expect((await post({ ...textOnly, pairCode: 'ZZZZZZ' })).body.error).toBe('unknown_code');
+    expect((await post({ ...textOnly, pairCode: 'ZZZZZZ' })).body.error).toBe('code_unknown');
   });
   it('accepts a code once, then 409 code_used', async () => {
     const body = withCode(textOnly);
@@ -182,11 +183,20 @@ describe('import content', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
     fetchSpy.mockRestore();
   });
-  it('rejects oversized base64 attachments', async () => {
+  it('drops oversized attachments and goes on without them', async () => {
     const big = Buffer.alloc(10 * 1024 * 1024 + 10).toString('base64');
-    await expect(
-      buildIntakeText({ ...textOnly, descriptionText: '', attachments: [{ filename: 'big.pdf', mimeType: 'application/pdf', base64: big }] }),
-    ).rejects.toThrow(/10 MB/);
+    const prepared = await prepareIntake({
+      ...textOnly,
+      attachments: [
+        { filename: 'big.pdf', mimeType: 'application/pdf', base64: big },
+        { filename: 'long.txt', mimeType: 'text/plain', text: 'x'.repeat(MAX_ATTACHMENT_TEXT + 1) },
+        { filename: 'ok.txt', mimeType: 'text/plain', text: 'Fine notes' },
+      ],
+    });
+    expect(prepared.dropped).toEqual(['big.pdf', 'long.txt']);
+    expect(prepared.files).toEqual([]);
+    expect(prepared.text).toContain('Attachment: ok.txt\nFine notes');
+    expect(prepared.text).not.toContain('big.pdf');
   });
   it('formats rubric and strips base64 for storage', () => {
     expect(formatRubric([{ name: 'A', points: 5, ratings: [] }])).toContain('A (5 pts)');
@@ -207,10 +217,13 @@ describe('import content', () => {
     await new Promise((r) => setTimeout(r, 10));
     expect(importRow(id).status).toBe('imported');
   });
-  it('422s other intake failures with the reason', async () => {
-    ingest.mockResolvedValue({ ok: false, reason: 'too_short', message: 'Not enough assignment text.' });
-    const r = await post(withCode(textOnly));
-    expect(r).toMatchObject({ status: 422, body: { error: 'too_short' } });
+  it('answers server_error for intake failures, with a friendly message', async () => {
+    for (const reason of ['too_short', 'failed', 'busy', 'no_team_size'] as const) {
+      ingest.mockResolvedValueOnce({ ok: false, reason, message: 'Get a new code and try again.' });
+      const r = await post(withCode(textOnly));
+      expect(r).toMatchObject({ status: 500, body: { error: 'server_error' } });
+      expect(String(r.body.message)).not.toContain('new code');
+    }
   });
 });
 
@@ -299,7 +312,7 @@ describe('personal imports (code made in a private chat)', () => {
   });
   it('rejects a link code as an unknown import code', async () => {
     const pc = createPairCode(USER, null, new Date(), undefined, 'link');
-    expect((await post({ ...textOnly, pairCode: pc.code })).body.error).toBe('unknown_code');
+    expect((await post({ ...textOnly, pairCode: pc.code })).body.error).toBe('code_unknown');
   });
 });
 
@@ -309,7 +322,8 @@ describe('group imports are unchanged', () => {
     expect(r.body.message).toBe('Sent to Groupie. Check your group.');
     expect(ingest).toHaveBeenCalledTimes(1);
     expect(parse).not.toHaveBeenCalled();
-    expect(sendMessage).not.toHaveBeenCalled();
+    // The only group message from the importer is the text-only line (the intake posts the task list).
+    expect(sendMessage.mock.calls.map((c) => c[1])).toEqual([TEXT_ONLY_LINE]);
     expect(db.select().from(schema.calendarEvents).all().some((e) => e.uid === `cubbie-import-${r.body.importId}`)).toBe(false);
   });
 });
