@@ -151,3 +151,53 @@ export function ProgressSkeleton() {
     </div>
   );
 }
+
+export function FeedStatusSkeleton() {
+  return (
+    <div aria-busy="true" aria-label="Loading calendar status">
+      <div className="flex items-center gap-3">
+        <div className="h-3 w-3 animate-shimmer rounded-full bg-line" />
+        <Bar className="h-4 w-32" />
+      </div>
+      <div className="mt-5 grid grid-cols-2 gap-3">
+        <div className="h-16 animate-shimmer rounded-2xl border border-dashed border-line" />
+        <div className="h-16 animate-shimmer rounded-2xl border border-dashed border-line" />
+      </div>
+      <div className="mt-4 flex gap-2">
+        <Bar className="h-7 w-28" />
+        <Bar className="h-7 w-24" />
+      </div>
+    </div>
+  );
+}
+
+export function UpcomingSkeleton() {
+  return (
+    <div className="mx-auto max-w-xl px-5 pt-6" aria-busy="true" aria-label="Loading what's due">
+      <Bar className="h-7 w-36" />
+      <Bar className="mt-3 h-3 w-56" />
+      <div className="mt-6 h-20 animate-shimmer rounded-3xl border border-dashed border-line" />
+      {[3, 2].map((n, g) => (
+        <div key={g} className="mt-8">
+          <Bar className="h-3 w-20" />
+          {Array.from({ length: n }, (_, i) => (
+            <div
+              key={i}
+              className="mt-3 flex items-start gap-3.5 rounded-3xl border border-dashed border-line p-4"
+              style={{ animationDelay: `${i * 120}ms` }}
+            >
+              <div className="h-10 w-10 shrink-0 animate-shimmer rounded-full bg-line" />
+              <div className="flex-1 space-y-2.5">
+                <Bar className="h-4 w-4/5" />
+                <div className="flex gap-2">
+                  <Bar className="h-5 w-20" />
+                  <Bar className="h-5 w-16" />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}

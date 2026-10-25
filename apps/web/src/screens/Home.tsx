@@ -97,6 +97,14 @@ export function Home({ me, go }: { me: MeResponse; go: (s: Screen) => void }) {
         {member && group.status !== 'setup' && group.status !== 'collecting_members' && (
           <Row title="Progress" sub="Check off your tasks, see the team" onClick={() => go('progress')} />
         )}
+        {member && <Row title="Upcoming" sub="Everything you have due, all courses" onClick={() => go('upcoming')} />}
+        {(member || group.status === 'setup' || group.status === 'collecting_members') && (
+          <Row
+            title="Connect Canvas"
+            sub="Import from Canvas through Cubbie, sync due dates"
+            onClick={() => go('canvas')}
+          />
+        )}
         {member && (
           <Row title={`Chat with ${group.nickname}`} sub="Private to you. Ask anything about your tasks" onClick={() => go('chat')} />
         )}
