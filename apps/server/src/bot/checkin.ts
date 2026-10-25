@@ -9,6 +9,7 @@ import { getTask, markCheckin, progressView, setTaskStatus } from '../progress.t
 import { renderPng } from '../cards/render.ts';
 import { progressCardHtml, type ProgressCardData } from '../cards/progressCard.ts';
 import { db, schema } from '../db/index.ts';
+import { weekAheadText } from '../context.ts';
 import type { Member } from '../db/schema.ts';
 
 export const checkinComposer = new Composer();
@@ -31,15 +32,19 @@ function memberCheckin(member: Member, groupId: number) {
   return { text, kb, open: tasks.some((t) => t.status !== 'done') };
 }
 
-/** Posts the check-in: a header, then one message per member with buttons for their open tasks. */
+/**
+ * Posts the check-in: a header (plus this week's Canvas items for the group's course, when known),
+ * then one message per member with buttons for their open tasks.
+ */
 export async function runCheckin(groupId: number) {
   const group = getGroup(groupId);
   if (!group) return;
   markCheckin(groupId);
   const members = listMembers(groupId);
+  const week = weekAheadText(groupId);
   await bot.api.sendMessage(
     groupId,
-    `<b>Check-in time!</b> ${html(group.nickname)} here. Tap how each task is going. Only the owner's taps count.`,
+    `<b>Check-in time!</b> ${html(group.nickname)} here. Tap how each task is going. Only the owner's taps count.${week ? `\n\n${week}` : ''}`,
     { parse_mode: 'HTML' },
   );
   for (const m of members) {

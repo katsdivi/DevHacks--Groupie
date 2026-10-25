@@ -49,6 +49,7 @@ qaComposer.on('message:text', async (ctx, next) => {
           content: `${voice(group.nickname)}
 You are answering in the team's group chat, so everyone sees it. Reply in 1 to 3 short sentences, plain text (no markdown, no bullet lists unless listing up to 4 short items), and mention names when useful.
 You only know the group facts below. You never see or mention anyone's private chats with you.
+"Coming up (from Canvas)" lists only this course's items from teammates' calendars; you know nothing about their other classes.
 
 GROUP FACTS
 ${groupContext(group.id)}`,

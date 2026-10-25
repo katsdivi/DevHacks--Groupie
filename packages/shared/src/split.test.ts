@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { split, type SplitMember, type SplitTask } from './split.ts';
+import { skillFit, split, type SplitMember, type SplitTask } from './split.ts';
 
 const member = (id: number, skills: string[] = [], weak_areas: string[] = []): SplitMember => ({ id, skills, weak_areas });
 const task = (id: number, effort: number, skill_tags: string[] = []): SplitTask => ({ id, effort, skill_tags });
@@ -198,5 +198,56 @@ describe('split plateaus', () => {
     const r = split(tasks, members, { locked: { 12: 5 }, forbidden: [{ task_id: 12, member_id: 1 }] });
     expect(r.maxGap).toBe(1);
     expect(r.assignments[12]).toBe(5);
+  });
+});
+
+describe('split with calendar load', () => {
+  it('gives the extra point to the less loaded member when gaps tie', () => {
+    const tasks = [task(1, 3), task(2, 2), task(3, 2)];
+    const members = [member(1), member(2)];
+    expect(split(tasks, members, {}, { load: { 1: 10, 2: 0 } }).totals).toEqual({ 1: 3, 2: 4 });
+    expect(split(tasks, members, {}, { load: { 1: 0, 2: 10 } }).totals).toEqual({ 1: 4, 2: 3 });
+  });
+
+  it('never trades skill fit for load', () => {
+    const tasks = [task(1, 3, ['coding']), task(2, 3)];
+    const members = [member(1, ['coding']), member(2)];
+    const r = split(tasks, members, {}, { load: { 1: 50 } });
+    expect(r.assignments[1]).toBe(1);
+  });
+
+  it('is identical to no load when load is missing, empty, or all zero', () => {
+    for (let seed = 1; seed <= 60; seed++) {
+      const { tasks, members } = randomCase(seed + 5000);
+      const base = split(tasks, members);
+      expect(split(tasks, members, {}, undefined)).toEqual(base);
+      expect(split(tasks, members, {}, {})).toEqual(base);
+      expect(split(tasks, members, {}, { load: {} })).toEqual(base);
+      expect(split(tasks, members, {}, { load: Object.fromEntries(members.map((m) => [m.id, 0])) })).toEqual(base);
+    }
+  });
+
+  it('never makes max gap or skill fit worse across seeded random inputs', () => {
+    for (let seed = 1; seed <= 150; seed++) {
+      const { tasks, members } = randomCase(seed + 9000);
+      const r0 = rng(seed);
+      const load = Object.fromEntries(members.map((m) => [m.id, Math.floor(r0() * 12)]));
+      const base = split(tasks, members);
+      const withLoad = split(tasks, members, {}, { load });
+      checkInvariants(tasks, members, withLoad);
+      expect(withLoad.maxGap).toBeLessThanOrEqual(base.maxGap);
+      const fitOf = (a: Record<number, number>) =>
+        tasks.reduce((s, t) => s + skillFit(t, members.find((m) => m.id === a[t.id])!), 0);
+      if (withLoad.maxGap === base.maxGap) expect(fitOf(withLoad.assignments)).toBeGreaterThanOrEqual(fitOf(base.assignments));
+    }
+  });
+
+  it('respects locks and forbidden pairs with load', () => {
+    const tasks = [task(1, 5), task(2, 3), task(3, 2), task(4, 2)];
+    const members = [member(1), member(2), member(3)];
+    const r = split(tasks, members, { locked: { 1: 2 }, forbidden: [{ task_id: 2, member_id: 3 }] }, { load: { 3: 9 } });
+    expect(r.assignments[1]).toBe(2);
+    expect(r.assignments[2]).not.toBe(3);
+    checkInvariants(tasks, members, r);
   });
 });
