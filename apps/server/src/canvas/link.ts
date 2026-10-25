@@ -227,12 +227,11 @@ const minutes = PAIR_CODE_TTL_MS / 60_000;
 /** The /imessage reply in a private chat. */
 export function linkCodeText(code: string): string {
   return [
-    '<b>1. First time only:</b> text Cubbie this and wait for it to say the skill is installed:',
+    "<b>1. First time only:</b> text Cubbie this, then wait until it's installed:",
     `<code>Install this skill: ${SKILL_URL}</code>`,
     '',
     `<b>2.</b> Then text Cubbie: <code>${html(cubbieLinkMessage(code))}</code>`,
-    '',
-    `The code works once, for ${minutes} minutes. After that, text Cubbie "Groupie status" to see your tasks, deadlines and next meeting in iMessage.`,
+    `Works once, for ${minutes} minutes. Then text Cubbie "Groupie status" any time.`,
   ].join('\n');
 }
 

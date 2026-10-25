@@ -34,7 +34,7 @@ function availText(group: Group): string {
     '<b>When is everyone free?</b>',
     meeting
       ? 'Times are locked. You can still peek at the heatmap.'
-      : `Paint your free times for the week. ${html(group.nickname)} finds the hour that works for the most people.`,
+      : "Paint your free times and I'll find the best hour.",
     '',
     people,
     '',
@@ -146,7 +146,7 @@ export function pickWinner(counts: number[]): number {
 const noOverlapMessages = new Map<number, number>();
 
 export const noOverlapText = (nickname: string) =>
-  `${html(nickname)} here. Nobody's free times overlap yet. Paint a few more hours, then tap <b>Lock it now</b>.`;
+  `${html(nickname)} here. Nobody's free times overlap yet. Paint a few more, then tap <b>Lock it now</b>.`;
 
 export const POLL_FAILED_TEXT = "I couldn't post the time poll. Tap <b>Lock it now</b> to try again?";
 
@@ -254,8 +254,8 @@ export async function startMeetingFlow(groupId: number, start: string, end: stri
   return true;
 }
 
-export const INVITE_PROMPT = 'Vote above, then tap below and I will send everyone the invite.';
-const INVITE_PROMPT_NO_POLL = "Tap below and I will send everyone the invite. It's Google Meet unless you change it with /meetlink.";
+export const INVITE_PROMPT = "Vote above, then tap below and I'll send the invite.";
+const INVITE_PROMPT_NO_POLL = "Tap below and I'll send the invite. It's Google Meet unless you /meetlink another.";
 
 /** Proposes times for every group whose deadline passed. Clears the deadline first so it fires once. */
 export async function checkAvailDeadlines(now = new Date()): Promise<number> {
@@ -287,7 +287,7 @@ export async function setDeadlineIn(groupId: number, hours: number | null, now =
 scheduleComposer.command('avail', async (ctx) => {
   const group = getGroup(ctx.chat.id);
   if (!group || group.status === 'setup' || group.status === 'collecting_members') {
-    await ctx.reply('Availability opens once everyone has joined and the split is out.');
+    await ctx.reply('Availability opens once everyone joins and the split is out.');
     return;
   }
   await postAvailStatus(group.id);
@@ -387,6 +387,6 @@ scheduleComposer.callbackQuery('cal:invite', async (ctx) => {
   await ctx.editMessageText(`${mode} it is. Sending the invite...`).catch(() => ctx.editMessageReplyMarkup().catch(() => {}));
   await askForMeetingLink(ctx, meeting).catch(async (err) => {
     console.error('Meeting invite failed', err);
-    await ctx.reply("I hit a snag sending the invite. Send /meetlink with the link or place and I'll try again.").catch(() => {});
+    await ctx.reply("Hit a snag sending the invite. Send /meetlink with the link or place to retry.").catch(() => {});
   });
 });

@@ -2,6 +2,7 @@ import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { db, schema } from '../db/index.ts';
 import { getPrefs } from '../prefs.ts';
 import { bot, REMINDERS_READY } from './index.ts';
+import { featureGuide } from './guide.ts';
 
 const USER = 9301;
 const replies: { method: string; payload: Record<string, unknown> }[] = [];
@@ -63,12 +64,11 @@ describe('/start in a DM', () => {
     expect(buttons).toContain('startgroup=true');
   });
 
-  it('explains every feature on /help', async () => {
+  it('shows the same guide on /help, short enough for one phone screen', async () => {
     await start('/help');
     const text = String(replies.at(-1)!.payload.text);
-    expect(text).toContain('Here\'s everything I do');
-    for (const feature of ['/setup', '/canvas', '/split', '/avail', '/checkin', '/progress', '/imessage', 'Reminders', 'Connect your calendar', 'What I remember', 'Privacy']) {
-      expect(text).toContain(feature);
-    }
+    expect(text).toBe(featureGuide());
+    expect(text.split('\n').length).toBeLessThanOrEqual(12);
+    expect(text).toContain('stay private');
   });
 });

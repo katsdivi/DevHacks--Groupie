@@ -7,14 +7,14 @@ import { setAssignmentFile } from './assignmentSource.ts';
 /** Caption on an assignment file Cubbie sent as bytes. */
 export const FROM_CANVAS_CAPTION = "Here's the assignment from Canvas.";
 /** Cubbie sent the file's text only (today's case), so there is no file to share yet. */
-export const TEXT_ONLY_LINE = 'Pulled the assignment text from Canvas. Drop the PDF here if you want everyone to have the file.';
+export const TEXT_ONLY_LINE = 'Got the text from Canvas. Drop the PDF here so everyone has the file.';
 /** One attachment was over its size cap and was left out of the import. */
-export const DROPPED_ONE_LINE = 'One file was too big to bring over. Drop it here if you want everyone to have it.';
+export const DROPPED_ONE_LINE = 'One file was too big to bring over. Drop it here if you have it.';
 /** More than one attachment was over its cap. */
-export const DROPPED_MANY_LINE = 'Some files were too big to bring over. Drop them here if you want everyone to have them.';
+export const DROPPED_MANY_LINE = 'Some files were too big to bring over. Drop them here if you have them.';
 /** Bot API upload limit for sendDocument. */
 export const TELEGRAM_UPLOAD_LIMIT = 50 * 1024 * 1024;
-export const tooBigForTelegram = (name: string) => `${name} is too big for Telegram, so I couldn't post the file. Drop it here if you have it.`;
+export const tooBigForTelegram = (name: string) => `${name} is too big for Telegram. Drop it here if you have it.`;
 
 /** A file that came with the import as bytes. */
 export type ImportFile = { filename: string; mimeType?: string; bytes: Buffer };

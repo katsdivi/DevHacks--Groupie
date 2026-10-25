@@ -108,11 +108,11 @@ export async function finalizeMeeting(groupId: number) {
       notes.push(
         invited
           ? `Calendar invite emailed to ${invited} of ${members.length}.`
-          : 'On the calendar. Add your email in My details to get the invite next time.',
+          : 'On the calendar. Add your email in My details to get invites.',
       );
     } catch (err) {
       console.error('createCalendarEvent failed', err);
-      notes.push("Google Calendar didn't cooperate, so use the buttons below to add it yourself.");
+      notes.push("Google Calendar didn't cooperate. Add it with the buttons below.");
       // Still get it into inboxes: a plain email with the link and the .ics.
       if (emails.length) {
         const sent = await emailMeeting(groupId, meeting, emails).catch((e) => (console.error('emailMeeting failed', e), false));
@@ -166,7 +166,7 @@ export async function finalizeMeeting(groupId: number) {
     await bot.api.sendMessage(
       groupId,
       missing
-        ? `Sent the details to ${sent} of ${humans.length} of you in DMs. The rest: open @${bot.botInfo?.username ?? 'CubbieGroupieBot'} and tap Start so I can DM you next time.`
+        ? `DMed the details to ${sent} of ${humans.length}. The rest: tap Start at @${bot.botInfo?.username ?? 'CubbieGroupieBot'} so I can DM you.`
         : `Sent everyone the details in DMs too.`,
     );
   }
@@ -179,7 +179,7 @@ export async function askForMeetingLink(ctx: Context, m: Meeting) {
   setPending(ctx.chat!.id, user.id, 'meeting_link', LINK_TTL_MS);
   const ask =
     m.mode === 'in_person'
-      ? 'where are we meeting? Reply with the place (like "Hayden Library, room 2B").'
+      ? 'where are we meeting? Reply with the place.'
       : m.mode === 'zoom'
         ? 'reply with the Zoom link.'
         : 'reply with the Google Meet link (meet.google.com/new makes one).';
