@@ -1,6 +1,7 @@
 import { memoryRouter } from './routes/memory.ts';
 import { prefsRouter } from './routes/prefs.ts';
 import { calendarRouter } from './routes/calendar.ts';
+import { chatRouter } from './routes/chat.ts';
 import { Router, type Request, type Response } from 'express';
 import {
   MemberRequest,
@@ -48,6 +49,7 @@ api.use(memoryRouter);
 api.use(prefsRouter);
 api.use(calendarRouter);
 api.use(canvasRouter);
+api.use(chatRouter);
 
 function summary(g: Group): MeResponse['group'] {
   const tasks = getTasks(g.id);

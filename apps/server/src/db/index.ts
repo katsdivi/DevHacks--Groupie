@@ -202,6 +202,14 @@ const MIGRATIONS = [
    );
    CREATE INDEX cubbie_links_user ON cubbie_links(telegram_user_id);
    ALTER TABLE cubbie_pair_codes ADD COLUMN purpose TEXT NOT NULL DEFAULT 'import';`,
+  `CREATE TABLE dm_messages (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     telegram_user_id INTEGER NOT NULL,
+     role TEXT NOT NULL,
+     content TEXT NOT NULL,
+     created_at TEXT NOT NULL
+   );
+   CREATE INDEX dm_messages_user ON dm_messages(telegram_user_id, id);`,
 ];
 
 export function openDb(file: string) {
