@@ -15,6 +15,8 @@ import { renderPng } from './cards/render.ts';
 import { listMembers } from './members.ts';
 import { signLinkToken } from './linkToken.ts';
 import { progressPreviewHtml, renderProgressPng, startWeeklyCheckins } from './bot/checkin.ts';
+import { cubbieImportRouter } from './canvas/routes.ts';
+import { startFeedPoller } from './canvas/poller.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const webDist = path.resolve(here, '../../web/dist');
@@ -37,6 +39,8 @@ app.get('/health', (_req, res) => {
   res.json(body);
 });
 
+// Public: the Cubbie Skill has no Telegram login. The pair code and signature gate it.
+app.use('/api/cubbie/import', cubbieImportRouter);
 app.use('/api', api);
 
 if (env.devMode) {
@@ -104,6 +108,7 @@ app.listen(env.port, (err) => {
   // Express 5 passes listen errors (like a taken port) to this callback.
   if (err) throw err;
   console.log(`Groupie listening on port ${env.port}`);
+  startFeedPoller();
   startBot().catch((err) => console.error('Bot failed to start', err));
 });
 
@@ -117,6 +122,7 @@ async function startBot() {
     { command: 'setup', description: 'Set team size and get started' },
     { command: 'join', description: 'Show who has joined' },
     { command: 'split', description: 'Show the fair split' },
+    { command: 'canvas', description: 'Import the assignment from Canvas via Cubbie' },
     { command: 'avail', description: 'When is everyone free?' },
     { command: 'meetlink', description: 'Set the meeting link or place' },
     { command: 'checkin', description: 'How is everyone doing?' },

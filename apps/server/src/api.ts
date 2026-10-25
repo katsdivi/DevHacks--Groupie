@@ -33,9 +33,11 @@ import { chatTurn, history, suggestions } from './agent.ts';
 import { onAvailabilityChanged } from './bot/schedule.ts';
 import { html } from './bot/format.ts';
 import { announceRename } from './bot/index.ts';
+import { canvasRouter } from './canvas/routes.ts';
 
 export const api = Router();
 api.use(requireAuth);
+api.use(canvasRouter);
 
 function summary(g: Group): MeResponse['group'] {
   const tasks = getTasks(g.id);
