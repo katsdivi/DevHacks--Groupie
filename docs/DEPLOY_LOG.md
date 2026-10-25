@@ -49,3 +49,4 @@
 - **Backup:** `backups/backup-20261025-1127.db`, verified, user_version 12, groups=2 tasks=12.
 - **Migrations:** none. `/api/me` gains an optional `setup` field. `BOT_MODE` empty now means the default (production does not set it, so it stays `webhook`).
 - **Rollback:** `git revert -m 1 <merge sha> && git push`, then `/health`.
+- **Deployed:** merge `0b33845`, Railway SUCCESS, boot clean, feature matrix logged (bot webhook, LLM, Mini App, Canvas imports, feeds, Google team calendar on; per-user Google, Cubbie handle, demo mode off), webhook set with 0 pending and no error. Smoke: `/health` ok, `/api/me` without auth 401, `/go/cubbie` 200. Gates before merge: typecheck, lint, build clean; 595 tests pass (552 server, 43 shared); secret scan of the diff clean; dry run 18 of 19 (the known parse-dependent busy line).
