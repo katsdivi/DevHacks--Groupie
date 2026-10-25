@@ -16,3 +16,9 @@
 - **Rollback point:** `7e76c3601d58c8cff4253bdc2f79ba4cf8d0e0b9`. **Backup:** `backups/pre-hotfix-20261024-2021.db`, integrity ok, user_version 7, groups=2.
 - **Why:** prod showed two pair codes created and never used: the student was never told to install the Skill in Cubbie, and "Open Messages" (an `sms:` link) cannot open from Telegram's in-app browser.
 - **Change:** web Canvas screen (install step with a copyable "Install this skill" message, Copy as the main action, live check indicator, nudge after 90 s) and the `/canvas` reply text. No schema change.
+
+## Step 18a: personal agents (2026-10-24)
+
+- **Rollback point:** `4eef61616de9befaef074b855a514295ac80efc3` ("Merge hotfix/canvas-connect").
+- **Backup:** `backups/pre-step18a-20261024-2038.db`, integrity ok, user_version 7, groups=2.
+- **Migrations in this deploy:** 8 (user_memory, user_prefs, reminders_sent, calendar_connections, busy_blocks, groups.avail_deadline_at) and 9 (cubbie_links, cubbie_pair_codes.purpose). Additive only.
