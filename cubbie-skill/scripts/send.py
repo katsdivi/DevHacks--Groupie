@@ -47,7 +47,7 @@ TIMEOUT_SECONDS = 20
 
 # Public by design: Cubbie cannot host team keys, so anyone who installs the Skill can read this value.
 # It is integrity and spam friction only; the single-use, 15 minute pair code is the real gate.
-# Set it to the server's CUBBIE_HMAC_SECRET when publishing (see README.md). Never print it.
+# It must equal the server's CUBBIE_PUBLIC_SIGNING_KEY; paste it in when publishing (see README.md). Never print it.
 GROUPIE_SIGNING_KEY = os.environ.get("GROUPIE_SIGNING_KEY") or "REPLACE_AT_PUBLISH"
 
 # Mirrors packages/shared/src/canvas.ts.

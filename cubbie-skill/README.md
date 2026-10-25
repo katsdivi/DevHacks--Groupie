@@ -46,7 +46,7 @@ the student. Canvas must be connected to Cubbie.
 
 `scripts/send.py` signs every request with HMAC-SHA256 in the `X-Groupie-Signature: sha256=<hex>` header. The key
 is the constant `GROUPIE_SIGNING_KEY` (read from the `GROUPIE_SIGNING_KEY` environment variable if set, else the
-placeholder `REPLACE_AT_PUBLISH`). Cubbie cannot host a team's keys, so anyone who installs the Skill can read the
+placeholder `REPLACE_AT_PUBLISH`), and it must equal the Groupie server's `CUBBIE_PUBLIC_SIGNING_KEY`. Cubbie cannot host a team's keys, so anyone who installs the Skill can read the
 key. It is integrity and spam friction only; the real gate is the single-use, 15 minute pair code plus the
 server's rate limits (10 imports per user per hour, 30 per IP per hour). The script never prints the key.
 
@@ -56,7 +56,7 @@ server's rate limits (10 imports per user per hour, 30 per IP per hour). The scr
    `katsdivi/groupie-cubbie-skill/groupie-import`). Our main repo is private, and Cubbie installs only from a
    public repo. Copy `scripts/`, `assets/`, `SKILL.md` and `README.md`; `tests/` is optional (it needs the repo's
    `fixtures/` folder).
-2. In the copy, replace `"REPLACE_AT_PUBLISH"` in `scripts/send.py` with the server's `CUBBIE_HMAC_SECRET`.
+2. In the copy, replace `"REPLACE_AT_PUBLISH"` in `scripts/send.py` with the server's `CUBBIE_PUBLIC_SIGNING_KEY`.
    Without it every import fails with exit code 7 (bad signature). Use a value made only for this purpose, since
    it becomes public.
 3. Run the kit validator: `python3 <kit>/skills/cubbie-skill-creator/scripts/validate_cubbie_skill.py groupie-import`.
@@ -85,7 +85,7 @@ From the repo root:
 ```bash
 python3 -m unittest discover -s cubbie-skill/tests   # signing, validation, exit code per HTTP status
 python3 cubbie-skill/tests/harness.py                # offline: stub server checks the HMAC and error mapping
-python3 cubbie-skill/tests/harness.py --url http://localhost:3000 --code K7Q2MX --key "$CUBBIE_HMAC_SECRET"
+python3 cubbie-skill/tests/harness.py --url http://localhost:3000 --code K7Q2MX --key "$CUBBIE_PUBLIC_SIGNING_KEY"
 ```
 
 The offline harness starts a stub HTTP server on a random local port that recomputes the signature over the raw

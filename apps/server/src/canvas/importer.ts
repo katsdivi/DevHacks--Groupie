@@ -29,13 +29,13 @@ export type ImportReply = { status: number; body: CubbieImportResponse | { error
 
 const fail = (status: number, error: string, message: string): ImportReply => ({ status, body: { error, message } });
 
-// In-memory sliding windows (one hour), keyed by "ip:<addr>" or "user:<id>".
+// In-memory sliding windows, keyed like "ip:<addr>", "user:<id>" or "pc-create-ip:<addr>". One window per key.
 const HOUR_MS = 60 * 60 * 1000;
 const hits = new Map<string, number[]>();
 
-/** Records a hit and returns false when the key is over its hourly limit. */
-export function takeRateLimit(key: string, limit: number, now = Date.now()): boolean {
-  const recent = (hits.get(key) ?? []).filter((t) => t > now - HOUR_MS);
+/** Records a hit and returns false when the key is over `limit` within `windowMs` (default one hour). */
+export function takeRateLimit(key: string, limit: number, now = Date.now(), windowMs = HOUR_MS): boolean {
+  const recent = (hits.get(key) ?? []).filter((t) => t > now - windowMs);
   if (recent.length >= limit) {
     hits.set(key, recent);
     return false;
@@ -102,7 +102,7 @@ export type ImportOptions = { ingestWaitMs?: number; now?: Date };
 
 /** Everything behind POST /api/cubbie/import. Pure in, status and body out. */
 export async function handleImport(rawBody: Buffer | undefined, signature: string | undefined, ip: string, opts: ImportOptions = {}): Promise<ImportReply> {
-  const secret = env.cubbieHmacSecret;
+  const secret = env.cubbiePublicSigningKey;
   if (!secret) return fail(503, 'imports_off', 'Cubbie imports are not set up on this server.');
   if (!rawBody || !verifySignature(secret, rawBody, signature)) return fail(401, 'bad_signature', 'Signature check failed.');
 

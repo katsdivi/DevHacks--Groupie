@@ -35,7 +35,7 @@ beforeAll(async () => {
 });
 afterAll(() => app.close());
 beforeEach(() => {
-  env.cubbieHmacSecret = SECRET;
+  env.cubbiePublicSigningKey = SECRET;
   resetRateLimits();
   ingest.mockReset();
   ingest.mockResolvedValue(okResult);
@@ -72,7 +72,7 @@ describe('signature and payload checks', () => {
     expect((await post({ ...body, course: { name: 'Other' } }, { sig })).status).toBe(401);
   });
   it('turns imports off with 503 when the server has no secret', async () => {
-    env.cubbieHmacSecret = '';
+    env.cubbiePublicSigningKey = '';
     const r = await post(withCode(textOnly), { sig: signBody('', JSON.stringify(textOnly)) });
     expect(r.status).toBe(503);
   });

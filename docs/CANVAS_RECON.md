@@ -45,7 +45,7 @@ Source: the official kit, `imaginix-inc/cubbie-hackathon-kit`, `skills/cubbie-sk
 | Script output limit | CONFIRMED | 8,000 characters (`cubbie-testing.md`) |
 
 Consequences for the build:
-- The HMAC shared secret (`CUBBIE_HMAC_SECRET`) ships inside the public Skill, so it is integrity and spam friction only. The real gate is the single-use, 15 minute pair code plus rate limits.
+- The HMAC signing key (`CUBBIE_PUBLIC_SIGNING_KEY`, formerly `CUBBIE_HMAC_SECRET`) ships inside the public Skill, so it is integrity and spam friction only. The real gate is the single-use, 15 minute pair code plus rate limits.
 - `POST /api/cubbie/feed` is not built. The Skill has no "Groupie calendar" trigger.
 - Attachments are sent as extracted text (`attachments[].text`). The `base64` and `url` shapes stay in the contract for the file upload path and future use, but the Skill does not produce them.
 - Rubrics are optional in the payload; the Skill does not request them separately. If Canvas returns rubric text inside the assignment, it arrives as part of `descriptionText`.
