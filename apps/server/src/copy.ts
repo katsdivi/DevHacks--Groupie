@@ -186,3 +186,47 @@ export const TEXT_PDF_CAPTION = "Here's the assignment as a PDF.";
 export const NO_ASSIGNMENT_FILE = "I don't have the assignment yet. Drop the file in your group chat, or send /canvas there to pull it from Canvas.";
 /** The file and the PDF both failed to send. */
 export const FILE_SEND_FAILED = "I couldn't send the file just now. Try again in a sec?";
+
+// ---- canvas-ux INSTANT
+
+/** Extra button labels for the instant /canvas answers. */
+export const CANVAS_BUTTON = {
+  pull: 'Pull full details via Cubbie',
+  split: 'Split this one',
+  connect: 'Connect calendar',
+  viaCubbie: 'Import via Cubbie',
+} as const;
+/** Something meant for Cubbie was sent to Groupie in Telegram. */
+export const WRONG_APP_CUBBIE = "That one's for Cubbie in iMessage.";
+/** "Groupie status" from someone whose iMessage is not linked yet. */
+export const LINK_FIRST_DM = 'Link your iMessage first: send me /imessage here.';
+export const LINK_FIRST_GROUP = 'Link your iMessage first: DM me /imessage.';
+/** The wrong-app reply (HTML): the exact Cubbie text in a code block. */
+export const wrongAppCubbieText = (message: string, fresh: boolean, extra: string | null = null) =>
+  [...(fresh ? [CODE_EXPIRED_FRESH] : []), WRONG_APP_CUBBIE, `<code>${esc(message)}</code>`, ...(extra ? [extra] : [])].join('\n');
+/** No calendar items and no imports for this person. */
+export const CANVAS_NOT_CONNECTED = "I don't see your Canvas yet.";
+/** The install step (HTML), shown only to people whose iMessage is not linked. */
+export const installLine = (skillUrl: string) =>
+  `<b>First time only:</b> install the skill. Text Cubbie <code>Install this skill: ${esc(skillUrl)}</code> and wait for it to say it's installed.`;
+/** Headings for the instant answers. */
+export const CANVAS_HEAD = { next: 'Your next one:', week: 'Due in the next 7 days:', named: 'Found it:' } as const;
+/** Nothing matched the ask. */
+export const CANVAS_NONE = { next: 'Nothing coming up in your Canvas items.', week: 'Nothing due in the next 7 days.' } as const;
+/** A named assignment that is not in the person's items (HTML). */
+export const canvasNotFound = (q: string) => `I couldn't find "${esc(q)}" in your Canvas items. Cubbie can pull it from Canvas.`;
+/** More items than the list shows. */
+export const canvasMore = (n: number) => `And ${n} more in Upcoming.`;
+/** Group line when the asker's items went by DM. */
+export const CANVAS_DM_SENT = 'Sent you the details in DM.';
+/** First line of the DM half of a group /canvas ask. */
+export const CANVAS_DM_OPENER = 'From your /canvas in the group, just between us:';
+/** [Split this one] reply (HTML). */
+export const splitText = (title: string, message: string, minutes: number) =>
+  `Text Cubbie this to split <b>${esc(title)}</b> for this group:\n<code>${esc(message)}</code>\nThe code works once, for ${minutes} minutes.`;
+/** [Split this one] tapped by someone other than the asker. */
+export const SPLIT_NOT_YOURS = 'Only the person who asked can split this one. Send /canvas to find yours.';
+/** [Split this one] when the group already has its assignment. */
+export const SPLIT_HAS_ASSIGNMENT = 'This group already has its assignment. Use /reset to start over.';
+/** In a group, or found by the asker, but no member row yet. */
+export const pendingGroupLine = (title: string) => `You're in ${title || 'your project group'} but haven't added your details yet.`;
