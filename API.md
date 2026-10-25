@@ -259,6 +259,8 @@ Telegram auth. Makes a single-use code (6 characters, no lookalikes, 15 minutes)
 
 `cubbieMessage` is the exact text the student sends Cubbie.
 
+Rate limited (in memory, `PAIR_CODE_RATE_LIMITS` in `apps/server/src/canvas/routes.ts`): 20 codes per IP per 10 minutes and 600 per hour across the server. Over either: `429 rate_limited` with `{ error, message }`.
+
 ### `GET /api/cubbie/pair-code/:code`
 
 Telegram auth, only the code's owner. Live status for the Mini App: `waiting`, `received`, `imported`, `failed`, or `expired`.
@@ -267,15 +269,17 @@ Telegram auth, only the code's owner. Live status for the Mini App: `waiting`, `
 { "code": "K7Q2MX", "status": "imported", "expiresAt": "...", "assignmentTitle": "Project 2: Campus Food Finder", "error": null }
 ```
 
+Rate limited to 240 polls per IP per minute (the Mini App polls every 2.5 s, 24 a minute, so a few students behind one campus NAT fit). Over it: `429 rate_limited`.
+
 ### `POST /api/cubbie/import`
 
 Called by the Cubbie Skill script. No Telegram auth: the single-use pair code in the body is the gate, plus a signature header and rate limits.
 
 ```
-X-Groupie-Signature: sha256=<hex HMAC-SHA256(CUBBIE_HMAC_SECRET, raw body)>
+X-Groupie-Signature: sha256=<hex HMAC-SHA256(CUBBIE_PUBLIC_SIGNING_KEY, raw body)>
 ```
 
-The HMAC secret ships inside the public Skill, so it is integrity and spam friction, not a real secret (Cubbie cannot host team keys). Body (`CubbieImportPayload`):
+The signing key (`CUBBIE_PUBLIC_SIGNING_KEY`) ships inside the public Skill, so it is integrity and spam friction, not a real secret (Cubbie cannot host team keys). Body (`CubbieImportPayload`):
 
 ```json
 {
@@ -299,7 +303,7 @@ The HMAC secret ships inside the public Skill, so it is integrity and spam frict
 { "ok": true, "importId": 12, "message": "Sent to Groupie. Check your group." }
 ```
 
-Errors: `400 bad_payload`, `401 bad_signature`, `404 unknown_code`, `409 code_used` or `code_expired`, `409 not_expecting` (the group already has its assignment; the code stays usable), `422 <reason>` (intake failed, for example `too_short`), `429 rate_limited`, `503 imports_off` (server has no `CUBBIE_HMAC_SECRET`). A code made without a group returns `200` with a different message and the student gets a DM to make the code from inside a group.
+Errors: `400 bad_payload`, `401 bad_signature`, `404 unknown_code`, `409 code_used` or `code_expired`, `409 not_expecting` (the group already has its assignment; the code stays usable), `422 <reason>` (intake failed, for example `too_short`), `429 rate_limited`, `503 imports_off` (server has no `CUBBIE_PUBLIC_SIGNING_KEY`). A code made without a group returns `200` with a different message and the student gets a DM to make the code from inside a group.
 
 ### `PUT /api/feed`, `DELETE /api/feed`, `GET /api/feed/status`, `GET /api/feed/upcoming`
 

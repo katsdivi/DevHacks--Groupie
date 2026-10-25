@@ -58,11 +58,23 @@ Without keys, Groupie still shares the meeting: a card with the join link, an "A
 
 ## Canvas via Cubbie (optional)
 
-- `CUBBIE_HMAC_SECRET`: signs `POST /api/cubbie/import`. It ships inside the public Cubbie Skill, so treat it as public. Empty means every import is refused with 503.
+- `CUBBIE_PUBLIC_SIGNING_KEY` (renamed from `CUBBIE_HMAC_SECRET`): signs `POST /api/cubbie/import`. Make it with `openssl rand -hex 32`. Empty means every import is refused with 503.
 - `FEED_ENCRYPTION_KEY`: 32 random bytes, base64 (`openssl rand -base64 32`). Encrypts pasted Canvas calendar feed URLs at rest. Missing or the wrong length means feeds cannot be saved and the poller stays off.
 
 The feed poller starts with the server and checks each feed every 30 minutes. Code lives in `apps/server/src/canvas/`.
 
+The signing key is public by design. Cubbie cannot host team keys, so the value ships inside the public Skill (as `GROUPIE_SIGNING_KEY` in `cubbie-skill/scripts/send.py`) and anyone can read it. It is integrity and spam friction only; single-use, 15 minute pair codes plus rate limits are the real protection. Never reuse another secret for it: the server refuses to start if `CUBBIE_PUBLIC_SIGNING_KEY` equals `FEED_ENCRYPTION_KEY`, `BOT_TOKEN`, `WEBHOOK_SECRET`, `LINK_SIGNING_SECRET`, `GROQ_API_KEY`, `GOOGLE_CLIENT_SECRET` or `GOOGLE_REFRESH_TOKEN`, or if `FEED_ENCRYPTION_KEY` equals any of the others.
+
 ## Deploy
 
 One Railway service built from the `Dockerfile`, with a volume mounted at `/data` for SQLite.
+
+To copy the Canvas variables (`CUBBIE_PUBLIC_SIGNING_KEY`, `FEED_ENCRYPTION_KEY`, `LOAD_AWARE_SPLIT`) from the repo-root `.env` to the linked Railway service without triggering a deploy:
+
+```bash
+scripts/railway-env.sh --dry-run   # validate; prints names and lengths only, never values
+scripts/railway-env.sh             # railway variable set KEY --stdin --skip-deploys, one per key
+scripts/railway-env.sh --delete-old  # also delete the old CUBBIE_HMAC_SECRET, once the renamed code is live
+```
+
+It refuses if any of the three is empty, or if the signing key equals the feed key. `-s SERVICE` and `-e ENVIRONMENT` pass through to `railway`. `railway variable delete` has no `--skip-deploys`, so `--delete-old` may start a redeploy; run it after the new code is deployed.

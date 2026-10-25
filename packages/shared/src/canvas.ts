@@ -20,7 +20,7 @@ export const cubbieMessage = (code: string, assignmentHint?: string) =>
   `Groupie import ${code}${assignmentHint ? ` ${assignmentHint}` : ''}`;
 
 // Security rules, enforced by the server.
-/** Header carrying `sha256=<hex HMAC-SHA256(CUBBIE_HMAC_SECRET, raw request body)>`. */
+/** Header carrying `sha256=<hex HMAC-SHA256(CUBBIE_PUBLIC_SIGNING_KEY, raw request body)>`. */
 export const CUBBIE_SIGNATURE_HEADER = 'x-groupie-signature';
 /** Only Canvas calendar feeds from ASU are accepted. */
 export const ALLOWED_FEED_HOST = 'canvas.asu.edu';

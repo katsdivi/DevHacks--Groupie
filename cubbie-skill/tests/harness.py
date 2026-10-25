@@ -6,7 +6,7 @@ raw body, enforces single-use codes, and answers with contract-shaped responses.
 exit 0 means signing and the exit code mapping work.
 
     python3 tests/harness.py
-    python3 tests/harness.py --url http://localhost:3000 --code K7Q2MX --key "$CUBBIE_HMAC_SECRET"
+    python3 tests/harness.py --url http://localhost:3000 --code K7Q2MX --key "$CUBBIE_PUBLIC_SIGNING_KEY"
 
 With --url the fixtures go to that server instead and the results are printed, not asserted (except that the
 malformed fixture must be rejected before sending). Codes are single use, so against a real server only the first
@@ -187,8 +187,8 @@ def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--url", help="a running Groupie server, for example http://localhost:3000 (default: offline stub)")
     parser.add_argument("--code", default="K7Q2MX", help="pair code to put in every fixture (default K7Q2MX)")
-    parser.add_argument("--key", default=os.environ.get("CUBBIE_HMAC_SECRET") or "harness-test-key",
-                        help="signing key (default $CUBBIE_HMAC_SECRET, else a test key)")
+    parser.add_argument("--key", default=os.environ.get("CUBBIE_PUBLIC_SIGNING_KEY") or "harness-test-key",
+                        help="signing key (default $CUBBIE_PUBLIC_SIGNING_KEY, else a test key)")
     args = parser.parse_args(argv)
     code = send.normalize_code(args.code)
     if code is None:

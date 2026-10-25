@@ -13,12 +13,36 @@ import { isGroupMember, tgUser } from '../auth.ts';
 import { getGroup } from '../groups.ts';
 import { feedKey } from './crypto.ts';
 import { deleteFeed, feedStatus, saveFeed, upcomingEvents } from './feeds.ts';
-import { handleImport } from './importer.ts';
+import { handleImport, takeRateLimit } from './importer.ts';
 import { createPairCode, getPairCode, pairCodeStatus } from './pairCodes.ts';
 import { pollFeed } from './poller.ts';
 
 /** How long PUT /api/feed waits for the first poll before answering. */
 export const FIRST_POLL_WAIT_MS = 10_000;
+
+/**
+ * Pair code limits, on top of the import's per-user and per-IP limits. Status polls allow a few students
+ * behind one campus NAT, each polling every 2.5 s (24 a minute).
+ */
+export const PAIR_CODE_RATE_LIMITS = {
+  createPerIp: { limit: 20, windowMs: 10 * 60 * 1000 },
+  createGlobal: { limit: 600, windowMs: 60 * 60 * 1000 },
+  statusPerIp: { limit: 240, windowMs: 60 * 1000 },
+} as const;
+
+type Limit = { limit: number; windowMs: number };
+
+/** Takes one hit on each key in order; sends 429 and returns false on the first that is full. */
+function underLimits(res: Response, checks: [string, Limit][], message: string): boolean {
+  const now = Date.now();
+  for (const [key, l] of checks) {
+    if (!takeRateLimit(key, l.limit, now, l.windowMs)) {
+      res.status(429).json({ error: 'rate_limited', message });
+      return false;
+    }
+  }
+  return true;
+}
 
 /** Telegram-authed routes. Mounted on the `/api` router, after `requireAuth`. */
 export const canvasRouter = Router();
@@ -36,6 +60,10 @@ function userId(res: Response): number | null {
 canvasRouter.post('/cubbie/pair-code', async (req, res) => {
   const uid = userId(res);
   if (uid == null) return;
+  const ip = clientIp(req);
+  const L = PAIR_CODE_RATE_LIMITS;
+  const checks: [string, Limit][] = [[`pc-create-ip:${ip}`, L.createPerIp], ['pc-create-all', L.createGlobal]];
+  if (!underLimits(res, checks, 'Too many pair codes. Try again in a few minutes.')) return;
   const parsed = PairCodeRequest.safeParse(req.body ?? {});
   if (!parsed.success) return void res.status(400).json({ error: 'bad_request', message: 'groupChatId must be a chat id.' });
   const groupChatId = parsed.data.groupChatId ?? null;
@@ -54,6 +82,8 @@ canvasRouter.post('/cubbie/pair-code', async (req, res) => {
 canvasRouter.get('/cubbie/pair-code/:code', (req, res) => {
   const uid = userId(res);
   if (uid == null) return;
+  const checks: [string, Limit][] = [[`pc-status-ip:${clientIp(req)}`, PAIR_CODE_RATE_LIMITS.statusPerIp]];
+  if (!underLimits(res, checks, 'Checking too often. Wait a minute and try again.')) return;
   const code = PairCodeString.safeParse(req.params.code);
   const pc = code.success ? getPairCode(code.data) : undefined;
   // Someone else's code looks the same as a missing one, so codes can't be probed.

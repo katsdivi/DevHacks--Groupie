@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { webhookCallback } from 'grammy';
 import type { HealthResponse } from '@groupie/shared';
-import { env } from './env.ts';
+import { assertDistinctSecrets, env } from './env.ts';
 import './db/index.ts';
 import { ALLOWED_UPDATES, bot } from './bot/index.ts';
 import { api } from './api.ts';
@@ -101,6 +101,8 @@ if (fs.existsSync(webDist)) {
     res.type('text').send('Groupie server is running. Build the web app with `pnpm build` to see the Mini App.');
   });
 }
+
+assertDistinctSecrets();
 
 console.log(`Database at ${path.resolve(env.databasePath)}`);
 
