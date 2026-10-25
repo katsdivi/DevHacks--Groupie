@@ -1,15 +1,20 @@
 import { Composer, InlineKeyboard } from 'grammy';
-import { colorEmoji, formatMeeting, MEETING_MODES as MODES } from '@groupie/shared';
+import { DateTime } from 'luxon';
+import { colorEmoji, formatMeeting, MEETING_MODES as MODES, MEETING_SLOTS, SLOT_MINUTES, slotEnd } from '@groupie/shared';
 import { appUrl, bot } from './core.ts';
 import { html } from './format.ts';
 import { getGroup } from '../groups.ts';
 import { listMembers } from '../members.ts';
 import {
   createMeeting,
+  dueAvailDeadlines,
+  freeForHour,
   heatmap,
   latestMeeting,
+  setAvailDeadline,
   setAvailMessage,
   setGroupStatus,
+  topSlots,
   updateMeeting,
 } from '../availability.ts';
 import type { Group } from '../db/schema.ts';
@@ -35,12 +40,24 @@ function availText(group: Group): string {
     '',
     `<b>${hm.responded}/${hm.team_size} responded</b>`,
     ...(meeting ? ['', `Locked: <b>${html(formatMeeting(meeting.start, meeting.end, group.tz))}</b>`] : []),
+    ...(!meeting && group.status === 'active' ? ['', 'Vote on a time in the poll below.'] : []),
+    ...(group.status === 'scheduling' && group.availDeadlineAt
+      ? ['', `I'll pick times on <b>${html(deadlineLabel(group.availDeadlineAt, group.tz))}</b> even if not everyone is in.`]
+      : []),
   ].join('\n');
+}
+
+/** "Sun, Oct 25, 4:00 PM" in the group's time zone. */
+function deadlineLabel(iso: string, tz: string): string {
+  return DateTime.fromISO(iso, { zone: 'utc' }).setZone(tz).toFormat('ccc, LLL d, h:mm a');
 }
 
 function availKeyboard(group: Group) {
   const kb = new InlineKeyboard().url('Fill your availability', appUrl(group.id, 'avail'));
   if (group.status !== 'active') kb.row().text('Lock it now', 'avail:lock');
+  if (group.status === 'scheduling' && !group.availDeadlineAt) {
+    kb.row().text('Lock in 24h', 'avail:deadline:24').text('Lock in 48h', 'avail:deadline:48');
+  }
   return kb;
 }
 
@@ -100,13 +117,41 @@ export async function onAvailabilityChanged(groupId: number) {
   }
 }
 
-/** Picks the best hour, posts it, then the meeting-type poll and the invite button. */
+const SLOT_MS = SLOT_MINUTES * 60_000;
+const CONFIRM_PREFIX = 'time:confirm:';
+
+/** Candidate starts packed into the Confirm button (slot index in base 36), so a restart loses nothing. */
+export function encodeStarts(starts: string[]): string {
+  return starts.map((s) => Math.round(Date.parse(s) / SLOT_MS).toString(36)).join('.');
+}
+
+export function decodeStarts(raw: string): string[] {
+  return raw
+    .split('.')
+    .map((x) => parseInt(x, 36))
+    .filter((n) => Number.isFinite(n) && n > 0)
+    .map((n) => new Date(n * SLOT_MS).toISOString());
+}
+
+/** Index of the most-voted option; ties go to the higher-ranked (earlier) option. */
+export function pickWinner(counts: number[]): number {
+  let best = 0;
+  counts.forEach((n, i) => {
+    if (n > counts[best]!) best = i;
+  });
+  return best;
+}
+
+/**
+ * Proposes times once everyone answered, the deadline passed, or someone tapped Lock it now.
+ * No overlap: says so. One viable hour: straight to the meeting flow. Otherwise: the top 3 time poll.
+ */
 export async function lockMeeting(groupId: number): Promise<boolean> {
   const group = getGroup(groupId);
   if (!group) return false;
   const hm = heatmap(groupId);
-  const best = hm.best[0];
-  if (!best) {
+  const picks = topSlots(hm.slots, group.tz, hm.team_size);
+  if (!picks.length) {
     await bot.api.sendMessage(
       groupId,
       `${html(group.nickname)} here. Nobody's free times overlap yet. Paint a few more and try again?`,
@@ -114,17 +159,70 @@ export async function lockMeeting(groupId: number): Promise<boolean> {
     );
     return false;
   }
-  const meeting = createMeeting(groupId, best.start, best.end);
+  if (picks.length === 1) return startMeetingFlow(groupId, picks[0]!.start, picks[0]!.end);
+
+  // Out of scheduling while the vote is open, so new saves and the deadline job do not post it again.
+  setGroupStatus(groupId, 'active');
+  try {
+    await bot.api.sendPoll(
+      groupId,
+      'Which time works?',
+      picks.map((p) => ({ text: p.label })),
+      {
+        is_anonymous: false,
+        reply_markup: new InlineKeyboard().text('Confirm time', `${CONFIRM_PREFIX}${encodeStarts(picks.map((p) => p.start))}`),
+      },
+    );
+  } catch (err) {
+    setGroupStatus(groupId, 'scheduling');
+    throw err;
+  }
+  await refreshAvailStatus(groupId);
+  return true;
+}
+
+const confirming = new Set<number>();
+
+/**
+ * Closes the time poll and starts the meeting flow with the most-voted time.
+ * Returns 'already' when the poll was closed before (someone else confirmed).
+ */
+export async function confirmTime(groupId: number, pollMessageId: number, starts: string[]): Promise<'done' | 'already' | 'error'> {
+  if (!starts.length || confirming.has(groupId)) return 'already';
+  confirming.add(groupId);
+  try {
+    let counts: number[] | null = null;
+    try {
+      const poll = await bot.api.stopPoll(groupId, pollMessageId);
+      counts = poll.options.map((o) => o.voter_count);
+    } catch (err) {
+      return String(err).includes('already been closed') ? 'already' : 'error';
+    }
+    const start = starts[pickWinner(counts.slice(0, starts.length))] ?? starts[0]!;
+    await startMeetingFlow(groupId, start, slotEnd(start, MEETING_SLOTS));
+    return 'done';
+  } finally {
+    confirming.delete(groupId);
+  }
+}
+
+/** Creates the meeting, posts the best time, then the meeting-type poll and the invite button. */
+export async function startMeetingFlow(groupId: number, start: string, end: string): Promise<boolean> {
+  const group = getGroup(groupId);
+  if (!group) return false;
+  const hm = heatmap(groupId);
+  const freeIds = freeForHour(hm.slots, start);
+  const meeting = createMeeting(groupId, start, end);
   setGroupStatus(groupId, 'active');
   await refreshAvailStatus(groupId);
 
   const members = listMembers(groupId);
-  const free = members.filter((m) => best.member_ids.includes(m.id));
-  const busy = members.filter((m) => !best.member_ids.includes(m.id));
+  const free = members.filter((m) => freeIds.includes(m.id));
+  const busy = members.filter((m) => !freeIds.includes(m.id));
   await bot.api.sendMessage(
     groupId,
     [
-      `<b>Best time: ${html(best.label)}</b>`,
+      `<b>Best time: ${html(formatMeeting(start, end, group.tz))}</b>`,
       `${free.length}/${members.length} free: ${free.map((m) => `${colorEmoji(m.color)} ${html(m.name)}`).join(', ')}`,
       ...(busy.length ? [`Can't make it: ${busy.map((m) => html(m.name)).join(', ')}`] : []),
     ].join('\n'),
@@ -141,6 +239,33 @@ export async function lockMeeting(groupId: number): Promise<boolean> {
     reply_markup: new InlineKeyboard().text('Send Calendar Invite', 'cal:invite'),
   });
   return true;
+}
+
+/** Proposes times for every group whose deadline passed. Clears the deadline first so it fires once. */
+export async function checkAvailDeadlines(now = new Date()): Promise<number> {
+  const due = dueAvailDeadlines(now);
+  for (const g of due) {
+    setAvailDeadline(g.id, null);
+    await lockMeeting(g.id).catch((err) => console.error('deadline lockMeeting failed', err));
+  }
+  return due.length;
+}
+
+const DEADLINE_CHECK_MS = 5 * 60_000;
+
+/** Starts the 5-minute deadline check. The lead calls this from index.ts. */
+export function startAvailDeadlines(): ReturnType<typeof setInterval> {
+  const timer = setInterval(() => {
+    void checkAvailDeadlines().catch((err) => console.error('checkAvailDeadlines failed', err));
+  }, DEADLINE_CHECK_MS);
+  timer.unref?.();
+  return timer;
+}
+
+/** Sets the deadline hours from now and refreshes the availability message. */
+export async function setDeadlineIn(groupId: number, hours: number | null, now = new Date()) {
+  setAvailDeadline(groupId, hours === null ? null : new Date(now.getTime() + hours * 3_600_000).toISOString());
+  await refreshAvailStatus(groupId);
 }
 
 scheduleComposer.command('avail', async (ctx) => {
@@ -162,6 +287,45 @@ scheduleComposer.callbackQuery('avail:lock', async (ctx) => {
   }
   await ctx.answerCallbackQuery({ text: 'Locking it in!' });
   await lockMeeting(group.id);
+});
+
+scheduleComposer.callbackQuery(/^avail:deadline:(24|48)$/, async (ctx) => {
+  const group = getGroup(ctx.chat!.id);
+  if (!group || group.status !== 'scheduling') {
+    return void (await ctx.answerCallbackQuery({ text: 'Already locked in!' }));
+  }
+  const hours = Number(ctx.match[1]);
+  await ctx.answerCallbackQuery({ text: `I'll pick times in ${hours} hours.` });
+  await setDeadlineIn(group.id, hours);
+});
+
+scheduleComposer.command('deadline', async (ctx) => {
+  const group = getGroup(ctx.chat.id);
+  if (!group || group.status !== 'scheduling') {
+    return void (await ctx.reply('Deadlines work while we are finding a time. Start with /avail.'));
+  }
+  const arg = ctx.match.trim().toLowerCase();
+  if (arg === 'off') {
+    await setDeadlineIn(group.id, null);
+    return void (await ctx.reply('Deadline off. I will wait for everyone.'));
+  }
+  const hours = Number(/^(\d{1,3})\s*h?$/.exec(arg)?.[1]);
+  if (!hours || hours > 168) return void (await ctx.reply('Send it like this: /deadline 24h (or /deadline off).'));
+  await setDeadlineIn(group.id, hours);
+  const at = getGroup(group.id)!.availDeadlineAt!;
+  await ctx.reply(`Got it. I'll pick times on ${deadlineLabel(at, group.tz)}, even if not everyone is in.`);
+});
+
+scheduleComposer.callbackQuery(/^time:confirm:([0-9a-z.]+)$/, async (ctx) => {
+  const groupId = ctx.chat!.id;
+  const messageId = ctx.callbackQuery.message?.message_id;
+  if (!messageId) return void (await ctx.answerCallbackQuery());
+  const result = await confirmTime(groupId, messageId, decodeStarts(ctx.match[1]!));
+  if (result === 'error') {
+    return void (await ctx.answerCallbackQuery({ text: 'Could not close the poll. Try again?', show_alert: true }));
+  }
+  await ctx.answerCallbackQuery({ text: result === 'done' ? 'Time locked!' : 'Already confirmed!' });
+  await ctx.editMessageReplyMarkup().catch(() => {});
 });
 
 /** Closes the poll and returns the winning mode (ties go to the first option). */
