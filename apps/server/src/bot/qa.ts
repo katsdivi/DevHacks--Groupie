@@ -1,7 +1,8 @@
+import { DateTime } from 'luxon';
 import { isForbidden, markCannotDm } from '../prefs.ts';
 import { Composer } from 'grammy';
 import { getGroup } from '../groups.ts';
-import { onlyMember, sharedAnything, voice, withoutTeammates } from '../context.ts';
+import { sharedAnything, voice, withoutTeammates } from '../context.ts';
 import { buildContext, renderContext, type ContextBuckets } from '../contextPolicy.ts';
 import { talk, type ChatMessage } from '../llm.ts';
 import { bot } from './core.ts';
@@ -103,17 +104,32 @@ export function buildQaMessages(b: ContextBuckets, question: string, selfNote = 
 }
 
 /** Messages for a question about one teammate: group facts plus only what that teammate shared here. */
+/**
+ * Messages for a question about another member. The model sees ONLY what that member shared with
+ * this group (shared notes and their items in this group's course). No other project facts, so the
+ * answer can only come from what they chose to share.
+ */
 export function buildMemberMessages(b: ContextBuckets, name: string, question: string): ChatMessage[] {
-  const narrowed = onlyMember(b, name);
+  const tz = b.group?.tz ?? 'America/Phoenix';
+  const m = b.membersShared.find((x) => x.name === name);
+  const when = (iso: string) => DateTime.fromMillis(Date.parse(iso), { zone: tz }).toFormat('ccc, LLL d, h:mm a');
+  const facts = [
+    `Today: ${DateTime.fromISO(b.now, { zone: tz }).toFormat('cccc, LLL d, h:mm a')} (${tz}).`,
+    `What ${name} shared with this group:`,
+    ...(m?.memory.length ? m.memory.map((f) => `- ${f.key}: ${f.value}`) : ['- nothing']),
+    ...(m?.courseItems.length && b.group?.canvasCourse
+      ? [`${name}'s ${b.group.canvasCourse} items:`, ...m.courseItems.map((i) => `- ${when(i.dueAt)}: ${i.title}`)]
+      : []),
+  ].join('\n');
   return [
     {
       role: 'system',
-      content: `${voice(b.group!.nickname)}
+      content: `${voice(b.group?.nickname ?? 'Groupie')}
 ${GROUP_RULES}
-This question is about ${name}. Answer only from the project facts and what ${name} shared with this group below. If those facts do not answer it, reply exactly: ${shareLine(name)}
+This question is about ${name}. Answer ONLY from the facts below, which are everything ${name} chose to share. Do not guess, and do not use anything else you may know about the project or the team. If these facts do not answer the question, reply exactly: ${shareLine(name)}
 
-GROUP FACTS
-${renderContext(narrowed)}`,
+GROUP FACTS (only what ${name} shared)
+${facts}`,
     },
     { role: 'user', content: `${asker(b)} asks: ${question}` },
   ];
