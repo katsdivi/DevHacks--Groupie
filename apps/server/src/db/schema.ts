@@ -28,6 +28,8 @@ export const groups = sqliteTable('groups', {
   assignmentFileId: text('assignment_file_id'),
   assignmentFileName: text('assignment_file_name'),
   assignmentFileMime: text('assignment_file_mime'),
+  /** The assignment's text as Groupie read it (file, paste, or Canvas), capped. Group-safe: the whole group has the assignment. */
+  assignmentText: text('assignment_text'),
 });
 
 export const pendingInputs = sqliteTable(

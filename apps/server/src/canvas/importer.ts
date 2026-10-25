@@ -66,7 +66,6 @@ export const IMPORT_MESSAGES = {
 const INTAKE_FAILURE_MESSAGES: Partial<Record<Exclude<IngestResult, { ok: true }>['reason'], string>> = {
   too_short: "Canvas didn't have much text for this one. Drop the assignment PDF in the group instead.",
   busy: 'Groupie is still reading the last one. Try again in a minute with the same code.',
-  no_team_size: 'Set the team size first: send /setup in the group, then try again with the same code.',
   no_group: "Groupie isn't in that group anymore. Add it back, then try again with the same code.",
 };
 

@@ -37,9 +37,18 @@ export type GroupFacts = {
   dueDate: string | null;
   daysLeft: number | null;
   canvasCourse: string | null;
+  /** The start of the assignment's own text, so questions about the instructions can be answered. */
+  instructions: string | null;
   members: { name: string; donePoints: number; points: number }[];
   tasks: TaskFact[];
   meeting: { label: string; mode: string | null; where: string | null } | null;
+};
+
+/** Characters of the assignment text rendered per group (about 1,000 tokens). */
+export const INSTRUCTIONS_MAX = 4_000;
+const clip = (s: string, max: number) => {
+  const t = s.replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
+  return t.length > max ? `${t.slice(0, max)} ...(cut)` : t;
 };
 
 export type ContextBuckets = {
@@ -103,6 +112,7 @@ function groupFacts(groupChatId: number, now: Date): GroupFacts | null {
     dueDate: group.dueDate,
     daysLeft: daysLeft(group.dueDate, group.tz, now),
     canvasCourse: group.canvasCourse,
+    instructions: group.assignmentText ? clip(group.assignmentText, INSTRUCTIONS_MAX) : null,
     members: members.map((m) => {
       const mine = tasks.filter((t) => t.assigneeMemberId === m.id);
       return {
@@ -200,6 +210,7 @@ export function renderContext(b: ContextBuckets): string {
         ...g.tasks.map((t) => `- ${t.title} (${t.effort} pt, ${STATUS[t.status] ?? t.status}, owner: ${t.owner ?? 'unassigned'})${t.description ? `: ${t.description}` : ''}`),
       );
     }
+    if (g.instructions) lines.push('Assignment instructions (from the file or Canvas, may be cut):', g.instructions);
     lines.push(
       g.meeting
         ? `Team meeting: ${g.meeting.label}, ${g.meeting.mode ? `${modeLabel(g.meeting.mode)}${g.meeting.where ? ` (${g.meeting.where})` : ''}` : 'how to meet not decided yet'}.`

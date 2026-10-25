@@ -216,6 +216,8 @@ const MIGRATIONS = [
    ALTER TABLE groups ADD COLUMN assignment_file_id TEXT;
    ALTER TABLE groups ADD COLUMN assignment_file_name TEXT;
    ALTER TABLE groups ADD COLUMN assignment_file_mime TEXT;`,
+  // import-fixes: the assignment's full text (any intake path), for questions about it and a PDF re-send.
+  `ALTER TABLE groups ADD COLUMN assignment_text TEXT;`,
 ];
 
 export function openDb(file: string) {

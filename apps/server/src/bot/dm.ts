@@ -6,6 +6,8 @@ import { memoryReply } from '../agent.ts';
 import { talk, type ChatMessage } from '../llm.ts';
 import { appendDm, clearMyChat, dmHistoryForAsker } from '../dmHistory.ts';
 import { catchWrongApp } from '../canvas/bot.ts';
+import { NO_ASSIGNMENT_FILE } from '../copy.ts';
+import { groupsWithAssignment, sendAssignment, wantsAssignmentFile } from './assignmentFile.ts';
 
 /**
  * Plain-text conversation in a private chat with the bot. Identity is ctx.from.id; context comes
@@ -70,6 +72,12 @@ dmComposer.on('message:text', async (ctx, next) => {
   // The Cubbie import message sent here by mistake: point it at Cubbie, before history or the model.
   if (await catchWrongApp(ctx)) return;
   if (getPending(ctx.chat.id, ctx.from.id)) return next();
+  // "Send me the assignment" in a DM: the newest assignment from the sender's own groups.
+  if (wantsAssignmentFile(ctx.msg.text)) {
+    const [groupId] = groupsWithAssignment(ctx.from.id);
+    if (groupId === undefined) return void (await ctx.reply(NO_ASSIGNMENT_FILE));
+    return void (await sendAssignment(ctx.chat.id, groupId, ctx.msg.message_id));
+  }
   await ctx.replyWithChatAction('typing').catch(() => {});
   try {
     await ctx.reply(await answerDm(ctx.from.id, ctx.msg.text));

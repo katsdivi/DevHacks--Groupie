@@ -71,6 +71,12 @@ export function resetGroup(groupId: number): ResetSummary {
         lastCheckinAt: null,
         canvasCourse: null,
         availDeadlineAt: null,
+        canvasImportId: null,
+        canvasFileAt: null,
+        assignmentFileId: null,
+        assignmentFileName: null,
+        assignmentFileMime: null,
+        assignmentText: null,
       })
       .where(eq(groups.id, groupId))
       .run();

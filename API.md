@@ -255,7 +255,7 @@ Students never open Canvas for Groupie. Groupie's Canvas import, powered by Cubb
 
 ### `POST /api/cubbie/pair-code`
 
-Telegram auth. Makes a single-use code (6 characters, no lookalikes, 15 minutes).
+Telegram auth. Makes a single-use code (6 characters, no lookalikes, 30 minutes).
 
 ```json
 { "groupChatId": -5254546157 }
@@ -332,7 +332,7 @@ Lets the student ask Cubbie "Groupie status" in iMessage. Schemas: `packages/sha
 
 ### `POST /api/cubbie/link`
 
-Public, called by the Skill's `scripts/link.py`. Signed exactly like the import (`X-Groupie-Signature: sha256=<hex HMAC-SHA256(CUBBIE_PUBLIC_SIGNING_KEY, raw body)>`). Body: `{ "pairCode": "K7Q2MX" }`, a link code from `/imessage` (single use, 15 minutes). Response, once:
+Public, called by the Skill's `scripts/link.py`. Signed exactly like the import (`X-Groupie-Signature: sha256=<hex HMAC-SHA256(CUBBIE_PUBLIC_SIGNING_KEY, raw body)>`). Body: `{ "pairCode": "K7Q2MX" }`, a link code from `/imessage` (single use, 30 minutes). Response, once:
 
 ```json
 { "ok": true, "token": "grp_...", "name": "Ana", "message": "Linked to Groupie. Text me 'Groupie status' any time." }

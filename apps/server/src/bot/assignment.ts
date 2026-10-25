@@ -93,10 +93,7 @@ assignment.on('message:document', async (ctx, next) => {
     );
     return;
   }
-  if (!group!.teamSize) {
-    await reply("Ooh, homework. Tell me the team size first: send /setup, pick a number, then drop the file again.");
-    return;
-  }
+  // No team size yet is fine: intake posts the tasks, then asks for the size.
   const ok = await readAssignment(ctx, group!, doc.file_id, doc.file_name ?? 'the assignment', ext, doc.file_size ?? 0);
   // The dropped file became the assignment: keep it for a later re-send.
   if (ok) setAssignmentFile(group!.id, { fileId: doc.file_id, fileName: doc.file_name, mimeType: doc.mime_type });

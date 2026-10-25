@@ -7,6 +7,7 @@ import { buildContext, renderContext, type ContextBuckets } from '../contextPoli
 import { talk, type ChatMessage } from '../llm.ts';
 import { bot } from './core.ts';
 import { catchWrongApp } from '../canvas/bot.ts';
+import { sendAssignment, wantsAssignmentFile } from './assignmentFile.ts';
 import { buffering, DM_BLOCKED, DM_OPENER, DM_RETRY, DM_SENT, REFUSE_EVERYONE, REFUSE_INJECTION, shareLine } from '../copy.ts';
 
 export { DM_BLOCKED, DM_OPENER, DM_RETRY, DM_SENT, REFUSE_EVERYONE, REFUSE_INJECTION, shareLine };
@@ -246,6 +247,8 @@ qaComposer.on('message:text', async (ctx, next) => {
   const replyToBot = ctx.msg.reply_to_message?.from?.id === ctx.me.id;
   const question = addressedQuestion(ctx.msg.text, group.nickname, ctx.me.username, replyToBot);
   if (!question) return next();
+  // "Send me the assignment": the file itself, no model call.
+  if (wantsAssignmentFile(question)) return void (await sendAssignment(group.id, group.id, ctx.msg.message_id));
 
   const key = `${group.id}:${ctx.from.id}`;
   const now = Date.now();

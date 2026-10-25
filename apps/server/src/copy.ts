@@ -173,3 +173,16 @@ export const CODE_EXPIRED_FRESH = "That code expired, here's a fresh one.";
 /** The wrong-app reply (HTML): the exact Cubbie message in a code block. */
 export const wrongAppText = (message: string, fresh: boolean) =>
   [...(fresh ? [CODE_EXPIRED_FRESH] : []), WRONG_APP, `<code>${esc(message)}</code>`].join('\n');
+
+// ---------------------------------------------------------------- "send me the assignment" (bot/assignmentFile.ts)
+
+/** Caption when the original assignment file is re-sent. */
+export const fileCaption = (title: string) => `Here's the assignment: ${title}`;
+/** Caption for a PDF made from text that came from Canvas (the original file never reached Groupie). */
+export const CANVAS_PDF_CAPTION = "Here's the assignment text from Canvas as a PDF. The original file didn't come through, so drop it in the group if you have it.";
+/** Caption for a PDF made from text pasted or read from a file Groupie no longer has. */
+export const TEXT_PDF_CAPTION = "Here's the assignment as a PDF.";
+/** No assignment anywhere yet. */
+export const NO_ASSIGNMENT_FILE = "I don't have the assignment yet. Drop the file in your group chat, or send /canvas there to pull it from Canvas.";
+/** The file and the PDF both failed to send. */
+export const FILE_SEND_FAILED = "I couldn't send the file just now. Try again in a sec?";

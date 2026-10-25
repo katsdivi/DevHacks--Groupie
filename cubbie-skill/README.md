@@ -21,7 +21,7 @@ Groupie plans that assignment for one person, DMs the student the steps, adds th
 ## iMessage link
 
 1. In a private chat with @CubbieGroupieBot, the student sends `/imessage`. Groupie replies with a one-time link
-   code (same alphabet, single use, 15 minutes): "Text Cubbie: Groupie link K7Q2MX".
+   code (same alphabet, single use, 30 minutes): "Text Cubbie: Groupie link K7Q2MX".
 2. The student texts that to Cubbie. `scripts/link.py` sends the signed code to `POST /api/cubbie/link`, and
    Groupie returns a token once. The script saves it to `~/.config/groupie/token` (mode 600, folder 700) in the
    student's own Cubbie sandbox and never prints it. Groupie DMs the student that the link worked.

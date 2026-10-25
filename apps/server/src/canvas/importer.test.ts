@@ -218,7 +218,7 @@ describe('import content', () => {
     expect(importRow(id).status).toBe('imported');
   });
   it('answers server_error for intake failures, with a friendly message', async () => {
-    for (const reason of ['too_short', 'failed', 'busy', 'no_team_size'] as const) {
+    for (const reason of ['too_short', 'failed', 'busy'] as const) {
       ingest.mockResolvedValueOnce({ ok: false, reason, message: 'Get a new code and try again.' });
       const r = await post(withCode(textOnly));
       expect(r).toMatchObject({ status: 500, body: { error: 'server_error' } });

@@ -42,6 +42,9 @@ export const expectingAssignment = (g: Group | undefined) =>
  * message in the group. Every intake path ends here so they all behave the same. With no team size
  * yet, the size question follows the task list instead, and picking a size posts the join message.
  */
+/** Characters of assignment text kept per group (for questions and the PDF re-send). */
+export const ASSIGNMENT_TEXT_MAX = 40_000;
+
 export async function ingestAssignment(groupId: number, input: IngestInput): Promise<IngestResult> {
   const group = getGroup(groupId);
   if (!group) return { ok: false, reason: 'no_group', message: "I'm not in that group yet. Add me, then send /setup." };
@@ -78,6 +81,7 @@ export async function ingestAssignment(groupId: number, input: IngestInput): Pro
     let parsed = await parseAssignment(input.text, planSize, () => void edit(`Reading ${label}. Thinking hard, one sec...`), input.extraContext);
     if (input.dueDate !== undefined) parsed = { ...parsed, due_date: input.dueDate ? input.dueDate.slice(0, 10) : parsed.due_date };
     saveAssignment(groupId, parsed);
+    db.update(schema.groups).set({ assignmentText: input.text.slice(0, ASSIGNMENT_TEXT_MAX) }).where(eq(schema.groups.id, groupId)).run();
     if (input.courseName) {
       db.update(schema.groups).set({ canvasCourse: input.courseName }).where(eq(schema.groups.id, groupId)).run();
     }
