@@ -142,6 +142,14 @@ export function pickWinner(counts: number[]): number {
   return best;
 }
 
+/** The last "no overlap" message per group, edited in place so repeat saves do not stack copies. */
+const noOverlapMessages = new Map<number, number>();
+
+export const noOverlapText = (nickname: string) =>
+  `${html(nickname)} here. Nobody's free times overlap yet. Paint a few more hours, then tap <b>Lock it now</b>.`;
+
+export const POLL_FAILED_TEXT = "I couldn't post the time poll. Tap <b>Lock it now</b> to try again?";
+
 /**
  * Proposes times once everyone answered, the deadline passed, or someone tapped Lock it now.
  * No overlap: says so. One viable hour: straight to the meeting flow. Otherwise: the top 3 time poll.
@@ -152,13 +160,18 @@ export async function lockMeeting(groupId: number): Promise<boolean> {
   const hm = heatmap(groupId);
   const picks = topSlots(hm.slots, group.tz, hm.team_size);
   if (!picks.length) {
-    await bot.api.sendMessage(
-      groupId,
-      `${html(group.nickname)} here. Nobody's free times overlap yet. Paint a few more and try again?`,
-      { parse_mode: 'HTML' },
-    );
+    const text = noOverlapText(group.nickname);
+    const prev = noOverlapMessages.get(groupId);
+    const edited =
+      prev !== undefined &&
+      (await bot.api.editMessageText(groupId, prev, text, { parse_mode: 'HTML' }).then(
+        () => true,
+        (err) => String(err).includes('message is not modified'),
+      ));
+    if (!edited) noOverlapMessages.set(groupId, (await bot.api.sendMessage(groupId, text, { parse_mode: 'HTML' })).message_id);
     return false;
   }
+  noOverlapMessages.delete(groupId);
   if (picks.length === 1) return startMeetingFlow(groupId, picks[0]!.start, picks[0]!.end);
 
   // Out of scheduling while the vote is open, so new saves and the deadline job do not post it again.
@@ -174,8 +187,10 @@ export async function lockMeeting(groupId: number): Promise<boolean> {
       },
     );
   } catch (err) {
+    console.error('Time poll failed', err);
     setGroupStatus(groupId, 'scheduling');
-    throw err;
+    await bot.api.sendMessage(groupId, POLL_FAILED_TEXT, { parse_mode: 'HTML' }).catch(() => {});
+    return false;
   }
   await refreshAvailStatus(groupId);
   return true;
@@ -228,18 +243,19 @@ export async function startMeetingFlow(groupId: number, start: string, end: stri
     ].join('\n'),
     { parse_mode: 'HTML' },
   );
-  const poll = await bot.api.sendPoll(
-    groupId,
-    'How should we meet?',
-    MODES.map((m) => ({ text: m.label })),
-    { is_anonymous: false },
-  );
-  updateMeeting(meeting.id, { pollId: poll.poll?.id ?? null, pollMessageId: poll.message_id });
-  await bot.api.sendMessage(groupId, 'Vote above, then tap below and I will send everyone the invite.', {
+  // If the mode poll will not post, the invite still works: it defaults to Google Meet.
+  const poll = await bot.api
+    .sendPoll(groupId, 'How should we meet?', MODES.map((m) => ({ text: m.label })), { is_anonymous: false })
+    .catch((err) => (console.error('Meeting mode poll failed', err), null));
+  if (poll) updateMeeting(meeting.id, { pollId: poll.poll?.id ?? null, pollMessageId: poll.message_id });
+  await bot.api.sendMessage(groupId, poll ? INVITE_PROMPT : INVITE_PROMPT_NO_POLL, {
     reply_markup: new InlineKeyboard().text('Send Calendar Invite', 'cal:invite'),
   });
   return true;
 }
+
+export const INVITE_PROMPT = 'Vote above, then tap below and I will send everyone the invite.';
+const INVITE_PROMPT_NO_POLL = "Tap below and I will send everyone the invite. It's Google Meet unless you change it with /meetlink.";
 
 /** Proposes times for every group whose deadline passed. Clears the deadline first so it fires once. */
 export async function checkAvailDeadlines(now = new Date()): Promise<number> {
@@ -324,9 +340,12 @@ scheduleComposer.callbackQuery(/^time:confirm:([0-9a-z.]+)$/, async (ctx) => {
   const groupId = ctx.chat!.id;
   const messageId = ctx.callbackQuery.message?.message_id;
   if (!messageId) return void (await ctx.answerCallbackQuery());
-  const result = await confirmTime(groupId, messageId, decodeStarts(ctx.match[1]!));
+  const result = await confirmTime(groupId, messageId, decodeStarts(ctx.match[1]!)).catch((err) => {
+    console.error('confirmTime failed', err);
+    return 'error' as const;
+  });
   if (result === 'error') {
-    return void (await ctx.answerCallbackQuery({ text: 'Could not close the poll. Try again?', show_alert: true }));
+    return void (await ctx.answerCallbackQuery({ text: 'Hit a snag locking that in. Tap Confirm time again?', show_alert: true }));
   }
   await ctx.answerCallbackQuery({ text: result === 'done' ? 'Time locked!' : 'Already confirmed!' });
   await ctx.editMessageReplyMarkup().catch(() => {});
@@ -362,7 +381,12 @@ scheduleComposer.callbackQuery('cal:invite', async (ctx) => {
   }
   const meeting = await closePoll(groupId);
   if (!meeting) return void (await ctx.answerCallbackQuery({ text: 'Lock a time first.' }));
-  await ctx.answerCallbackQuery({ text: `${MODES.find((m) => m.key === meeting.mode)?.label ?? 'Meeting'} it is!` });
-  await ctx.editMessageReplyMarkup().catch(() => {});
-  await askForMeetingLink(ctx, meeting);
+  const mode = MODES.find((m) => m.key === meeting.mode)?.label ?? 'Meeting';
+  await ctx.answerCallbackQuery({ text: `${mode} it is!` });
+  // The invite prompt becomes the decision, so the chat reads top to bottom.
+  await ctx.editMessageText(`${mode} it is. Sending the invite...`).catch(() => ctx.editMessageReplyMarkup().catch(() => {}));
+  await askForMeetingLink(ctx, meeting).catch(async (err) => {
+    console.error('Meeting invite failed', err);
+    await ctx.reply("I hit a snag sending the invite. Send /meetlink with the link or place and I'll try again.").catch(() => {});
+  });
 });

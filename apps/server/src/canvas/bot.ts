@@ -54,10 +54,10 @@ canvasComposer.command('canvas', async (ctx) => {
   if (!expectingAssignment(group)) {
     return void (await ctx.reply('This group already has its assignment, so there is nothing to import. Use /reset to start over.'));
   }
-  if (!group.teamSize) return void (await ctx.reply('Set the team size first: send /setup, then /canvas again.'));
+  if (!group.teamSize) return void (await ctx.reply('Pick the team size first: send /setup, then /canvas again.'));
   const pc = createPairCode(ctx.from.id, group.id);
   await ctx.reply(canvasCodeText(pc.code), {
     parse_mode: 'HTML',
-    reply_markup: new InlineKeyboard().url('Open Canvas in Groupie', appUrl(group.id, 'canvas')),
+    reply_markup: new InlineKeyboard().url('Open Groupie', appUrl(group.id, 'canvas')),
   });
 });
