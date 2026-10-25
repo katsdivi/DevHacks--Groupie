@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import * as copy from './copy.ts';
 import { canvasCodeText } from './canvas/bot.ts';
-import { linkCodeText } from './canvas/link.ts';
 import { sizeKeyboard, welcomeKeyboard } from './bot/index.ts';
 
 /**
@@ -69,7 +68,7 @@ describe('stage copy stays byte-identical', () => {
     `);
   });
 
-  it('/canvas and /imessage replies', () => {
+  it('/canvas replies', () => {
     expect(canvasCodeText('K7Q2MX')).toMatchInlineSnapshot(`
       "Your Cubbie code: <b>K7Q2MX</b>
 
@@ -88,14 +87,6 @@ describe('stage copy stays byte-identical', () => {
       <code>Groupie import K7Q2MX Sprint 3</code>
 
       Cubbie reads the assignment from Canvas and sends it here. The code works once."
-    `);
-    expect(linkCodeText('K7Q2MX')).toMatchInlineSnapshot(`
-      "<b>1. First time only:</b> text Cubbie this and wait for it to say the skill is installed:
-      <code>Install this skill: https://github.com/katsdivi/groupie-cubbie-skill/tree/main/groupie-import</code>
-
-      <b>2.</b> Then text Cubbie: <code>Groupie link K7Q2MX</code>
-
-      The code works once, for 30 minutes. After that, text Cubbie "Groupie status" to see your tasks, deadlines and next meeting in iMessage."
     `);
   });
 

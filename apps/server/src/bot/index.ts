@@ -196,7 +196,7 @@ async function replyChecklist(ctx: Context, fromStart: boolean) {
   const status = setupStatus(ctx.from!.id);
   const kb = setupKeyboard(status);
   const hasAddButton = kb.inline_keyboard.flat().some((b) => 'url' in b && b.url === addToGroupUrl());
-  if (fromStart && !hasAddButton) kb.url(BUTTON.addToGroup, addToGroupUrl());
+  if (fromStart && !hasAddButton) (kb.inline_keyboard.flat().length ? kb.row() : kb).url(BUTTON.addToGroup, addToGroupUrl());
   const text = fromStart ? `${setupCardText(status)}\n\n${html(START_HELP_LINE)}` : setupCardText(status);
   await ctx.reply(text, { parse_mode: 'HTML', ...(kb.inline_keyboard.flat().length ? { reply_markup: kb } : {}) });
 }

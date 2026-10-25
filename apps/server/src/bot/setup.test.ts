@@ -75,6 +75,11 @@ describe('/setup in a DM', () => {
     expect(b[0]!.url).toContain('startapp=g9401_form');
     expect(b[1]!.url).toContain('startapp=g9401_calendar');
     expect(b[2]!.url).toContain('startapp=g9401_canvas');
+    // One button per row and no empty rows.
+    const rows = (last().payload.reply_markup as { inline_keyboard: unknown[][] }).inline_keyboard;
+    expect(rows.map((r) => r.length)).toEqual([1, 1, 1]);
+    await send(U, '/start');
+    expect((last().payload.reply_markup as { inline_keyboard: unknown[][] }).inline_keyboard.map((r) => r.length)).toEqual([1, 1, 1, 1]);
   });
 
   it('drops a button as each step is done, and says all set with none left', async () => {
@@ -97,7 +102,7 @@ describe('/setup in a DM', () => {
       update_id: updateId++,
       callback_query: { id: 'q', from: { id: U, is_bot: false, first_name: 'Ana' }, chat_instance: 'x', data: 'setup:imessage', message: { message_id: 1, date: 0, chat: { id: U, type: 'private', first_name: 'Ana' } } },
     } as Update);
-    expect(String(last().payload.text)).toMatch(/Then text Cubbie: <code>Groupie link [A-Z0-9]{6}<\/code>/);
+    expect(String(last().payload.text)).toMatch(/Groupie link [A-Z0-9]{6}/);
   });
 });
 

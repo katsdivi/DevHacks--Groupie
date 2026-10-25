@@ -19,9 +19,11 @@ export function setupKeyboard(status: SetupStatus): InlineKeyboard {
   const kb = new InlineKeyboard();
   for (const s of nextSteps(status)) {
     const a = s.action;
-    if (a.kind === 'screen' && status.group) kb.url(s.button, appUrl(status.group.id, a.screen)).row();
-    else if (a.kind === 'url') kb.url(s.button, a.url).row();
-    else if (a.kind === 'command' && a.command === 'imessage') kb.text(s.button, SETUP_IMESSAGE).row();
+    // A new row before every button after the first, so the markup never ends in an empty row.
+    if (kb.inline_keyboard.flat().length) kb.row();
+    if (a.kind === 'screen' && status.group) kb.url(s.button, appUrl(status.group.id, a.screen));
+    else if (a.kind === 'url') kb.url(s.button, a.url);
+    else if (a.kind === 'command' && a.command === 'imessage') kb.text(s.button, SETUP_IMESSAGE);
   }
   return kb;
 }
