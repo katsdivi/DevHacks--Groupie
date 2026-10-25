@@ -57,3 +57,4 @@
 - **Backup:** `backups/backup-20261025-1154.db`, verified, user_version 12, groups=2 members=2 tasks=8 availability=86 meetings=1.
 - **Migrations:** none. In-memory group thread only.
 - **Rollback:** `git revert -m 1 <merge sha> && git push`, then `/health`.
+- **Deployed:** merge `0705c29`, Railway SUCCESS, `/health` ok, webhook set, 0 pending, no error. 568 server tests pass; real-model check of the rewrite: 12 of 12 consistent on he/she/it cases.
