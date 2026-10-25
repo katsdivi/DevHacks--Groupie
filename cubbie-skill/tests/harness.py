@@ -42,6 +42,11 @@ FIXTURES = SKILL.parent / "fixtures" / "cubbie"
 
 # Reserved codes the stub treats specially (all from the pair code alphabet).
 UNKNOWN_CODE, EXPIRED_CODE, BUSY_CODE, RATE_CODE = "ZZZZZZ", "XXXXXX", "NNNNNN", "RRRRRR"
+SERVER_ERROR_CODE, INVALID_CODE, NOT_JSON_CODE, ODD_ERROR_CODE = "SSSSSS", "VVVVVV", "HHHHHH", "QQQQQQ"
+# BIG_CODE: 413 while the payload has attachments, then a normal import. ALWAYS_BIG_CODE: 413 every time.
+BIG_CODE, ALWAYS_BIG_CODE = "BBBBBB", "TTTTTT"
+# Import error replies carry this requestId, so tests can check it reaches stderr and never stdout.
+STUB_REQUEST_ID = "stub-req-0001"
 
 
 def load_send():
@@ -77,6 +82,7 @@ class StubGroupie(ThreadingHTTPServer):
         self.used = set()
         self.tokens = set()
         self.requests = 0
+        self.imports = []  # every parsed import payload, in order
         self.lock = threading.Lock()
 
     @property
@@ -97,6 +103,10 @@ class StubHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(raw)))
         self.end_headers()
         self.wfile.write(raw)
+
+    def fail(self, status: int, error: str, message: str) -> None:
+        """An import error in the server's documented shape: { error, message, requestId }."""
+        self.reply(status, {"error": error, "message": message, "requestId": STUB_REQUEST_ID})
 
     def bearer(self):
         header = self.headers.get("Authorization") or ""
@@ -149,7 +159,10 @@ class StubHandler(BaseHTTPRequestHandler):
             return self.reply(404, {"error": "not_found", "message": "No such route."})
         raw = self.rfile.read(int(self.headers.get("Content-Length") or 0))
         expected = "sha256=" + hmac.new(self.server.key, raw, hashlib.sha256).hexdigest()
+        is_import = self.path == send.IMPORT_PATH
         if not hmac.compare_digest(expected, self.headers.get("X-Groupie-Signature") or ""):
+            if is_import:
+                return self.fail(401, "bad_signature", "Signature does not match.")
             return self.reply(401, {"error": "bad_signature", "message": "Signature does not match."})
         if self.headers.get("Content-Type") != "application/json":
             return self.reply(400, {"error": "bad_payload", "message": "Expected JSON."})
@@ -158,23 +171,41 @@ class StubHandler(BaseHTTPRequestHandler):
         try:
             payload = json.loads(raw)
         except ValueError:
-            return self.reply(400, {"error": "bad_payload", "message": "Body is not JSON."})
+            return self.fail(400, "invalid_payload", "Body is not JSON.")
         if send.validate(payload):
-            return self.reply(400, {"error": "bad_payload", "message": "Payload does not match the contract."})
+            return self.fail(400, "invalid_payload", "Payload does not match the contract.")
         code = payload["pairCode"]
         if code != code.upper():
-            return self.reply(400, {"error": "bad_payload", "message": "Code was not uppercased."})
+            return self.fail(400, "invalid_payload", "Code was not uppercased.")
+        with self.server.lock:
+            self.server.imports.append(payload)
         if code == RATE_CODE:
-            return self.reply(429, {"error": "rate_limited", "message": "Too many imports."})
+            return self.fail(429, "rate_limited", "Too many imports.")
         if code == UNKNOWN_CODE:
-            return self.reply(404, {"error": "unknown_code", "message": "No such code."})
+            return self.fail(404, "code_unknown", "No such code.")
         if code == EXPIRED_CODE:
-            return self.reply(409, {"error": "code_expired", "message": "Code expired."})
+            return self.fail(410, "code_expired", "Code expired.")
         if code == BUSY_CODE:
-            return self.reply(409, {"error": "not_expecting", "message": "The group already has its assignment."})
+            return self.fail(409, "not_expecting", "The group already has its assignment.")
+        if code == SERVER_ERROR_CODE:
+            return self.fail(500, "server_error", "Something broke.")
+        if code == INVALID_CODE:
+            return self.fail(422, "invalid_payload", "Could not use this assignment.")
+        if code == ODD_ERROR_CODE:
+            return self.fail(422, "no_team_size", "Set the team size first.")
+        if code == NOT_JSON_CODE:
+            html = b"<html><body>502 Bad Gateway</body></html>"
+            self.send_response(502)
+            self.send_header("Content-Type", "text/html")
+            self.send_header("Content-Length", str(len(html)))
+            self.end_headers()
+            self.wfile.write(html)
+            return None
+        if code == ALWAYS_BIG_CODE or (code == BIG_CODE and payload.get("attachments")):
+            return self.fail(413, "payload_too_large", "Too large.")
         with self.server.lock:
             if code in self.server.used:
-                return self.reply(409, {"error": "code_used", "message": "Code already used."})
+                return self.fail(409, "code_used", "Code already used.")
             self.server.used.add(code)
             import_id = len(self.server.used)
         self.reply(200, {"ok": True, "importId": import_id, "message": "Sent to Groupie. Check your group."})
@@ -203,7 +234,7 @@ def offline(code: str, key: str) -> int:
     cases = [
         # (label, args, key, expected exit code)
         ("import_full.json", ["--file", full, "--code", lower], key, send.EXIT_OK),
-        ("import_text_only.json (same code again)", ["--file", text_only, "--code", code], key, send.EXIT_FRESH_CODE),
+        ("import_text_only.json (same code again)", ["--file", text_only, "--code", code], key, send.EXIT_CODE_USED),
         ("import_malformed.json (rejected before sending)", ["--file", malformed, "--code", code], key, send.EXIT_PAYLOAD),
         ("import_malformed.json, its own bad code", ["--file", malformed], key, send.EXIT_CODE),
         ("import_text_only.json, wrong key", ["--file", text_only, "--code", "HJKMNP"], key + "x", send.EXIT_SIGNATURE),
@@ -211,6 +242,12 @@ def offline(code: str, key: str) -> int:
         ("import_text_only.json, expired code", ["--file", text_only, "--code", EXPIRED_CODE], key, send.EXIT_FRESH_CODE),
         ("import_text_only.json, group not expecting", ["--file", text_only, "--code", BUSY_CODE], key, send.EXIT_NOT_EXPECTING),
         ("import_text_only.json, rate limited", ["--file", text_only, "--code", RATE_CODE], key, send.EXIT_RATE),
+        ("import_text_only.json, server error", ["--file", text_only, "--code", SERVER_ERROR_CODE], key, send.EXIT_SERVER),
+        ("import_text_only.json, invalid payload", ["--file", text_only, "--code", INVALID_CODE], key, send.EXIT_BAD_PAYLOAD),
+        ("import_text_only.json, unlisted error code", ["--file", text_only, "--code", ODD_ERROR_CODE], key, send.EXIT_SERVER),
+        ("import_text_only.json, HTML body", ["--file", text_only, "--code", NOT_JSON_CODE], key, send.EXIT_SERVER),
+        ("sample payload, too big, sent as text", ["--sample", "--code", BIG_CODE], key, send.EXIT_OK),
+        ("sample payload, too big even as text", ["--sample", "--code", ALWAYS_BIG_CODE], key, send.EXIT_TOO_LARGE),
         ("sample payload, fresh code", ["--sample", "--code", "HJKMNP"], key, send.EXIT_OK),
     ]
     failures = 0
