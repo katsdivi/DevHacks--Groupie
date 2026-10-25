@@ -41,3 +41,4 @@
 - **Backup:** `backups/pre-canvas-ux-20261024-2246.db`, integrity ok, user_version 12, groups=2 tasks=12.
 - **Migrations:** none. New endpoint `POST /api/cubbie/import/linked`, page `GET /go/cubbie`, env `CUBBIE_HANDLE` (optional).
 - **Rollback:** `git revert -m 1 <merge sha> && git push`, then `/health`.
+- **Deployed:** merge `e86f709`, Railway SUCCESS. Smoke tests pass: `/health`; `/go/cubbie` 200 HTML, text escaped, Copy present, no sms link while `CUBBIE_HANDLE` is unset, no CSP or X-Frame-Options, extra params not reflected; linked import with no token and a guessed user 401 `bad_link`, with a made-up token 401 `bad_link`, bad signature 401 `bad_signature`; code import unknown code 404 `code_unknown`.
