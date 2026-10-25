@@ -15,7 +15,7 @@ import {
   type WorkloadResponse,
 } from '@groupie/shared';
 import { api, ApiError } from '../api.ts';
-import { haptic, openExternal } from '../telegram.ts';
+import { haptic } from '../telegram.ts';
 import { FeedStatusSkeleton } from '../components/Skeleton.tsx';
 import { ago, CourseChip } from '../components/Course.tsx';
 
@@ -167,6 +167,97 @@ function CodeTiles({ code, faded }: { code: string; faded: boolean }) {
   );
 }
 
+const SKILL_URL = 'https://github.com/katsdivi/groupie-cubbie-skill/tree/main/groupie-import';
+const INSTALL_MESSAGE = `Install this skill: ${SKILL_URL}`;
+const INSTALLED_KEY = 'groupie.cubbieSkillInstalled';
+const NUDGE_AFTER_MS = 90_000;
+
+/** A message to paste into Cubbie, with a Copy button that confirms. */
+function CopyRow({ text, big = false }: { text: string; big?: boolean }) {
+  const [done, setDone] = useState(false);
+  useEffect(() => {
+    if (!done) return;
+    const t = setTimeout(() => setDone(false), 2200);
+    return () => clearTimeout(t);
+  }, [done]);
+  const onCopy = async () => {
+    if (await copyText(text)) {
+      haptic.success();
+      setDone(true);
+    } else {
+      haptic.error();
+    }
+  };
+  return (
+    <div className="mt-2 flex items-center gap-2 rounded-2xl border border-line bg-panel p-1.5 pl-4">
+      <code className={`min-w-0 flex-1 font-mono leading-snug font-semibold break-words select-all ${big ? 'text-[14px]' : 'text-[12px]'}`}>{text}</code>
+      <button
+        className="shrink-0 rounded-xl px-4 py-2.5 text-[14px] font-semibold transition-all active:scale-95"
+        style={done ? { background: LIME, color: '#1E1E1E' } : { background: CYAN, color: '#1E1E1E' }}
+        onClick={onCopy}
+        aria-live="polite"
+      >
+        {done ? (
+          <span className="flex items-center gap-1.5">
+            <Check className="h-3.5 w-3.5" />
+            Copied
+          </span>
+        ) : (
+          'Copy'
+        )}
+      </button>
+    </div>
+  );
+}
+
+/** Step 1, once per student: Cubbie needs the Groupie import Skill before "Groupie import CODE" works. */
+function InstallStep() {
+  const [installed, setInstalled] = useState(() => {
+    try {
+      return localStorage.getItem(INSTALLED_KEY) === '1';
+    } catch {
+      return false;
+    }
+  });
+  const mark = (v: boolean) => {
+    haptic.select();
+    setInstalled(v);
+    try {
+      if (v) localStorage.setItem(INSTALLED_KEY, '1');
+      else localStorage.removeItem(INSTALLED_KEY);
+    } catch {
+      // Storage can be unavailable in some webviews; the toggle still works for this visit.
+    }
+  };
+  if (installed) {
+    return (
+      <button className="mt-5 flex w-full items-center gap-3 rounded-2xl border border-line bg-panel/60 px-4 py-3 text-left" onClick={() => mark(false)}>
+        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-ink" style={{ background: LIME }}>
+          <Check className="h-3 w-3" />
+        </span>
+        <span className="text-[14px]">
+          Groupie import is installed in Cubbie
+          <span className="block text-[12px] text-muted">Tap to see the install message again</span>
+        </span>
+      </button>
+    );
+  }
+  return (
+    <div className="mt-5 rounded-2xl border border-dashed p-4" style={{ borderColor: `${AMBER}66`, background: `${AMBER}0D` }}>
+      <div className="text-[13px] font-semibold uppercase tracking-widest" style={{ color: AMBER }}>
+        Step 1 · first time only
+      </div>
+      <p className="mt-1.5 text-[15px] leading-relaxed">
+        Teach Cubbie the Groupie import. Copy this, paste it in your chat with Cubbie in Messages, and wait for Cubbie to say it is installed.
+      </p>
+      <CopyRow text={INSTALL_MESSAGE} />
+      <button className="mt-3 w-full rounded-full border border-dashed border-line-strong py-3 text-[15px] font-semibold active:scale-[0.98]" onClick={() => mark(true)}>
+        Done, Cubbie installed it
+      </button>
+    </div>
+  );
+}
+
 function ImportCard({ me }: { me: MeResponse }) {
   const { group } = me;
   const nick = group.nickname;
@@ -177,8 +268,9 @@ function ImportCard({ me }: { me: MeResponse }) {
   const [status, setStatus] = useState<PairCodeStatusResponse | null>(null);
   const [requesting, setRequesting] = useState(false);
   const [requestError, setRequestError] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
   const [now, setNow] = useState(() => Date.now());
+  const [checkedAt, setCheckedAt] = useState<number | null>(null);
+  const [codeAt, setCodeAt] = useState<number | null>(null);
 
   const current: ImportStatus = status?.status ?? 'waiting';
   const terminal = TERMINAL.includes(current);
@@ -192,8 +284,9 @@ function ImportCard({ me }: { me: MeResponse }) {
       const body: PairCodeRequest = { groupChatId: group.id };
       const res = await api<PairCodeResponse>('/cubbie/pair-code', { method: 'POST', body: JSON.stringify(body) });
       setStatus(null);
-      setCopied(false);
       setNow(Date.now());
+      setCodeAt(Date.now());
+      setCheckedAt(null);
       setPair(res);
     } catch (e) {
       haptic.error();
@@ -215,6 +308,7 @@ function ImportCard({ me }: { me: MeResponse }) {
           const res = await api<PairCodeStatusResponse>(`/cubbie/pair-code/${encodeURIComponent(pair.code)}`);
           if (!live) return;
           setStatus(res);
+          setCheckedAt(Date.now());
           if (TERMINAL.includes(res.status)) return;
         } catch (e) {
           if (!live) return;
@@ -227,7 +321,7 @@ function ImportCard({ me }: { me: MeResponse }) {
       }
       if (live) timer = setTimeout(tick, POLL_MS);
     };
-    timer = setTimeout(tick, POLL_MS);
+    void tick();
     return () => {
       live = false;
       clearTimeout(timer);
@@ -261,32 +355,8 @@ function ImportCard({ me }: { me: MeResponse }) {
     if (current === 'failed') haptic.error();
   }, [current, pair]);
 
-  useEffect(() => {
-    if (!copied) return;
-    const t = setTimeout(() => setCopied(false), 2200);
-    return () => clearTimeout(t);
-  }, [copied]);
-
-  const copy = async () => {
-    if (!pair) return;
-    if (await copyText(pair.cubbieMessage)) {
-      haptic.success();
-      setCopied(true);
-    } else {
-      haptic.error();
-    }
-  };
-
-  const smsUrl = pair ? `sms:&body=${encodeURIComponent(pair.cubbieMessage)}` : '';
-  const openMessages = (e: { preventDefault(): void }) => {
-    haptic.tap();
-    try {
-      openExternal(smsUrl, e);
-    } catch {
-      e.preventDefault();
-      location.href = smsUrl;
-    }
-  };
+  const waitingTooLong = current === 'waiting' && codeAt !== null && now - codeAt > NUDGE_AFTER_MS;
+  const checkedAgo = checkedAt === null ? null : Math.max(0, Math.round((now - checkedAt) / 1000));
 
   return (
     <section className={`${card} mt-5 overflow-hidden`}>
@@ -328,7 +398,7 @@ function ImportCard({ me }: { me: MeResponse }) {
         {expecting && !pair && (
           <>
             <ol className="mt-5 grid grid-cols-3 gap-2 text-center text-[12px] leading-snug text-muted">
-              {['Get a code', 'Text Cubbie', 'Tasks land in the group'].map((t, i) => (
+              {['Install in Cubbie (once)', 'Get a code, text Cubbie', 'Tasks land in the group'].map((t, i) => (
                 <li key={t} className="rounded-2xl border border-dashed border-line px-2 py-3">
                   <span className="mx-auto mb-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-line text-[12px] font-bold text-text">
                     {i + 1}
@@ -337,6 +407,7 @@ function ImportCard({ me }: { me: MeResponse }) {
                 </li>
               ))}
             </ol>
+            <InstallStep />
             <button className={`${primary} mt-5`} onClick={getCode} disabled={requesting}>
               {requesting ? 'Making your code...' : 'Get my code'}
             </button>
@@ -393,37 +464,24 @@ function ImportCard({ me }: { me: MeResponse }) {
 
           {(current === 'waiting' || current === 'received') && (
             <>
-              <div className="mt-5 text-[13px] text-muted">Send Cubbie exactly this</div>
-              <div className="mt-2 flex items-center gap-2 rounded-2xl border border-line bg-panel p-1.5 pl-4">
-                <code className="min-w-0 flex-1 font-mono text-[13px] leading-snug font-semibold break-words select-all">{pair.cubbieMessage}</code>
-                <button
-                  className="shrink-0 rounded-xl px-4 py-2.5 text-[14px] font-semibold transition-all active:scale-95"
-                  style={copied ? { background: LIME, color: '#1E1E1E' } : { background: '#3A3A3A' }}
-                  onClick={copy}
-                  aria-live="polite"
-                >
-                  {copied ? (
-                    <span className="flex items-center gap-1.5">
-                      <Check className="h-3.5 w-3.5" />
-                      Copied
-                    </span>
-                  ) : (
-                    'Copy'
-                  )}
-                </button>
+              <div className="mt-5 text-[13px] text-muted">Send Cubbie exactly this, then say yes when it asks</div>
+              <CopyRow text={pair.cubbieMessage} big />
+              <p className="mt-3 text-[13px] leading-relaxed text-muted">
+                Open Messages on your phone, paste it in your chat with Cubbie, and send. Add the assignment name after the code if you have more than one, like{' '}
+                <span className="font-mono text-text">{pair.cubbieMessage} Project 2</span>.
+              </p>
+              <div className="mt-3 flex items-center justify-center gap-2 text-[12px] text-muted" aria-live="polite">
+                <span className="relative flex h-2 w-2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-60" style={{ background: CYAN }} />
+                  <span className="relative inline-flex h-2 w-2 rounded-full" style={{ background: CYAN }} />
+                </span>
+                {checkedAgo === null ? 'Watching for Cubbie...' : `Live. Checked ${checkedAgo < 2 ? 'just now' : `${checkedAgo}s ago`}`}
               </div>
-              <a
-                href={smsUrl}
-                onClick={openMessages}
-                className="mt-3 flex w-full items-center justify-center gap-2 rounded-full py-3.5 text-[16px] font-semibold text-ink transition-transform active:scale-[0.98]"
-                style={{ background: CYAN }}
-              >
-                <svg viewBox="0 0 20 20" className="h-5 w-5" fill="currentColor" aria-hidden>
-                  <path d="M10 2.5c-4.7 0-8.5 3.1-8.5 7 0 2.2 1.2 4.1 3.1 5.4-.2 1-.7 2.1-1.5 2.9 1.7-.1 3.2-.7 4.3-1.5.8.2 1.7.3 2.6.3 4.7 0 8.5-3.1 8.5-7s-3.8-7.1-8.5-7.1z" />
-                </svg>
-                Open Messages
-              </a>
-              <p className="mt-2 text-center text-[13px] text-muted">Text it to Cubbie in iMessage</p>
+              {waitingTooLong && (
+                <div className="mt-4 rounded-2xl border px-4 py-3 text-[14px] leading-relaxed" style={{ borderColor: `${AMBER}55`, background: `${AMBER}10` }}>
+                  <b className="font-semibold">Nothing from Cubbie yet.</b> Check that the Groupie import is installed in Cubbie (step 1), that you sent the exact message with this code, and that you said yes when Cubbie asked to send it.
+                </div>
+              )}
 
               <div className="mt-6 border-t border-dashed border-line pt-5">
                 <Stepper status={current} nick={nick} />
