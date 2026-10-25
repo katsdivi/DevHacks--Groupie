@@ -1,3 +1,4 @@
+import { formatRubricContext } from '../parse.ts';
 import { eq } from 'drizzle-orm';
 import {
   CubbieImportPayload,
@@ -48,10 +49,8 @@ export const resetRateLimits = () => hits.clear();
 
 const RATE_LIMITED = () => fail(429, 'rate_limited', 'Too many imports. Try again in an hour.');
 
-export function formatRubric(criteria: RubricCriterion[]): string {
-  const lines = criteria.map((c) => `- ${c.name} (${c.points} pts)${c.ratings.length ? `: ${c.ratings.join(' / ')}` : ''}`);
-  return `Canvas rubric (use it to shape and weight the tasks):\n${lines.join('\n')}`;
-}
+/** One format for rubrics everywhere, so the parse prompt's rubric rules recognize it. */
+export const formatRubric = (criteria: RubricCriterion[]): string => formatRubricContext({ criteria });
 
 /** The payload as stored: attachments keep their name and size but lose the base64. */
 export function storablePayload(p: CubbieImportPayload) {

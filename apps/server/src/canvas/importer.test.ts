@@ -149,7 +149,7 @@ describe('import content', () => {
       dueDate: '2026-11-20T23:59:00-07:00',
       courseName: 'CSE 340: Software Engineering',
     });
-    expect(input.extraContext).toContain('Implementation (30 pts): Search and hours work end to end / Partly working / Not working');
+    expect(input.extraContext).toContain('Implementation (30 pts): Search and hours work end to end; Partly working; Not working');
     expect(input.text).toContain('Assignment: Project 2: Campus Food Finder');
     expect(input.text).toContain('Points: 100');
     expect(input.text).toContain('Attachment: dining-hours-notes.txt');
@@ -174,7 +174,7 @@ describe('import content', () => {
     ).rejects.toThrow(/10 MB/);
   });
   it('formats rubric and strips base64 for storage', () => {
-    expect(formatRubric([{ name: 'A', points: 5, ratings: [] }])).toContain('- A (5 pts)');
+    expect(formatRubric([{ name: 'A', points: 5, ratings: [] }])).toContain('A (5 pts)');
     expect(storablePayload({ ...full, attachments: [{ filename: 'x', mimeType: 'm', base64: 'QUJD' }] }).attachments).toEqual([
       { filename: 'x', mimeType: 'm', base64Length: 4 },
     ]);
