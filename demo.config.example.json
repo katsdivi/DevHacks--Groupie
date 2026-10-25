@@ -1,0 +1,46 @@
+{
+  "admins": [7137310907],
+  "group": {
+    "title": "CSE 340 Team",
+    "teamSize": 4,
+    "nickname": "Motu",
+    "course": "CSE 340: Software Engineering",
+    "assignmentTitle": "Project 2: Campus Food Finder",
+    "dueInDays": 10
+  },
+  "members": [
+    {
+      "role": "presenter",
+      "telegramUserId": 7137310907,
+      "name": "Divyam",
+      "skills": ["coding", "presenting"],
+      "weakAreas": ["writing"],
+      "shareWorkload": true,
+      "calendar": "busy-week"
+    },
+    {
+      "role": "teammate1",
+      "telegramUserId": null,
+      "name": "Ava",
+      "skills": ["writing", "research"],
+      "weakAreas": ["coding"],
+      "calendar": "none"
+    },
+    {
+      "role": "teammate2",
+      "telegramUserId": null,
+      "name": "Jay",
+      "skills": ["coding", "data"],
+      "weakAreas": ["presenting"],
+      "calendar": "none"
+    },
+    {
+      "role": "teammate3",
+      "telegramUserId": null,
+      "name": "Mia",
+      "skills": ["design", "presenting"],
+      "weakAreas": ["math"],
+      "calendar": "none"
+    }
+  ]
+}
