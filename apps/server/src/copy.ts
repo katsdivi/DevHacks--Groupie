@@ -166,13 +166,8 @@ export const PLAN_NO_DUE = "Canvas has no due date for this one, so I didn't add
 
 // ---------------------------------------------------------------- wrong app (canvas/bot.ts)
 
-/** Someone sent Groupie the message that belongs to Cubbie. */
-export const WRONG_APP = 'That one goes to Cubbie in iMessage, not here. Copy this and send it to Cubbie:';
 /** Their code was unknown, used, or expired, so a new one is in the message. */
 export const CODE_EXPIRED_FRESH = "That code expired, here's a fresh one.";
-/** The wrong-app reply (HTML): the exact Cubbie message in a code block. */
-export const wrongAppText = (message: string, fresh: boolean) =>
-  [...(fresh ? [CODE_EXPIRED_FRESH] : []), WRONG_APP, `<code>${esc(message)}</code>`].join('\n');
 
 // ---------------------------------------------------------------- "send me the assignment" (bot/assignmentFile.ts)
 
