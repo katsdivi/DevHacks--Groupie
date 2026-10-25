@@ -37,10 +37,10 @@ export async function postJoinStatus(groupId: number) {
   setStatusMessage(groupId, msg.message_id);
 }
 
-/** Edits the live "N/5 joined" message in place. */
+/** Edits the live "N/5 joined" message in place. With no team size yet, the status message is the size question: left alone. */
 export async function refreshJoinStatus(groupId: number) {
   const group = getGroup(groupId);
-  if (!group?.statusMessageId) return;
+  if (!group?.statusMessageId || !group.teamSize) return;
   await bot.api
     .editMessageText(groupId, group.statusMessageId, joinStatusText(group), {
       parse_mode: 'HTML',

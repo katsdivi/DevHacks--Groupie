@@ -117,6 +117,9 @@ describe('wrong-app matcher', () => {
     expect(matchWrongApp('Groupie import K7Q2MX')).toEqual({ code: 'K7Q2MX', rest: '' });
     expect(matchWrongApp('  groupie IMPORT k7q2mx  Project 2   final ')).toEqual({ code: 'K7Q2MX', rest: 'Project 2 final' });
   });
+  it('caps the assignment words so the Copy button stays under Telegram limits', () => {
+    expect(matchWrongApp(`Groupie import K7Q2MX ${'word '.repeat(100)}`)!.rest.length).toBeLessThanOrEqual(200);
+  });
   it('ignores other messages', () => {
     expect(matchWrongApp('Groupie, what is due?')).toBeNull();
     expect(matchWrongApp('Groupie import K7Q2')).toBeNull();
@@ -266,6 +269,14 @@ describe('Canvas before the team size', () => {
     await tap(G, 6501, 'size:2', 1);
     expect(['split_ready', 'scheduling']).toContain(getGroup(G)!.status);
     expect(sent().some((c) => String(c.payload.text).includes('Fair split'))).toBe(true);
+  });
+
+  it('a Mini App join leaves the size question alone while the size is unset', async () => {
+    const G = makeGroup({ status: 'collecting_members', assignmentTitle: 'P2', statusMessageId: 7000 });
+    db.insert(schema.members).values({ groupId: G, tgUserId: 6551, name: 'Ana', color: '#FFB547', createdAt: created }).run();
+    const { refreshJoinStatus } = await import('./joinStatus.ts');
+    await refreshJoinStatus(G);
+    expect(calls.some((c) => c.method === 'editMessageText')).toBe(false);
   });
 
   it('does not split while the size is unset', async () => {

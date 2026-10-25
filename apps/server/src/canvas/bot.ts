@@ -64,6 +64,8 @@ canvasComposer.command('canvas', async (ctx) => {
 
 // ---------------------------------------------------------------- wrong app catch
 
+/** Room for the code and words inside Telegram's 256 character copy button. */
+const MAX_WRONG_APP_REST = 200;
 /** "Groupie import K7Q2MX", optionally followed by assignment words. */
 const WRONG_APP_RE = /^\s*groupie\s+import\s+([A-Z0-9]{6})\b([\s\S]*)$/i;
 
@@ -71,7 +73,7 @@ const WRONG_APP_RE = /^\s*groupie\s+import\s+([A-Z0-9]{6})\b([\s\S]*)$/i;
 export function matchWrongApp(text: string): { code: string; rest: string } | null {
   const m = WRONG_APP_RE.exec(text);
   if (!m) return null;
-  return { code: m[1]!.toUpperCase(), rest: m[2]!.trim().replace(/\s+/g, ' ') };
+  return { code: m[1]!.toUpperCase(), rest: m[2]!.trim().replace(/\s+/g, ' ').slice(0, MAX_WRONG_APP_REST).trim() };
 }
 
 /** The group a code may still import into, or null for a personal code. */
