@@ -12,6 +12,7 @@ import {
 import { env } from '../env.ts';
 import { db, schema } from '../db/index.ts';
 import { getGroup } from '../groups.ts';
+import type { Group } from '../db/schema.ts';
 import { expectingAssignment, ingestAssignment, type IngestResult } from '../intake.ts';
 import { extractDocumentText, fileExtension, formatRubricContext } from '../parse.ts';
 import { getPairCode } from './pairCodes.ts';
@@ -103,7 +104,7 @@ export const resetRateLimits = () => hits.clear();
 export const formatRubric = (criteria: RubricCriterion[]): string => formatRubricContext({ criteria });
 
 /** The payload as stored: attachments keep their name and size but lose the base64. */
-export function storablePayload(p: CubbieImportPayload) {
+export function storablePayload(p: CubbieImportPayloadCore) {
   return {
     ...p,
     attachments: p.attachments?.map(({ base64, ...a }) => (base64 ? { ...a, base64Length: base64.length } : a)),
@@ -120,7 +121,7 @@ export type PreparedIntake = {
 };
 
 /** Header, description, then each attachment's text, the way the intake expects one document. Never throws on a file. */
-export async function prepareIntake(p: CubbieImportPayload): Promise<PreparedIntake> {
+export async function prepareIntake(p: CubbieImportPayloadCore): Promise<PreparedIntake> {
   const a = p.assignment;
   const code = p.course.code;
   const header = [
@@ -192,7 +193,7 @@ const finishImport = (id: number, r: IngestResult) => setImport(id, r.ok ? 'impo
 const inFlightCodes = new Set<string>();
 
 /** Marks the code used after a successful import. Ignores the expiry, since the import already happened. */
-function markCodeUsed(code: string, now: Date) {
+export function markCodeUsed(code: string, now: Date) {
   db.update(cubbiePairCodes)
     .set({ usedAt: now.toISOString() })
     .where(and(eq(cubbiePairCodes.code, code), isNull(cubbiePairCodes.usedAt)))
@@ -200,6 +201,9 @@ function markCodeUsed(code: string, now: Date) {
 }
 
 export type ImportOptions = { ingestWaitMs?: number; now?: Date; requestId?: string };
+
+/** The parsed payload the core imports (the pair code, when present, is not read by the core). */
+export type CubbieImportPayloadCore = Pick<CubbieImportPayload, 'course' | 'assignment' | 'rubric' | 'attachments'>;
 
 /** Everything behind POST /api/cubbie/import. Pure in, status and body out. Never throws. */
 export async function handleImport(rawBody: Buffer | undefined, signature: string | undefined, ip: string, opts: ImportOptions = {}): Promise<ImportReply> {
@@ -247,16 +251,50 @@ async function runImport(rawBody: Buffer | undefined, signature: string | undefi
   const group = pc.groupChatId != null ? getGroup(pc.groupChatId) : undefined;
   if (group && !expectingAssignment(group)) return fail('not_expecting', M.notExpecting);
 
+  return runImportCore({ telegramUserId: pc.telegramUserId, group, code: pc.code, lockKey: pc.code, payload: p, requestId, opts });
+}
+
+/** What the shared import core needs once the sender, the destination and the code (if any) are known. */
+export type ImportCoreInput = {
+  telegramUserId: number;
+  /** The destination group (already checked to expect an assignment), or undefined for a personal plan. */
+  group: Group | undefined;
+  /** The pair code behind this import, marked used only on success. Null for a linked import with no code. */
+  code: string | null;
+  /** The in-flight lock key: the code, or a linked key like "linked:<user>:<group|me>". */
+  lockKey: string;
+  payload: CubbieImportPayloadCore;
+  requestId: string;
+  opts: ImportOptions;
+  /** The code_used message while the same lock is held (default: the code's in-flight line). */
+  inFlightMessage?: string;
+};
+
+/**
+ * The import after every gate: records the import, reads the attachments, runs the group intake (with the
+ * post-import files) or the personal plan, and marks the code used only on success. Used by both the code path
+ * and the linked path (canvas/linkedImport.ts).
+ */
+export async function runImportCore(input: ImportCoreInput): Promise<ImportReply> {
+  const { telegramUserId, group, code, lockKey, payload: p, requestId, opts } = input;
+  const M = IMPORT_MESSAGES;
+  const fail = (c: ImportErrorCode, message: string, detail?: string) => importError(requestId, c, message, detail);
+  if (inFlightCodes.has(lockKey)) return fail('code_used', input.inFlightMessage ?? M.inFlight, 'in flight');
+  const now = opts.now ?? new Date();
+  const markUsed = () => {
+    if (code) markCodeUsed(code, opts.now ?? new Date());
+  };
+
   // Single use: the code is locked from here and marked used only once the import succeeds.
-  inFlightCodes.add(pc.code);
-  const release = () => inFlightCodes.delete(pc.code);
+  inFlightCodes.add(lockKey);
+  const release = () => inFlightCodes.delete(lockKey);
   let work: Promise<unknown> | undefined;
   try {
     const importId = db
       .insert(cubbieImports)
       .values({
-        pairCode: pc.code,
-        telegramUserId: pc.telegramUserId,
+        pairCode: code,
+        telegramUserId,
         groupChatId: group?.id ?? null,
         payload: storablePayload(p),
         status: 'received',
@@ -278,11 +316,12 @@ async function runImport(rawBody: Buffer | undefined, signature: string | undefi
 
     // A code made in a private chat: the student's own assignment, planned for one and sent by DM.
     if (!group) {
-      const personal = runPersonalImport(pc.telegramUserId, importId, p, prepared.text, extraContext).then(
+      // runPersonalImport never reads pairCode, so the core payload fits its parameter.
+      const personal = runPersonalImport(telegramUserId, importId, p as CubbieImportPayload, prepared.text, extraContext).then(
         (r) => {
           const ok = !!(r.plan || r.calendarSaved);
           setImport(importId, ok ? 'imported' : 'failed', r.plan ? null : 'No plan could be made.');
-          if (ok) markCodeUsed(pc.code, opts.now ?? new Date());
+          if (ok) markUsed();
           return ok;
         },
         (err: unknown) => {
@@ -309,7 +348,7 @@ async function runImport(rawBody: Buffer | undefined, signature: string | undefi
         finishImport(importId, r);
         if (r.ok) {
           try {
-            markCodeUsed(pc.code, opts.now ?? new Date());
+            markUsed();
             recordCanvasImport(group.id, importId);
             await postImportFiles(group.id, prepared.files, prepared.dropped.length);
           } catch (err) {

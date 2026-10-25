@@ -109,7 +109,7 @@ class ExitCodes(unittest.TestCase):
             code, line = quiet(send.main, ["--sample", "--url", "http://stub.test"])
         return code, line
 
-    def test_user_agent_is_version_2(self):
+    def test_user_agent_is_version_3(self):
         seen = {}
 
         def fake_post(url, body, headers):
@@ -118,7 +118,7 @@ class ExitCodes(unittest.TestCase):
 
         with mock.patch.object(send, "post", fake_post):
             quiet(send.main, ["--sample", "--url", "http://stub.test"])
-        self.assertEqual(seen["User-Agent"], "groupie-import-skill/2")
+        self.assertEqual(seen["User-Agent"], "groupie-import-skill/3")
 
     def test_exit_code_per_status(self):
         cases = [
