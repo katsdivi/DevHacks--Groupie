@@ -1,15 +1,16 @@
 import { Composer, InlineKeyboard } from 'grammy';
-import { getPending } from '../groups.ts';
+import { getGroup, getPending } from '../groups.ts';
 import { buildDmContext, voice, type DmContext } from '../context.ts';
 import { renderContext } from '../contextPolicy.ts';
 import { memoryReply } from '../agent.ts';
 import { talk, type ChatMessage } from '../llm.ts';
-import { appendDm, clearMyChat, dmHistoryForAsker } from '../dmHistory.ts';
+import { appendDm, clearMyChat, dmHistoryForAsker, loadDm } from '../dmHistory.ts';
 import { catchWrongApp } from '../canvas/bot.ts';
 import { BUTTON, NO_ASSIGNMENT_FILE, pendingGroupLine } from '../copy.ts';
 import { projectGroupsFor, type ProjectGroup } from '../membership.ts';
 import { appUrl } from './core.ts';
 import { groupsWithAssignment, sendAssignment, wantsAssignmentFile } from './assignmentFile.ts';
+import { dmTurns, resolveFollowUp } from './followUp.ts';
 
 /**
  * Plain-text conversation in a private chat with the bot. Identity is ctx.from.id; context comes
@@ -32,6 +33,9 @@ export function pendingOnly(userId: number): ProjectGroup[] {
 
 /** DM asks about their project, tasks or group, answered with the pending line instead of the model. */
 const PROJECT_ASK = /\b(tasks?|groups?|projects?|team|split|status|my part|progress|meetings?|assignment)\b/i;
+
+/** Asks for something to be sent, which the file check handles without the model. */
+const ASKS_FOR = /\b(send|resend|give|share|forward|dm|get|grab|want|need|pdf|doc|file|copy)\b/i;
 
 /**
  * The exact messages a DM sends: the DM context, this user's own DM history, and the new message.
@@ -91,16 +95,19 @@ dmComposer.on('message:text', async (ctx, next) => {
   // The Cubbie import message sent here by mistake: point it at Cubbie, before history or the model.
   if (await catchWrongApp(ctx)) return;
   if (getPending(ctx.chat.id, ctx.from.id)) return next();
+  // "Send it to me": the quick checks below read the standalone version, resolved from their own DM.
+  // The model itself already sees the DM history, so only asks that a quick check could catch pay for this.
+  const asked = ASKS_FOR.test(ctx.msg.text) ? await resolveFollowUp(ctx.msg.text, dmTurns(loadDm(ctx.from.id, 6), 'Groupie')) : ctx.msg.text;
   // "Send me the assignment" in a DM: the newest assignment from the sender's own groups.
-  if (wantsAssignmentFile(ctx.msg.text)) {
-    const [groupId] = groupsWithAssignment(ctx.from.id);
+  const [groupId] = groupsWithAssignment(ctx.from.id);
+  if (wantsAssignmentFile(asked, groupId === undefined ? null : getGroup(groupId)?.assignmentTitle)) {
     if (groupId === undefined) return void (await ctx.reply(NO_ASSIGNMENT_FILE));
     return void (await sendAssignment(ctx.chat.id, groupId, ctx.msg.message_id));
   }
   // In a group (made its codes or import) but no member row: say so, with the button, not the model.
   const pending = pendingOnly(ctx.from.id);
   const details = pending.length ? new InlineKeyboard().url(BUTTON.details, appUrl(pending[0]!.group.id, 'form')) : undefined;
-  if (pending.length && PROJECT_ASK.test(ctx.msg.text)) {
+  if (pending.length && PROJECT_ASK.test(asked)) {
     return void (await ctx.reply(pendingGroupLine(pending[0]!.group.title), { reply_markup: details }));
   }
   await ctx.replyWithChatAction('typing').catch(() => {});
