@@ -10,3 +10,9 @@
 - **Env set with `scripts/railway-env.sh`:** `CUBBIE_PUBLIC_SIGNING_KEY` (64), `FEED_ENCRYPTION_KEY` (44), `LOAD_AWARE_SPLIT` (4). `CUBBIE_HMAC_SECRET` was never set on Railway, so nothing to delete.
 - **Smoke tests (gate 3), all pass:** `/health`; `POST /api/cubbie/pair-code` with a signed Mini App session; status endpoint; first import through the real `cubbie-skill/scripts/send.py` accepted (no-group path, so nothing was posted in a group; one DM to the test account); reused code rejected (exit 8); bad signature 401; pair code without Telegram auth 401; non-ASU and plain-http feed URLs 400.
 - **Note:** the first smoke run failed only because this Mac's python.org Python 3.12 has no CA bundle (`CERTIFICATE_VERIFY_FAILED` even on `/health`). Rerun with `SSL_CERT_FILE=/etc/ssl/cert.pem` passed. No production change was involved; local fix if wanted: run "Install Certificates.command" from the Python 3.12 folder.
+
+## Hotfix: Canvas import usability (2026-10-24)
+
+- **Rollback point:** `7e76c3601d58c8cff4253bdc2f79ba4cf8d0e0b9`. **Backup:** `backups/pre-hotfix-20261024-2021.db`, integrity ok, user_version 7, groups=2.
+- **Why:** prod showed two pair codes created and never used: the student was never told to install the Skill in Cubbie, and "Open Messages" (an `sms:` link) cannot open from Telegram's in-app browser.
+- **Change:** web Canvas screen (install step with a copyable "Install this skill" message, Copy as the main action, live check indicator, nudge after 90 s) and the `/canvas` reply text. No schema change.
