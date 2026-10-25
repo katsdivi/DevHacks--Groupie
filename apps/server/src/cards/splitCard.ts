@@ -5,7 +5,14 @@ export type SplitCardData = {
   dueLabel: string | null; // e.g. "Fri, Nov 20", already formatted
   nickname: string; // bot nickname for the footer, e.g. "Motu"
   maxGap: number;
-  members: { name: string; color: string; points: number; tasks: { title: string; effort: number }[] }[];
+  members: {
+    name: string;
+    color: string;
+    points: number;
+    tasks: { title: string; effort: number }[];
+    /** Small amber tag under the name, e.g. "Busy week · 4 due". */
+    busyLabel?: string;
+  }[];
 };
 
 export const BRAND_COLORS = ['#FF6B5B', '#FFB547', '#A6E35A', '#4FD8E8', '#A88BFF', '#FF7AC6'];
@@ -122,6 +129,18 @@ body {
   overflow-wrap: anywhere;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
+.ident { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+.busy {
+  align-self: flex-start;
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 24px; padding: 0 9px;
+  border-radius: 7px;
+  background: rgba(255,181,71,0.13);
+  border: 1px solid rgba(255,181,71,0.38);
+  color: #FFB547;
+  font-size: 13px; font-weight: 650; letter-spacing: 0.01em; white-space: nowrap;
+}
+.busy i { width: 6px; height: 6px; border-radius: 50%; background: #FFB547; display: block; }
 .work { min-width: 0; }
 .pills { display: flex; flex-wrap: wrap; gap: 8px; }
 .pill {
@@ -189,8 +208,9 @@ export function splitCardHtml(data: SplitCardData): string {
             .join('')
         : '<span class="empty">No tasks yet</span>';
       const width = Math.max(2, Math.round((m.points / maxPoints) * 1000) / 10);
+      const busy = m.busyLabel ? `<span class="busy"><i></i>${escapeHtml(m.busyLabel)}</span>` : '';
       return `<div class="row" style="--c:${m.color}">
-  <div class="who"><span class="avatar">${initial}</span><span class="name">${escapeHtml(m.name)}</span></div>
+  <div class="who"><span class="avatar">${initial}</span><span class="ident"><span class="name">${escapeHtml(m.name)}</span>${busy}</span></div>
   <div class="work"><div class="pills">${pills}</div><div class="bar"><i style="width:${width}%"></i></div></div>
   <div class="total"><div class="n">${m.points}</div><div class="u">${m.points === 1 ? 'point' : 'points'}</div></div>
 </div>`;

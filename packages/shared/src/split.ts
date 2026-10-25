@@ -14,6 +14,13 @@ export type SplitResult = {
   /** max total minus min total across all members */
   maxGap: number;
 };
+export type SplitOptions = {
+  /**
+   * memberId -> calendar load (higher = busier). Only a tie-breaker after max gap and skill fit:
+   * among equally balanced splits, less loaded members get more points. Missing members count as 0.
+   */
+  load?: Record<number, number>;
+};
 
 const MAX_ITERATIONS = 500;
 const RESTARTS = 40;
@@ -38,10 +45,14 @@ export function skillFit(task: SplitTask, member: SplitMember): number {
   return score;
 }
 
-/** Lower is better: max gap first, then skill fit (higher), then spread (sum of squared totals). */
-type Key = [gap: number, negFit: number, sumSq: number];
+/**
+ * Lower is better: max gap first, then skill fit (higher), then load cost (points on busy members,
+ * always 0 without load), then spread (sum of squared totals).
+ */
+type Key = [gap: number, negFit: number, loadCost: number, sumSq: number];
 
-const better = (a: Key, b: Key) => a[0] !== b[0] ? a[0] < b[0] : a[1] !== b[1] ? a[1] < b[1] : a[2] < b[2];
+const better = (a: Key, b: Key) =>
+  a[0] !== b[0] ? a[0] < b[0] : a[1] !== b[1] ? a[1] < b[1] : a[2] !== b[2] ? a[2] < b[2] : a[3] < b[3];
 
 type State = { owner: number[]; totals: number[]; fit: number };
 
@@ -50,8 +61,14 @@ type State = { owner: number[]; totals: number[]; fit: number };
  * Greedy (largest first, to the lightest member) followed by local search over moves and swaps,
  * with a few seeded restarts to escape plateaus.
  * Deterministic: tasks and members are sorted by id internally, so input order doesn't matter.
+ * With `options.load`, the result is never less balanced than without it (see SplitOptions).
  */
-export function split(tasks: SplitTask[], members: SplitMember[], constraints: SplitConstraints = {}): SplitResult {
+export function split(
+  tasks: SplitTask[],
+  members: SplitMember[],
+  constraints: SplitConstraints = {},
+  options?: SplitOptions,
+): SplitResult {
   const ms = [...members].sort((a, b) => a.id - b.id).filter((m, i, arr) => i === 0 || arr[i - 1]!.id !== m.id);
   if (ms.length === 0) return { assignments: {}, totals: {}, maxGap: 0 };
   const ts = [...tasks].sort((a, b) => a.id - b.id);
@@ -97,16 +114,21 @@ export function split(tasks: SplitTask[], members: SplitMember[], constraints: S
     return { owner, totals, fit: owner.reduce((s, m, i) => s + fit[i]![m]!, 0) };
   };
 
+  // Per member load weights; null means the load term is exactly 0 and the search is unchanged.
+  let loadW: number[] | null = null;
   const keyOf = (totals: number[], totalFit: number): Key => {
     let max = -Infinity;
     let min = Infinity;
     let sq = 0;
-    for (const v of totals) {
+    let cost = 0;
+    for (let m = 0; m < totals.length; m++) {
+      const v = totals[m]!;
       if (v > max) max = v;
       if (v < min) min = v;
       sq += v * v;
+      if (loadW) cost += v * loadW[m]!;
     }
-    return [max - min, -totalFit, sq];
+    return [max - min, -totalFit, cost, sq];
   };
 
   const improve = (s: State): State => {
@@ -178,24 +200,72 @@ export function split(tasks: SplitTask[], members: SplitMember[], constraints: S
     return { owner, totals, fit: totalFit };
   };
 
-  // Searching from both a skill-aware and a plain greedy start guarantees we never do worse than greedy.
-  const a = improve(greedy(true));
-  const b = improve(greedy(false));
-  let best = better(keyOf(b.totals, b.fit), keyOf(a.totals, a.fit)) ? b : a;
-
-  // Moves and swaps can stall on plateaus (for example 11/10/10/10/8 around a locked task).
-  // Restart from seeded shuffles of the task order and keep the best, stopping at the ideal gap.
   const totalEffort = ts.reduce((sum, t) => sum + t.effort, 0);
   const idealGap = totalEffort % nM === 0 ? 0 : 1;
-  const rand = mulberry32(ts.length * 7919 + nM * 104729 + totalEffort);
-  for (let r = 0; r < RESTARTS && keyOf(best.totals, 0)[0] > idealGap; r++) {
-    const shuffled = [...order];
-    for (let k = shuffled.length - 1; k > 0; k--) {
-      const j = Math.floor(rand() * (k + 1));
-      [shuffled[k], shuffled[j]] = [shuffled[j]!, shuffled[k]!];
+  const copy = (s: State): State => ({ owner: [...s.owner], totals: [...s.totals], fit: s.fit });
+
+  const solve = (): State => {
+    // Searching from both a skill-aware and a plain greedy start guarantees we never do worse than greedy.
+    const a = improve(greedy(true));
+    const b = improve(greedy(false));
+    let best = better(keyOf(b.totals, b.fit), keyOf(a.totals, a.fit)) ? b : a;
+
+    // Moves and swaps can stall on plateaus (for example 11/10/10/10/8 around a locked task).
+    // Restart from seeded shuffles of the task order and keep the best, stopping at the ideal gap.
+    const rand = mulberry32(ts.length * 7919 + nM * 104729 + totalEffort);
+    for (let r = 0; r < RESTARTS && keyOf(best.totals, 0)[0] > idealGap; r++) {
+      const shuffled = [...order];
+      for (let k = shuffled.length - 1; k > 0; k--) {
+        const j = Math.floor(rand() * (k + 1));
+        [shuffled[k], shuffled[j]] = [shuffled[j]!, shuffled[k]!];
+      }
+      const c = improve(greedy(r % 2 === 0, shuffled));
+      if (better(keyOf(c.totals, c.fit), keyOf(best.totals, best.fit))) best = c;
     }
-    const c = improve(greedy(r % 2 === 0, shuffled));
-    if (better(keyOf(c.totals, c.fit), keyOf(best.totals, best.fit))) best = c;
+    return best;
+  };
+
+  /**
+   * Swaps two members' whole sets of movable tasks when that scores better. Moves and pairwise
+   * swaps cannot reach these (3 vs 2+2 trades places only all at once), and they matter for load.
+   */
+  const exchange = (s: State): State => {
+    let current = keyOf(s.totals, s.fit);
+    for (let changed = true, rounds = 0; changed && rounds < nM * nM; rounds++) {
+      changed = false;
+      for (let a = 0; a < nM; a++) {
+        for (let b = a + 1; b < nM; b++) {
+          const mine = ts.map((_, i) => i).filter((i) => locked[i] === -1 && (s.owner[i] === a || s.owner[i] === b));
+          if (!mine.every((i) => allowed[i]![s.owner[i] === a ? b : a])) continue;
+          const owner = s.owner.map((o, i) => (mine.includes(i) ? (o === a ? b : a) : o));
+          const totals = ms.map(() => 0);
+          let f = 0;
+          owner.forEach((o, i) => {
+            totals[o]! += ts[i]!.effort;
+            f += fit[i]![o]!;
+          });
+          const k = keyOf(totals, f);
+          if (better(k, current)) {
+            s = { owner, totals, fit: f };
+            current = k;
+            changed = true;
+          }
+        }
+      }
+    }
+    return s;
+  };
+
+  let best = solve();
+  const load = options?.load;
+  if (load && ms.some((m) => (load[m.id] ?? 0) !== 0)) {
+    // Load only breaks ties: polish the no-load answer under the load-aware key and also search
+    // fresh with it. The key is gap-first, so the winner is never less balanced than `best`.
+    const w = ms.map((m) => (Number.isFinite(load[m.id]) ? load[m.id]! : 0));
+    loadW = w;
+    const polished = improve(exchange(improve(copy(best))));
+    const fresh = solve();
+    best = better(keyOf(fresh.totals, fresh.fit), keyOf(polished.totals, polished.fit)) ? fresh : polished;
   }
 
   const assignments: Record<number, number> = {};

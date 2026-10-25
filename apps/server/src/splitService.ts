@@ -14,6 +14,8 @@ import { getGroup, getTasks } from './groups.ts';
 import { listMembers } from './members.ts';
 import { formatDue } from './bot/format.ts';
 import type { SplitCardData } from './cards/splitCard.ts';
+import { env } from './env.ts';
+import { BUSY_THRESHOLD, loadScores, projectWindowEnd, type LoadScore } from './calendarQueries.ts';
 
 const { tasks: tasksTable, groups, swapRequests, splitVotes } = schema;
 
@@ -36,8 +38,20 @@ export function swapConstraints(groupId: number): Required<SplitConstraints> {
   return { locked, forbidden };
 }
 
+/** memberId -> calendar load over the project window, for members with a Telegram account. */
+export function memberLoads(groupId: number, now = new Date()): Record<number, LoadScore> {
+  const group = getGroup(groupId)!;
+  const members = listMembers(groupId).filter((m) => m.tgUserId !== null);
+  const scores = loadScores(members.map((m) => m.tgUserId!), now, projectWindowEnd(group.dueDate, now));
+  return Object.fromEntries(members.map((m) => [m.id, scores[m.tgUserId!]!]));
+}
+
 export function computeSplit(groupId: number, constraints: SplitConstraints = swapConstraints(groupId)): SplitResult {
-  return split(getTasks(groupId).map(toSplitTask), listMembers(groupId).map(toSplitMember), constraints);
+  const members = listMembers(groupId);
+  const options = env.loadAwareSplit
+    ? { load: Object.fromEntries(Object.entries(memberLoads(groupId)).map(([id, l]) => [id, l.score])) }
+    : undefined;
+  return split(getTasks(groupId).map(toSplitTask), members.map(toSplitMember), constraints, options);
 }
 
 /** Writes assignees, clears "looks fair" votes, and marks the group split_ready. */
@@ -91,8 +105,19 @@ export function splitView(groupId: number, meMemberId: number | null, preview?: 
   };
 }
 
-export function splitCardData(view: SplitResponse): SplitCardData {
+/** "Busy week · 4 due" for members with 3+ calendar items due in the next 7 days (load-aware split only). */
+export function busyLabels(groupId: number, now = new Date()): Record<number, string> {
+  if (!env.loadAwareSplit) return {};
+  const out: Record<number, string> = {};
+  for (const [id, l] of Object.entries(memberLoads(groupId, now))) {
+    if (l.dueSoon >= BUSY_THRESHOLD) out[Number(id)] = `Busy week · ${l.dueSoon} due`;
+  }
+  return out;
+}
+
+export function splitCardData(view: SplitResponse, now = new Date()): SplitCardData {
   const group = getGroup(view.group_id)!;
+  const busy = busyLabels(view.group_id, now);
   return {
     assignmentTitle: view.assignment_title ?? 'Group project',
     dueLabel: formatDue(view.due_date, group.tz),
@@ -103,6 +128,7 @@ export function splitCardData(view: SplitResponse): SplitCardData {
       color: m.color,
       points: m.points,
       tasks: m.tasks.map((t) => ({ title: t.title, effort: t.effort })),
+      ...(busy[m.id] ? { busyLabel: busy[m.id] } : {}),
     })),
   };
 }
