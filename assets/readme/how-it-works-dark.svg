@@ -1,0 +1,90 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="570" viewBox="0 0 1200 570" role="img" aria-label="How Groupie works, in seven steps" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, 'Helvetica Neue', Helvetica, Arial, sans-serif">
+<title>How Groupie works, in seven steps</title>
+<defs>
+  <linearGradient id="fbg" x1="0" y1="0" x2="0.35" y2="1"><stop offset="0" stop-color="#1E1E1E"/><stop offset="1" stop-color="#141414"/></linearGradient>
+  <radialGradient id="fglow" cx="0.85" cy="0.1" r="0.6"><stop offset="0" stop-color="rgba(168,139,255,0.10)"/><stop offset="1" stop-color="rgba(168,139,255,0.10)" stop-opacity="0"/></radialGradient>
+</defs>
+<rect x="1" y="1" width="1198" height="568" rx="24" fill="url(#fbg)"/>
+<rect x="1" y="1" width="1198" height="568" rx="24" fill="url(#fglow)"/>
+<rect x="1.5" y="1.5" width="1197" height="567" rx="23.5" fill="none" stroke="#4A4A4A" stroke-width="1.5" stroke-dasharray="6 6"/>
+<path d="M1170 32 Q1171.44 38.56 1178 40 Q1171.44 41.44 1170 48 Q1168.56 41.44 1162 40 Q1168.56 38.56 1170 32Z" fill="#7FA8F0" opacity="0.2"><animate attributeName="opacity" values="0.15;0.85;0.15" dur="3.2s" begin="0.4s" repeatCount="indefinite"/></path><path d="M300 538 Q301.26 543.74 307 545 Q301.26 546.26 300 552 Q298.74 546.26 293 545 Q298.74 543.74 300 538Z" fill="#7FA8F0" opacity="0.2"><animate attributeName="opacity" values="0.15;0.85;0.15" dur="3.2s" begin="1.5s" repeatCount="indefinite"/></path>
+<text x="56" y="56" font-size="13" font-weight="800" letter-spacing="2.4" fill="#7FA8F0">HOW IT WORKS</text>
+<text x="1144" y="56" text-anchor="end" font-size="13" fill="#9A9A9A">one group chat, start to finish</text>
+<path d="M180 302 H1020 C1235 302 1235 548 1020 548 H460" fill="none" stroke="#4A4A4A" stroke-width="2.5" stroke-dasharray="8 8"><animate attributeName="stroke-dashoffset" from="0" to="-32" dur="1.2s" repeatCount="indefinite"/></path>
+<line x1="180" y1="280" x2="180" y2="302" stroke="#4A4A4A" stroke-width="2" stroke-dasharray="3 3"/><circle cx="180" cy="302" r="5" fill="#FF6B5B"/><line x1="460" y1="280" x2="460" y2="302" stroke="#4A4A4A" stroke-width="2" stroke-dasharray="3 3"/><circle cx="460" cy="302" r="5" fill="#FFB547"/><line x1="740" y1="280" x2="740" y2="302" stroke="#4A4A4A" stroke-width="2" stroke-dasharray="3 3"/><circle cx="740" cy="302" r="5" fill="#A6E35A"/><line x1="1020" y1="280" x2="1020" y2="302" stroke="#4A4A4A" stroke-width="2" stroke-dasharray="3 3"/><circle cx="1020" cy="302" r="5" fill="#4FD8E8"/><line x1="1020" y1="526" x2="1020" y2="548" stroke="#4A4A4A" stroke-width="2" stroke-dasharray="3 3"/><circle cx="1020" cy="548" r="5" fill="#A88BFF"/><line x1="740" y1="526" x2="740" y2="548" stroke="#4A4A4A" stroke-width="2" stroke-dasharray="3 3"/><circle cx="740" cy="548" r="5" fill="#FF7AC6"/><line x1="460" y1="526" x2="460" y2="548" stroke="#4A4A4A" stroke-width="2" stroke-dasharray="3 3"/><circle cx="460" cy="548" r="5" fill="#508ADD"/>
+<g opacity="0"><animate attributeName="opacity" from="0" to="1" dur="0.6s" begin="0.15s" fill="freeze"/><animateTransform attributeName="transform" type="translate" from="0 12" to="0 0" dur="0.6s" begin="0.15s" fill="freeze" calcMode="spline" keyTimes="0;1" keySplines="0.2 0.8 0.2 1"/>
+  <rect x="55" y="84" width="250" height="196" rx="18" fill="#262626" stroke="#3A3A3A" stroke-width="1.5"/>
+  <rect x="55" y="84" width="250" height="196" rx="18" fill="none" stroke="#FF6B5B" stroke-width="2.5" opacity="0"><animate attributeName="opacity" values="0;0;1;0.35;0.35;0" keyTimes="0;0.0000;0.0100;0.0800;0.97;1" dur="10.5s" begin="1.2s" repeatCount="indefinite"/></rect>
+  <circle cx="89" cy="120" r="16" fill="#FF6B5B"/>
+  <text x="89" y="126" text-anchor="middle" font-size="16" font-weight="800" fill="#1E1E1E">1</text>
+  <g fill="none" stroke="#9A9A9A" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M255 104h16l8 8v22h-24z"/><path d="M271 104v8h8"/><path d="M260 120h14M260 126h10"/></g>
+  <text x="75" y="176" font-size="19" font-weight="750" letter-spacing="-0.3" fill="#F5F5F5">Drop the assignment</text>
+  <text x="75" y="206" font-size="13.5" fill="#9A9A9A">PDF, Word, slides and more,</text><text x="75" y="227" font-size="13.5" fill="#9A9A9A">or pull it from Canvas</text><text x="75" y="248" font-size="13.5" fill="#9A9A9A">through Cubbie with /canvas.</text>
+</g>
+<g opacity="0"><animate attributeName="opacity" from="0" to="1" dur="0.6s" begin="0.27s" fill="freeze"/><animateTransform attributeName="transform" type="translate" from="0 12" to="0 0" dur="0.6s" begin="0.27s" fill="freeze" calcMode="spline" keyTimes="0;1" keySplines="0.2 0.8 0.2 1"/>
+  <rect x="335" y="84" width="250" height="196" rx="18" fill="#262626" stroke="#3A3A3A" stroke-width="1.5"/>
+  <rect x="335" y="84" width="250" height="196" rx="18" fill="none" stroke="#FFB547" stroke-width="2.5" opacity="0"><animate attributeName="opacity" values="0;0;1;0.35;0.35;0" keyTimes="0;0.1180;0.1400;0.2100;0.97;1" dur="10.5s" begin="1.2s" repeatCount="indefinite"/></rect>
+  <circle cx="369" cy="120" r="16" fill="#FFB547"/>
+  <text x="369" y="126" text-anchor="middle" font-size="16" font-weight="800" fill="#1E1E1E">2</text>
+  <g fill="none" stroke="#9A9A9A" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M544 108h17M544 119h17M544 130h11"/><circle cx="537" cy="108" r="1.6"/><circle cx="537" cy="119" r="1.6"/><circle cx="537" cy="130" r="1.6"/></g>
+  <text x="355" y="176" font-size="19" font-weight="750" letter-spacing="-0.3" fill="#F5F5F5">Tasks with points</text>
+  <text x="355" y="206" font-size="13.5" fill="#9A9A9A">The LLM reads it into 6 to 14</text><text x="355" y="227" font-size="13.5" fill="#9A9A9A">tasks with effort points</text><text x="355" y="248" font-size="13.5" fill="#9A9A9A">and skill tags.</text>
+</g>
+<g opacity="0"><animate attributeName="opacity" from="0" to="1" dur="0.6s" begin="0.39s" fill="freeze"/><animateTransform attributeName="transform" type="translate" from="0 12" to="0 0" dur="0.6s" begin="0.39s" fill="freeze" calcMode="spline" keyTimes="0;1" keySplines="0.2 0.8 0.2 1"/>
+  <rect x="615" y="84" width="250" height="196" rx="18" fill="#262626" stroke="#3A3A3A" stroke-width="1.5"/>
+  <rect x="615" y="84" width="250" height="196" rx="18" fill="none" stroke="#A6E35A" stroke-width="2.5" opacity="0"><animate attributeName="opacity" values="0;0;1;0.35;0.35;0" keyTimes="0;0.2480;0.2700;0.3400;0.97;1" dur="10.5s" begin="1.2s" repeatCount="indefinite"/></rect>
+  <circle cx="649" cy="120" r="16" fill="#A6E35A"/>
+  <text x="649" y="126" text-anchor="middle" font-size="16" font-weight="800" fill="#1E1E1E">3</text>
+  <g fill="none" stroke="#9A9A9A" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M815 108h26M815 117h26M815 126h26"/><path d="M815 135h26" stroke-dasharray="3 3"/></g>
+  <text x="635" y="176" font-size="19" font-weight="750" letter-spacing="-0.3" fill="#F5F5F5">Fair split card</text>
+  <text x="635" y="206" font-size="13.5" fill="#9A9A9A">Code, not the LLM, balances</text><text x="635" y="227" font-size="13.5" fill="#9A9A9A">the points. Swap any time,</text><text x="635" y="248" font-size="13.5" fill="#9A9A9A">then vote Looks fair.</text>
+</g>
+<g opacity="0"><animate attributeName="opacity" from="0" to="1" dur="0.6s" begin="0.51s" fill="freeze"/><animateTransform attributeName="transform" type="translate" from="0 12" to="0 0" dur="0.6s" begin="0.51s" fill="freeze" calcMode="spline" keyTimes="0;1" keySplines="0.2 0.8 0.2 1"/>
+  <rect x="895" y="84" width="250" height="196" rx="18" fill="#262626" stroke="#3A3A3A" stroke-width="1.5"/>
+  <rect x="895" y="84" width="250" height="196" rx="18" fill="none" stroke="#4FD8E8" stroke-width="2.5" opacity="0"><animate attributeName="opacity" values="0;0;1;0.35;0.35;0" keyTimes="0;0.3780;0.4000;0.4700;0.97;1" dur="10.5s" begin="1.2s" repeatCount="indefinite"/></rect>
+  <circle cx="929" cy="120" r="16" fill="#4FD8E8"/>
+  <text x="929" y="126" text-anchor="middle" font-size="16" font-weight="800" fill="#1E1E1E">4</text>
+  <g fill="none" stroke="#9A9A9A" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="1095" y="104" width="28" height="28" rx="4"/><path d="M1104.3 104v28M1113.6 104v28M1095 113.3h28M1095 122.6h28"/></g>
+  <text x="915" y="176" font-size="19" font-weight="750" letter-spacing="-0.3" fill="#F5F5F5">Availability</text>
+  <text x="915" y="206" font-size="13.5" fill="#9A9A9A">Paint a 7 day grid, or let</text><text x="915" y="227" font-size="13.5" fill="#9A9A9A">your calendar prefill it.</text><text x="915" y="248" font-size="13.5" fill="#9A9A9A">Busy times only, never titles.</text>
+</g>
+<g opacity="0"><animate attributeName="opacity" from="0" to="1" dur="0.6s" begin="0.63s" fill="freeze"/><animateTransform attributeName="transform" type="translate" from="0 12" to="0 0" dur="0.6s" begin="0.63s" fill="freeze" calcMode="spline" keyTimes="0;1" keySplines="0.2 0.8 0.2 1"/>
+  <rect x="895" y="330" width="250" height="196" rx="18" fill="#262626" stroke="#3A3A3A" stroke-width="1.5"/>
+  <rect x="895" y="330" width="250" height="196" rx="18" fill="none" stroke="#A88BFF" stroke-width="2.5" opacity="0"><animate attributeName="opacity" values="0;0;1;0.35;0.35;0" keyTimes="0;0.5880;0.6100;0.6800;0.97;1" dur="10.5s" begin="1.2s" repeatCount="indefinite"/></rect>
+  <circle cx="929" cy="366" r="16" fill="#A88BFF"/>
+  <text x="929" y="372" text-anchor="middle" font-size="16" font-weight="800" fill="#1E1E1E">5</text>
+  <g fill="none" stroke="#9A9A9A" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M1095 380h28"/><path d="M1099 380v-12M1109 380v-24M1119 380v-17"/></g>
+  <text x="915" y="422" font-size="19" font-weight="750" letter-spacing="-0.3" fill="#F5F5F5">Poll</text>
+  <text x="915" y="452" font-size="13.5" fill="#9A9A9A">The 3 best one hour slots,</text><text x="915" y="473" font-size="13.5" fill="#9A9A9A">then how to meet: Meet,</text><text x="915" y="494" font-size="13.5" fill="#9A9A9A">Zoom or in person.</text>
+</g>
+<g opacity="0"><animate attributeName="opacity" from="0" to="1" dur="0.6s" begin="0.75s" fill="freeze"/><animateTransform attributeName="transform" type="translate" from="0 12" to="0 0" dur="0.6s" begin="0.75s" fill="freeze" calcMode="spline" keyTimes="0;1" keySplines="0.2 0.8 0.2 1"/>
+  <rect x="615" y="330" width="250" height="196" rx="18" fill="#262626" stroke="#3A3A3A" stroke-width="1.5"/>
+  <rect x="615" y="330" width="250" height="196" rx="18" fill="none" stroke="#FF7AC6" stroke-width="2.5" opacity="0"><animate attributeName="opacity" values="0;0;1;0.35;0.35;0" keyTimes="0;0.7180;0.7400;0.8100;0.97;1" dur="10.5s" begin="1.2s" repeatCount="indefinite"/></rect>
+  <circle cx="649" cy="366" r="16" fill="#FF7AC6"/>
+  <text x="649" y="372" text-anchor="middle" font-size="16" font-weight="800" fill="#1E1E1E">6</text>
+  <g fill="none" stroke="#9A9A9A" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="815" y="353" width="28" height="26" rx="4"/><path d="M815 361h28M822 350v6M836 350v6"/><path d="M823 370l4 4 8-8"/></g>
+  <text x="635" y="422" font-size="19" font-weight="750" letter-spacing="-0.3" fill="#F5F5F5">Meeting</text>
+  <text x="635" y="452" font-size="13.5" fill="#9A9A9A">Meeting card, .ics file and</text><text x="635" y="473" font-size="13.5" fill="#9A9A9A">DMs, plus a Google Calendar</text><text x="635" y="494" font-size="13.5" fill="#9A9A9A">invite when keys are set.</text>
+</g>
+<g opacity="0"><animate attributeName="opacity" from="0" to="1" dur="0.6s" begin="0.87s" fill="freeze"/><animateTransform attributeName="transform" type="translate" from="0 12" to="0 0" dur="0.6s" begin="0.87s" fill="freeze" calcMode="spline" keyTimes="0;1" keySplines="0.2 0.8 0.2 1"/>
+  <rect x="335" y="330" width="250" height="196" rx="18" fill="#262626" stroke="#3A3A3A" stroke-width="1.5"/>
+  <rect x="335" y="330" width="250" height="196" rx="18" fill="none" stroke="#508ADD" stroke-width="2.5" opacity="0"><animate attributeName="opacity" values="0;0;1;0.35;0.35;0" keyTimes="0;0.8480;0.8700;0.9400;0.97;1" dur="10.5s" begin="1.2s" repeatCount="indefinite"/></rect>
+  <circle cx="369" cy="366" r="16" fill="#508ADD"/>
+  <text x="369" y="372" text-anchor="middle" font-size="16" font-weight="800" fill="#1E1E1E">7</text>
+  <g fill="none" stroke="#9A9A9A" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M539 372c0-3 2-4 2-9a8 8 0 0 1 16 0c0 5 2 6 2 9z"/><path d="M546 376a3 3 0 0 0 6 0"/></g>
+  <text x="355" y="422" font-size="19" font-weight="750" letter-spacing="-0.3" fill="#F5F5F5">Nudges</text>
+  <text x="355" y="452" font-size="13.5" fill="#9A9A9A">Monday check-ins, a progress</text><text x="355" y="473" font-size="13.5" fill="#9A9A9A">card, and DM reminders</text><text x="355" y="494" font-size="13.5" fill="#9A9A9A">48, 24 and 3 hours out.</text>
+</g>
+<g opacity="0"><animate attributeName="opacity" from="0" to="1" dur="0.7s" begin="1.1s" fill="freeze"/><animateTransform attributeName="transform" type="translate" from="0 14" to="0 0" dur="0.7s" begin="1.1s" fill="freeze" calcMode="spline" keyTimes="0;1" keySplines="0.2 0.8 0.2 1"/>
+  <text x="56" y="388" font-size="26" font-weight="800" letter-spacing="-0.6" fill="#F5F5F5">One assignment in,</text>
+  <text x="56" y="420" font-size="26" font-weight="800" letter-spacing="-0.6" fill="#7FA8F0">one meeting out.</text>
+  <text x="56" y="458" font-size="14" fill="#9A9A9A">Everything happens in your</text>
+  <text x="56" y="479" font-size="14" fill="#9A9A9A">Telegram group and the</text>
+  <text x="56" y="500" font-size="14" fill="#9A9A9A">Groupie Mini App.</text>
+</g>
+<g opacity="0"><animate attributeName="opacity" from="0" to="1" dur="0.3s" begin="1.2s" fill="freeze"/>
+  <circle r="14" fill="#508ADD" opacity="0.25"><animate attributeName="r" values="10;18;10" dur="1.2s" repeatCount="indefinite"/></circle>
+  <circle r="7" fill="#508ADD" stroke="#FFFFFF" stroke-width="2"/>
+  <animateMotion dur="10.5s" begin="1.2s" repeatCount="indefinite" path="M180 302 H1020 C1235 302 1235 548 1020 548 H460" keyPoints="0;1;1" keyTimes="0;0.86;1" calcMode="linear"/>
+</g>
+</svg>
