@@ -1,7 +1,8 @@
 /**
  * Demo operator CLI. Never reachable from Telegram or HTTP: it only runs from a shell.
  *   tsx src/demo/cli.ts reset  <groupChatId>    --as <adminId> [--prod-ok]
- *   tsx src/demo/cli.ts seed   <groupChatId>    --as <adminId> [--prod-ok] [--leave-join] [--config <path>]
+ *   tsx src/demo/cli.ts seed   <groupChatId>    --as <adminId> [--prod-ok] [--leave-join | --before-import] [--config <path>]
+ *   tsx src/demo/cli.ts fill   <groupChatId>    --as <adminId> [--prod-ok] [--config <path>]
  *   tsx src/demo/cli.ts remind <telegramUserId> --as <adminId> [--prod-ok]
  *   tsx src/demo/cli.ts warm   <groupChatId>    --as <adminId> [--prod-ok]
  * Guards run before the database module loads: --as must be an admin, and production needs --prod-ok.
@@ -30,8 +31,8 @@ async function main(argv: string[]) {
   if (args.sub === 'seed') {
     if (!config) throw new Error('No demo config. Copy demo.config.example.json to demo.config.json, or pass --config.');
     const { seedGroup } = await import('./seed.ts');
-    const s = seedGroup(args.target, config, { leaveJoin: args.leaveJoin });
-    console.log(`Seeded "${config.group.assignmentTitle}" (${config.group.course}).`);
+    const s = seedGroup(args.target, config, { leaveJoin: args.leaveJoin, beforeImport: args.beforeImport });
+    console.log(args.beforeImport ? 'Seeded the group for a live import (no assignment, nobody joined).' : `Seeded "${config.group.assignmentTitle}" (${config.group.course}).`);
     console.log(`  status: ${s.status}, team size ${s.teamSize}, ${s.tasks} tasks`);
     console.log(`  joined: ${s.members.join(', ') || 'nobody yet'}`);
     if (s.waitingToJoin.length) console.log(`  not joined yet: ${s.waitingToJoin.join(', ')}`);
@@ -40,10 +41,26 @@ async function main(argv: string[]) {
     return;
   }
 
+  if (args.sub === 'fill') {
+    if (!config) throw new Error('No demo config. Copy demo.config.example.json to demo.config.json, or pass --config.');
+    const { fillTeam, markProgress } = await import('./seed.ts');
+    const f = fillTeam(args.target, config);
+    console.log(`Joined ${f.added.join(', ') || 'nobody new'}. ${f.joined}/${f.teamSize} on the team.`);
+    const { refreshJoinStatus } = await import('../bot/joinStatus.ts');
+    await refreshJoinStatus(args.target);
+    if (f.full) {
+      const { maybeRunSplit } = await import('../bot/split.ts');
+      await maybeRunSplit(args.target);
+      markProgress(args.target);
+      console.log('Team full: the split card is posted in the group.');
+    } else console.log('Not full yet: the split posts when the last person joins.');
+    return;
+  }
+
   if (args.sub === 'remind') {
     const { remindUser } = await import('./remind.ts');
     const { bot } = await import('../bot/core.ts');
-    const res = await remindUser(args.target, new Date(), { send: (userId, text) => bot.api.sendMessage(userId, text) });
+    const res = await remindUser(args.target, new Date(), { send: (userId, text, extra) => bot.api.sendMessage(userId, text, extra) });
     if (!res.sent) throw new Error(`Nothing sent to ${args.target}: ${res.reason}${res.detail ? ` (${res.detail})` : ''}.`);
     console.log(`Sent ${args.target} one DM with ${res.items} item(s):\n\n${res.text}`);
     return;

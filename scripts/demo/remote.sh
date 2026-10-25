@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Runs the demo CLI inside the Railway container (code is already at /app). Prints the plan and needs --yes.
-# Usage: scripts/demo/remote.sh <reset|seed|remind|warm> <id> --as <adminId> [--leave-join] --yes
+# Usage: scripts/demo/remote.sh <reset|seed|fill|remind|warm> <id> --as <adminId> [--leave-join] [--before-import] --yes
 # The gitignored demo.config.json is not in the image, so its contents travel as DEMO_CONFIG_JSON (base64).
 set -euo pipefail
 cd "$(dirname "$0")/../.."
@@ -18,8 +18,8 @@ for a in "$@"; do
       ;;
   esac
 done
-[[ ${#ARGS[@]} -ge 2 ]] || { echo "usage: scripts/demo/remote.sh <reset|seed|remind|warm> <id> --as <adminId> [--leave-join] --yes"; exit 2; }
-case "${ARGS[0]}" in reset|seed|remind|warm) ;; *) echo "unknown subcommand ${ARGS[0]}"; exit 2 ;; esac
+[[ ${#ARGS[@]} -ge 2 ]] || { echo "usage: scripts/demo/remote.sh <reset|seed|fill|remind|warm> <id> --as <adminId> [--leave-join] [--before-import] --yes"; exit 2; }
+case "${ARGS[0]}" in reset|seed|fill|remind|warm) ;; *) echo "unknown subcommand ${ARGS[0]}"; exit 2 ;; esac
 
 CONFIG_ENV=""
 CONFIG_NOTE="none (admins must be in DEMO_ADMIN_IDS on Railway)"

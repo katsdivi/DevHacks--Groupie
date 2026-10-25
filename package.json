@@ -18,6 +18,7 @@
     "feed:inspect": "scripts/inspect-feed.sh",
     "demo:reset": "pnpm --filter @groupie/server exec tsx --env-file-if-exists=../../.env src/demo/cli.ts reset",
     "demo:seed": "pnpm --filter @groupie/server exec tsx --env-file-if-exists=../../.env src/demo/cli.ts seed",
+    "demo:fill": "pnpm --filter @groupie/server exec tsx --env-file-if-exists=../../.env src/demo/cli.ts fill",
     "demo:remind": "pnpm --filter @groupie/server exec tsx --env-file-if-exists=../../.env src/demo/cli.ts remind",
     "demo:warm": "pnpm --filter @groupie/server exec tsx --env-file-if-exists=../../.env src/demo/cli.ts warm"
   },

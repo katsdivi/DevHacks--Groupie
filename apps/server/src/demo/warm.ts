@@ -4,12 +4,15 @@ import { listMembers } from '../members.ts';
 import { bot } from '../bot/core.ts';
 import { addressedQuestion, answerGroupQuestion } from '../bot/qa.ts';
 import { answerDm } from '../bot/dm.ts';
+import { and, eq, gt, max } from 'drizzle-orm';
+import { db, schema } from '../db/index.ts';
 import { cacheSize } from './llmCache.ts';
 
 /**
  * Runs every demo prompt once through the same code paths the bot uses (answerGroupQuestion,
  * answerDm) so the DEMO_MODE cache holds an answer for each. Telegram is stubbed: nothing is sent.
- * The CLI turns DEMO_MODE on before this module loads.
+ * The CLI turns DEMO_MODE on before this module loads. The DM turn's saved history is removed
+ * afterwards, so the presenter's real chat is unchanged and the live "hi" builds the same key.
  */
 
 export type WarmStep = { prompt: string; ok: boolean; reply: string };
@@ -55,6 +58,9 @@ export async function warmGroup(groupId: number, presenterId: number, now = new 
     const question = addressedQuestion(typed, group.nickname, env.botUsername, false) ?? q;
     await run(`group: ${typed}`, () => answerGroupQuestion(groupId, presenterId, question, { now }));
   }
+  const dm = schema.dmMessages;
+  const before = db.select({ id: max(dm.id) }).from(dm).where(eq(dm.telegramUserId, presenterId)).get()?.id ?? 0;
   await run('dm: hi', () => answerDm(presenterId, 'hi', now));
+  db.delete(dm).where(and(eq(dm.telegramUserId, presenterId), gt(dm.id, before))).run();
   return { steps, stubbedTelegramCalls: stubbed, cacheBefore, cacheAfter: cacheSize() };
 }

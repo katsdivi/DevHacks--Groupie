@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm';
 import { db, schema } from '../db/index.ts';
 import { env } from '../env.ts';
 import { isForbidden, isValidTz, markCannotDm } from '../prefs.ts';
-import { collectItems, formatReminder, inQuietHours, type ReminderDeps, type ReminderItem } from '../reminders.ts';
+import { collectItems, formatReminder, inQuietHours, reminderMarkup, type ReminderDeps, type ReminderItem } from '../reminders.ts';
 
 /**
  * The reminder pass from reminders.ts, scoped to ONE user, run now. Same selection (offsets due and
@@ -51,7 +51,7 @@ export async function remindUser(userId: number, now: Date, deps: ReminderDeps):
     tz,
   );
   try {
-    await deps.send(userId, text);
+    await deps.send(userId, text, { reply_markup: reminderMarkup(userId) });
   } catch (err) {
     if (isForbidden(err)) markCannotDm(userId);
     return { sent: false, reason: 'send failed', detail: err instanceof Error ? err.message : String(err) };

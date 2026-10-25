@@ -40,5 +40,7 @@ describe('demo warm', () => {
     expect(res.steps[2]!.reply).toBe('Nice try. I only talk about this project in here.');
     // Grades and the injection are deterministic; 3 LLM questions (self needs 2 calls) plus the DM.
     expect(vi.mocked(talk)).toHaveBeenCalledTimes(5);
+    // The warm DM leaves the presenter's saved chat as it was.
+    expect(db.select().from(schema.dmMessages).all()).toEqual([]);
   });
 });

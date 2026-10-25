@@ -1,5 +1,5 @@
 import { env } from './env.ts';
-import { cacheKey, DEMO_TIMEOUT_MS, demoCacheOn, serveCached, store } from './demo/llmCache.ts';
+import { cacheKey, DEMO_TIMEOUT_MS, demoCacheOn, looseKey, serveCached, store } from './demo/llmCache.ts';
 
 const BASE = 'https://api.groq.com/openai/v1';
 
@@ -41,10 +41,10 @@ export async function chat(opts: ChatOpts): Promise<string> {
   if (opts.reasoningEffort) body.reasoning_effort = opts.reasoningEffort;
 
   const demo = demoCacheOn();
-  const key = demo
-    ? cacheKey({ model: opts.model, messages: opts.messages, format: opts.jsonSchema ? `schema:${opts.jsonSchema.name}` : opts.jsonObject ? 'json' : 'text' })
-    : '';
-  const cached = (why: string) => (demo ? serveCached(key, why) : undefined);
+  const keyInput = { model: opts.model, messages: opts.messages, format: opts.jsonSchema ? `schema:${opts.jsonSchema.name}` : opts.jsonObject ? 'json' : 'text' };
+  const key = demo ? cacheKey(keyInput) : '';
+  const loose = demo ? looseKey(keyInput) : '';
+  const cached = (why: string) => (demo ? serveCached(key, why, loose) : undefined);
 
   let waited = false;
   for (let attempt = 0; attempt < 4; attempt++) {
@@ -87,7 +87,7 @@ export async function chat(opts: ChatOpts): Promise<string> {
       if (hit !== undefined) return hit;
       throw new LlmError('Groq returned an empty message');
     }
-    if (demo) store(key, content);
+    if (demo) store(key, content, new Date(), loose);
     return content;
   }
   throw new LlmError('Groq rate limit did not clear');

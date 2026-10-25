@@ -62,6 +62,23 @@ describe('demo LLM cache', () => {
     warn.mockRestore();
   });
 
+  it('after a failure, falls back to the nearest answer for the same question when the facts changed', async () => {
+    const withFacts = (facts: string, q = 'who is stuck?'): ChatMessage[] => [
+      { role: 'system', content: `You are Motu. Rules here.\n\nGROUP FACTS\n${facts}` },
+      { role: 'user', content: q },
+    ];
+    fetchMock.mockResolvedValueOnce(ok('Ava is stuck on the API.'));
+    await chat({ model: MODEL, messages: withFacts('Ava: Develop backend API (stuck)') });
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    fetchMock.mockResolvedValueOnce(status(429));
+    expect(await chat({ model: MODEL, messages: withFacts('Ava: Build backend API (stuck)') })).toBe('Ava is stuck on the API.');
+    expect(warn.mock.calls.some((c) => String(c[0]).startsWith('[demo-cache] served nearest cached answer for '))).toBe(true);
+    // A different question never gets it.
+    fetchMock.mockResolvedValue(status(500));
+    await expect(chat({ model: MODEL, messages: withFacts('x', 'what is due?') })).rejects.toThrow();
+    warn.mockRestore();
+  });
+
   it('serves on 5xx, network error, and timeout; a miss behaves as before', async () => {
     store(cacheKey({ model: MODEL, messages: msgs('x') }), 'saved');
     vi.spyOn(console, 'warn').mockImplementation(() => {});

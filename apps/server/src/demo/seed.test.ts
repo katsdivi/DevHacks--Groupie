@@ -3,7 +3,9 @@ import { eq, like, type SQL } from 'drizzle-orm';
 import type { SQLiteTable } from 'drizzle-orm/sqlite-core';
 import { ParsedAssignment } from '@groupie/shared';
 import { db, schema } from '../db/index.ts';
-import { seedGroup } from './seed.ts';
+import { fillTeam, seedGroup } from './seed.ts';
+import { saveAssignment } from '../groups.ts';
+import { upsertMember } from '../members.ts';
 import { demoUidPrefix, resetGroup } from './reset.ts';
 import { DEMO_TASKS } from './fixture.ts';
 import { PRESENTER, REAL2, testConfig } from './testConfig.ts';
@@ -104,6 +106,28 @@ describe('demo seed', () => {
     const members = db.select().from(T.members).where(eq(T.members.groupId, G)).all();
     expect(members.map((m) => m.name)).toEqual(['Ava', 'Jay']);
     expect(db.select().from(T.tasks).where(eq(T.tasks.groupId, G)).all().every((t) => t.assigneeMemberId === null)).toBe(true);
+  });
+
+  it('--before-import sets up the group and calendars but no assignment or members, so a live import is expected', async () => {
+    const s = seedGroup(G, testConfig(), { now: NOW, beforeImport: true });
+    expect(s.tasks).toBe(0);
+    expect(s.members).toEqual([]);
+    expect(s.canvasItems).toBeGreaterThan(0);
+    const { expectingAssignment } = await import('../intake.ts');
+    const { getGroup } = await import('../groups.ts');
+    expect(expectingAssignment(getGroup(G))).toBe(true);
+    expect(() => fillTeam(G, testConfig(), NOW)).toThrow(/Import it first/);
+  });
+
+  it('fill joins the pretend teammates after a live import, keeping the imported assignment', () => {
+    seedGroup(G, testConfig(), { now: NOW, beforeImport: true });
+    saveAssignment(G, { assignment_title: 'Imported live', due_date: '2026-11-03', tasks: DEMO_TASKS });
+    upsertMember(G, PRESENTER, { name: 'Divyam', skills: [], weak_areas: [] });
+    const f = fillTeam(G, testConfig(), NOW);
+    expect(f.added).toEqual(['Ava', 'Jay']);
+    expect(f.full).toBe(false);
+    expect(db.select().from(T.groups).where(eq(T.groups.id, G)).get()!.assignmentTitle).toBe('Imported live');
+    expect(fillTeam(G, testConfig(), NOW).added).toEqual([]);
   });
 });
 

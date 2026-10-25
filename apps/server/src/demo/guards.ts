@@ -5,7 +5,7 @@ import path from 'node:path';
  * Pure: takes argv, an env record, and the config admins, so tests need no DB or env mutation.
  */
 
-export const SUBCOMMANDS = ['reset', 'seed', 'remind', 'warm'] as const;
+export const SUBCOMMANDS = ['reset', 'seed', 'fill', 'remind', 'warm'] as const;
 export type Subcommand = (typeof SUBCOMMANDS)[number];
 
 export type DemoArgs = {
@@ -15,10 +15,11 @@ export type DemoArgs = {
   as: number | null;
   prodOk: boolean;
   leaveJoin: boolean;
+  beforeImport: boolean;
   config: string | undefined;
 };
 
-export const USAGE = `Usage: cli.ts <reset|seed|warm> <groupChatId> --as <telegramUserId> [--prod-ok] [--leave-join] [--config <path>]
+export const USAGE = `Usage: cli.ts <reset|seed|fill|warm> <groupChatId> --as <telegramUserId> [--prod-ok] [--leave-join] [--before-import] [--config <path>]
        cli.ts remind <telegramUserId> --as <telegramUserId> [--prod-ok]`;
 
 const isInt = (s: string | undefined) => !!s && /^-?\d+$/.test(s);
@@ -28,7 +29,7 @@ export function parseArgs(argv: string[]): DemoArgs {
   const [sub, target, ...rest] = argv;
   if (!SUBCOMMANDS.includes(sub as Subcommand)) throw new Error(`Unknown subcommand ${sub ?? '(none)'}.\n${USAGE}`);
   if (!isInt(target)) throw new Error(`${sub} needs a numeric id.\n${USAGE}`);
-  const out: DemoArgs = { sub: sub as Subcommand, target: Number(target), as: null, prodOk: false, leaveJoin: false, config: undefined };
+  const out: DemoArgs = { sub: sub as Subcommand, target: Number(target), as: null, prodOk: false, leaveJoin: false, beforeImport: false, config: undefined };
   for (let i = 0; i < rest.length; i++) {
     const a = rest[i];
     if (a === '--as') {
@@ -37,6 +38,7 @@ export function parseArgs(argv: string[]): DemoArgs {
       out.as = Number(v);
     } else if (a === '--prod-ok') out.prodOk = true;
     else if (a === '--leave-join') out.leaveJoin = true;
+    else if (a === '--before-import') out.beforeImport = true;
     else if (a === '--config') {
       out.config = rest[++i];
       if (!out.config) throw new Error('--config needs a path.');

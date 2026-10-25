@@ -77,4 +77,4 @@ Local runs are the same with `pnpm demo:<cmd>`; `remind` sends a real DM with th
 
 - Seed overwrites the real users' `ics` busy blocks with demo blocks (as asked). A real ICS calendar re-syncs over them on its next poll; reset leaves busy blocks alone.
 - Seed sets `can_dm` and reminders on for the real users in the config.
-- The DM "hi" key includes the user's DM history, so the cached DM answer only matches while the history is the same as at warm time (warm runs in its own process with an empty in-memory history; clear the chat before the demo if history is stored).
+- The DM "hi" key includes the user's saved DM history, so the cached DM answer only matches while the history is the same as at warm time. Warm deletes the DM rows it added, so send /forgetchat before warm and do not DM the bot between warm and the demo.

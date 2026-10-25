@@ -58,6 +58,22 @@ export function cacheKey(req: KeyInput): string {
   return createHash('sha256').update(JSON.stringify(normalized)).digest('hex');
 }
 
+/**
+ * A looser key for when the facts changed since warm (a live import parsed slightly differently, a
+ * task moved): the instructions part of the first message (up to the first blank line, before the
+ * facts) and the last message. Served only after a Groq failure and an exact-key miss.
+ */
+export function looseKey(req: KeyInput): string {
+  const first = req.messages[0]?.content ?? '';
+  const loose = {
+    family: modelFamily(req.model),
+    format: req.format ?? 'text',
+    head: normalizePrompt(first.split('\n\n')[0] ?? ''),
+    last: normalizePrompt(req.messages.at(-1)?.content ?? ''),
+  };
+  return `loose:${createHash('sha256').update(JSON.stringify(loose)).digest('hex')}`;
+}
+
 export const shortKey = (key: string) => key.slice(0, 10);
 
 function readFile(file: string): Record<string, Entry> {
@@ -85,17 +101,20 @@ export function lookup(key: string): string | undefined {
 }
 
 /** Stores an answer, merging with what other processes wrote, then writes atomically (tmp + rename). */
-export function store(key: string, content: string, now = new Date()) {
+export function store(key: string, content: string, now = new Date(), loose?: string) {
   const entry = { content, savedAt: now.toISOString() };
+  const keys = loose ? [key, loose] : [key];
   const file = cacheFile();
   if (!file) {
-    memory.delete(key);
-    memory.set(key, entry);
+    for (const k of keys) {
+      memory.delete(k);
+      memory.set(k, entry);
+    }
     while (memory.size > MAX_ENTRIES) memory.delete(memory.keys().next().value!);
     return;
   }
   try {
-    const entries = cap({ ...readFile(file), [key]: entry });
+    const entries = cap({ ...readFile(file), ...Object.fromEntries(keys.map((k) => [k, entry])) });
     fs.mkdirSync(path.dirname(file), { recursive: true });
     const tmp = `${file}.${process.pid}.${Date.now()}.tmp`;
     fs.writeFileSync(tmp, JSON.stringify({ version: 1, entries } satisfies CacheFile));
@@ -112,8 +131,13 @@ export function cacheSize(): number {
 }
 
 /** Serves a cached answer after a failure, logging it. Undefined when nothing is cached. */
-export function serveCached(key: string, why: string): string | undefined {
+export function serveCached(key: string, why: string, loose?: string): string | undefined {
   const hit = lookup(key);
-  if (hit !== undefined) console.warn(`[demo-cache] served cached answer for ${shortKey(key)} (${why})`);
-  return hit;
+  if (hit !== undefined) {
+    console.warn(`[demo-cache] served cached answer for ${shortKey(key)} (${why})`);
+    return hit;
+  }
+  const near = loose ? lookup(loose) : undefined;
+  if (near !== undefined) console.warn(`[demo-cache] served nearest cached answer for ${shortKey(key)} (${why})`);
+  return near;
 }

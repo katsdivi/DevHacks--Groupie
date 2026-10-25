@@ -13,9 +13,9 @@ const SEEDED = new Date('2026-10-24T17:00:00.000Z');
 const LATER = new Date(SEEDED.getTime() + 60_000);
 const T = schema;
 
-let sent: { userId: number; text: string }[];
-const send = async (userId: number, text: string) => {
-  sent.push({ userId, text });
+let sent: { userId: number; text: string; extra?: unknown }[];
+const send = async (userId: number, text: string, extra?: unknown) => {
+  sent.push({ userId, text, extra });
 };
 
 beforeEach(() => {
@@ -34,6 +34,8 @@ describe('demo remind', () => {
     expect(sent[0]!.text).toContain('Heads up! 1 thing due soon:');
     expect(sent[0]!.text).toContain(SOON_ITEM);
     expect(sent[0]!.text).toContain('in 3 h');
+    // The same one-button keyboard as the scheduled reminder.
+    expect(JSON.stringify(sent[0]!.extra)).toContain('Open');
     // REAL2 also has reminders on but was not asked for.
     expect(db.select().from(T.remindersSent).where(eq(T.remindersSent.telegramUserId, REAL2)).all()).toHaveLength(0);
     // A second run sends nothing; a reseed makes the moment repeatable.

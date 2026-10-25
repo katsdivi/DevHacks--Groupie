@@ -19,7 +19,12 @@ import { BUSY_WEEK_ITEMS, DEMO_TASKS, LIGHT_ITEMS, SOON_ITEM } from './fixture.t
 
 const { groups, calendarEvents, userPrefs, tasks } = schema;
 
-export type SeedOpts = { now?: Date; leaveJoin?: boolean };
+export type SeedOpts = {
+  now?: Date;
+  leaveJoin?: boolean;
+  /** Group, calendars, and Canvas items only: no assignment and no members, so moment 1 imports live. */
+  beforeImport?: boolean;
+};
 export type SeedSummary = {
   groupId: number;
   status: string;
@@ -57,6 +62,40 @@ function upsertItem(userId: number, uid: string, title: string, course: string, 
     .run();
 }
 
+/** Believable progress after a split: one pretend teammate's task stuck, another's done. */
+export function markProgress(groupId: number) {
+  const seeds = listMembers(groupId).filter((m) => m.isSeed);
+  const byOwner = (memberId: number | undefined) => getTasks(groupId).find((t) => t.assigneeMemberId === memberId);
+  const stuck = byOwner(seeds[0]?.id);
+  const done = byOwner(seeds[1]?.id);
+  if (stuck) db.update(tasks).set({ status: 'stuck' }).where(and(eq(tasks.id, stuck.id), eq(tasks.groupId, groupId))).run();
+  if (done) db.update(tasks).set({ status: 'done' }).where(and(eq(tasks.id, done.id), eq(tasks.groupId, groupId))).run();
+}
+
+export type FillSummary = { added: string[]; joined: number; teamSize: number; full: boolean };
+
+/**
+ * After a live import: joins the config's pretend teammates (real people join themselves) and paints
+ * their availability. Never touches the assignment. The CLI then refreshes the join message and,
+ * when the team is full, posts the split card through the bot like a live last join would.
+ */
+export function fillTeam(groupId: number, config: DemoConfig, now = new Date()): FillSummary {
+  const group = getGroup(groupId);
+  if (!group) throw new Error(`No group ${groupId}. Run seed --before-import first.`);
+  if (!getTasks(groupId).length) throw new Error('No assignment yet. Import it first (moment 1), then fill.');
+  const have = new Set(listMembers(groupId).map((m) => m.name));
+  const added: string[] = [];
+  for (const m of config.members.filter((x) => x.telegramUserId === null && !have.has(x.name))) {
+    if (listMembers(groupId).length >= (group.teamSize ?? config.group.teamSize)) break;
+    upsertMember(groupId, null, { name: m.name, skills: m.skills, weak_areas: m.weakAreas }, true);
+    added.push(m.name);
+  }
+  seedAvailability(groupId, now);
+  const joined = listMembers(groupId).length;
+  const teamSize = group.teamSize ?? config.group.teamSize;
+  return { added, joined, teamSize, full: joined >= teamSize };
+}
+
 /** Seeds the group from the config. The group row is created if the bot has not seen it yet. */
 export function seedGroup(groupId: number, config: DemoConfig, opts: SeedOpts = {}): SeedSummary {
   const now = opts.now ?? new Date();
@@ -69,13 +108,13 @@ export function seedGroup(groupId: number, config: DemoConfig, opts: SeedOpts = 
   if (g.nickname) setNickname(groupId, g.nickname);
   setTeamSize(groupId, g.teamSize);
   const due = DateTime.fromJSDate(now).setZone(tz).plus({ days: g.dueInDays }).toISODate()!;
-  saveAssignment(groupId, { assignment_title: g.assignmentTitle, due_date: due, tasks: DEMO_TASKS });
+  if (!opts.beforeImport) saveAssignment(groupId, { assignment_title: g.assignmentTitle, due_date: due, tasks: DEMO_TASKS });
   db.update(groups).set({ canvasCourse: g.course }).where(eq(groups.id, groupId)).run();
 
   // Presenter first so colors follow a sensible join order.
   const presenter = presenterOf(config);
   const ordered = [presenter, ...config.members.filter((m) => m !== presenter)];
-  const joining = ordered.filter((m) => m.telegramUserId === null || !opts.leaveJoin);
+  const joining = opts.beforeImport ? [] : ordered.filter((m) => m.telegramUserId === null || !opts.leaveJoin);
   for (const m of joining) {
     const row = upsertMember(groupId, m.telegramUserId, { name: m.name, skills: m.skills, weak_areas: m.weakAreas }, m.telegramUserId === null);
     if (m.shareWorkload) setShareWorkload(row.id, true);
@@ -108,14 +147,9 @@ export function seedGroup(groupId: number, config: DemoConfig, opts: SeedOpts = 
   const joined = listMembers(groupId);
   if (joined.length >= g.teamSize) {
     applySplit(groupId, computeSplit(groupId));
-    const seeds = joined.filter((m) => m.isSeed);
-    const byOwner = (memberId: number | undefined) => getTasks(groupId).find((t) => t.assigneeMemberId === memberId);
-    const stuck = byOwner(seeds[0]?.id);
-    const done = byOwner(seeds[1]?.id);
-    if (stuck) db.update(tasks).set({ status: 'stuck' }).where(and(eq(tasks.id, stuck.id), eq(tasks.groupId, groupId))).run();
-    if (done) db.update(tasks).set({ status: 'done' }).where(and(eq(tasks.id, done.id), eq(tasks.groupId, groupId))).run();
+    markProgress(groupId);
   }
-  seedAvailability(groupId, now);
+  if (!opts.beforeImport) seedAvailability(groupId, now);
 
   const final = getGroup(groupId)!;
   const names = new Set(joined.map((m) => m.name));
