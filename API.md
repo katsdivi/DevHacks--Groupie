@@ -21,7 +21,7 @@ The availability page also works in a normal browser at `<PUBLIC_URL>/?t=<token>
 Authorization: link <token>
 ```
 
-Link auth only works on the three availability endpoints below, and only for the token's own group and member. Everything else returns `403 link_scope`. Expired or forged tokens return `401 link_expired`. Get each member's link from `GET /dev/links?group=<id>` (this is what the Track 1 Cubbie skill emails).
+Link auth only works on the three availability endpoints below, and only for the token's own group and member. Everything else returns `403 link_scope`. Expired or forged tokens return `401 link_expired`. Get each member's link from `GET /dev/links?group=<id>` (Groupie emails these to teammates who are not on Telegram).
 
 Errors always look like this:
 
@@ -251,7 +251,7 @@ Returns `{ "user": ChatMessage, "reply": ChatMessage }`. The model sees my profi
 
 ## Canvas via Cubbie
 
-Students never open Canvas for Groupie. Our Track 1 Cubbie Skill asks Cubbie (which already has the student's Canvas) to read an assignment and send it here with a one-time pair code. A pasted Canvas calendar feed keeps due dates in sync. Schemas: `packages/shared/src/canvas.ts`. What Cubbie can and cannot do: `docs/CANVAS_RECON.md`.
+Students never open Canvas for Groupie. Groupie's Canvas import, powered by Cubbie, asks Cubbie (which already has the student's Canvas) to read an assignment and send it here with a one-time pair code. A pasted Canvas calendar feed keeps due dates in sync. Schemas: `packages/shared/src/canvas.ts`. What Cubbie can and cannot do: `docs/CANVAS_RECON.md`.
 
 ### `POST /api/cubbie/pair-code`
 

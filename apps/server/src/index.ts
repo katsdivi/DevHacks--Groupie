@@ -56,7 +56,7 @@ if (env.devMode) {
     res.type('html').send(splitCardHtml(splitCardData(view)));
   });
 
-  // Signed browser links to each member's availability page (for email, Track 1).
+  // Signed browser links to each member's availability page (for teammates not on Telegram).
   app.get('/dev/links', (req, res) => {
     const group = getGroup(Number(req.query.group));
     if (!group) return void res.status(404).type('text').send('Unknown group. See /dev/state for ids.');
