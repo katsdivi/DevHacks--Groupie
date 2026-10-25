@@ -15,10 +15,39 @@ describe('addressedQuestion', () => {
     expect(ask('@CubbieGroupieBot what is left')).toBe('what is left');
     expect(ask('so what now', true)).toBe('so what now');
   });
+  it('picks up greetings with the name at the start or the end', () => {
+    expect(ask('hi Max')).toBe('hi');
+    expect(ask('hey groupie')).toBe('hey');
+    expect(ask('thanks Max')).toBe('thanks');
+    expect(ask('thank you Max!')).toBe('thank you');
+    expect(ask('ok Groupie')).toBe('ok');
+    expect(ask('Groupie, what is due')).toBe('what is due');
+    expect(ask('can you list what is left for the slides Max?')).toBe('can you list what is left for the slides');
+    expect(ask('great work today everyone, thanks Groupie')).toBe('great work today everyone, thanks');
+  });
+  it('picks up the name anywhere in a short message (6 words or fewer)', () => {
+    expect(ask('is Max still here?')).toBe('is Max still here?');
+    expect(ask('I told Max already')).toBe('I told Max already');
+    expect(ask('wait so groupie can do that')).toBe('wait so groupie can do that');
+  });
   it('ignores other messages', () => {
+    expect(ask('hi')).toBeNull();
+    expect(ask('hey everyone')).toBeNull();
     expect(ask('Maxwell said hi')).toBeNull();
-    expect(ask('I told Max already')).toBeNull();
+    expect(ask('Maxxx lol')).toBeNull();
+    expect(ask('hi Maxine')).toBeNull();
+    expect(ask('thanks Maximilian')).toBeNull();
+    expect(ask('I told Max already about the slides for tomorrow')).toBeNull();
+    expect(ask('the groupies were wild')).toBeNull();
     expect(ask('lol')).toBeNull();
+  });
+  it('never matches a nickname inside a longer word', () => {
+    const motu = (t: string) => addressedQuestion(t, 'Motu', 'Bot', false);
+    expect(motu('Motuuu')).toBeNull();
+    expect(motu('hi motuuu')).toBeNull();
+    expect(motu('Kamotu is here')).toBeNull();
+    expect(motu('thanks Motu')).toBe('thanks');
+    expect(motu('Motu')).toBe('hi');
   });
   it('handles nicknames with regex characters', () => {
     expect(addressedQuestion('Dr. Who? are we done', 'Dr. Who?', 'Bot', false)).toBe('are we done');

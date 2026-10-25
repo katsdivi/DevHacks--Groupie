@@ -21,6 +21,7 @@ import { onAvailabilityChanged, scheduleComposer } from './schedule.ts';
 import { applyMeetingLink, meetingComposer } from './meeting.ts';
 import { checkinComposer } from './checkin.ts';
 import { qaComposer } from './qa.ts';
+import { dmComposer } from './dm.ts';
 import { canvasComposer } from '../canvas/bot.ts';
 import { seedAvailability } from '../availability.ts';
 
@@ -288,6 +289,8 @@ bot.on('message:text', async (ctx, next) => {
 
 // "Max, what's due?" and @mentions: answered last, after every other handler passed.
 bot.filter((ctx) => isGroupChat(ctx)).use(qaComposer);
+// Plain text in a private chat with the bot: a real reply, last so commands and pending inputs win.
+bot.filter((ctx) => ctx.chat?.type === 'private').use(dmComposer);
 
 bot.catch((err) => {
   console.error('Bot error', err.error);
