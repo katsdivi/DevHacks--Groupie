@@ -6,7 +6,9 @@ vi.mock('../llm.ts', () => ({
 }));
 
 import { talk } from '../llm.ts';
-import { answerDm, clearDmHistory, dmHistory } from './dm.ts';
+import { answerDm } from './dm.ts';
+import { db, schema } from '../db/index.ts';
+import { loadDm } from '../dmHistory.ts';
 import { listMemory } from '../memory.ts';
 import { ALL_PRIVATE, AVA, BEN, DIVYAM, now, PRIVATE, seed, text } from '../policy.fixture.ts';
 
@@ -15,7 +17,7 @@ const lastSent = () => text(talkMock.mock.calls.at(-1)![0]);
 beforeAll(seed);
 afterEach(() => {
   talkMock.mockClear();
-  clearDmHistory();
+  db.delete(schema.dmMessages).run();
 });
 
 describe('DM conversations', () => {
@@ -49,9 +51,15 @@ describe('DM conversations', () => {
     await answerDm(DIVYAM, 'first', now);
     await answerDm(DIVYAM, 'second', now);
     expect(talkMock.mock.calls.at(-1)![0].map((m) => m.content).slice(1)).toEqual(['first', 'ANSWER 2', 'second']);
-    expect(dmHistory(BEN)).toEqual([]);
+    expect(loadDm(BEN)).toEqual([]);
     for (let i = 0; i < 20; i++) await answerDm(DIVYAM, `m${i}`, now);
-    expect(dmHistory(DIVYAM)).toHaveLength(24);
+    expect(loadDm(DIVYAM)).toHaveLength(12);
+    // The model sees the system prompt, the last 12 stored messages, and the new one.
+    await answerDm(DIVYAM, 'latest', now);
+    const sent = talkMock.mock.calls.at(-1)![0];
+    expect(sent).toHaveLength(14);
+    expect(sent.at(-2)!.content).toBe('ANSWER 14');
+    expect(sent.at(-3)!.content).toBe('m19');
   });
 
   it('saves "remember ..." from a DM to the sender only, without the model', async () => {
@@ -60,5 +68,22 @@ describe('DM conversations', () => {
     expect(talkMock).not.toHaveBeenCalled();
     expect(listMemory(BEN).find((r) => r.value.includes('DM_BUS'))).toMatchObject({ visibility: 'private', source: 'chat' });
     expect(listMemory(AVA).some((r) => r.value.includes('DM_BUS'))).toBe(false);
+  });
+
+  it("another user's DM history never reaches this user's turn", async () => {
+    await answerDm(BEN, 'BEN_DM_MARKER_ONE', now);
+    await answerDm(BEN, 'BEN_DM_MARKER_TWO', now);
+    await answerDm(AVA, 'AVA_DM_MARKER', now);
+    talkMock.mockClear();
+    await answerDm(AVA, 'what did I say?', now);
+    const sent = lastSent();
+    expect(sent).toContain('AVA_DM_MARKER');
+    expect(sent).not.toContain('BEN_DM_MARKER');
+    expect(loadDm(AVA).map((m) => m.content).join('\n')).not.toContain('BEN_DM_MARKER');
+  });
+
+  it('stores memory-intent turns too', async () => {
+    await answerDm(BEN, 'remember I like DM_TEA', now);
+    expect(loadDm(BEN).map((m) => m.role)).toEqual(['user', 'assistant']);
   });
 });

@@ -248,3 +248,14 @@ export const cubbieLinks = sqliteTable('cubbie_links', {
 });
 
 export type CubbieLink = typeof cubbieLinks.$inferSelect;
+
+/** Step 18: the bot DM conversation, one row per turn side, keyed by the verified Telegram user id. */
+export const dmMessages = sqliteTable('dm_messages', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  telegramUserId: integer('telegram_user_id').notNull(),
+  role: text('role', { enum: ['user', 'assistant'] }).notNull(),
+  content: text('content').notNull(),
+  createdAt: text('created_at').notNull(),
+});
+
+export type DmMessage = typeof dmMessages.$inferSelect;
