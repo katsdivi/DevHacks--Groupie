@@ -56,6 +56,15 @@ Without keys, Groupie still shares the meeting: a card with the join link, an "A
 3. Run `pnpm google:auth` and click Allow. It saves `GOOGLE_REFRESH_TOKEN` to `.env`.
 4. Set all three on Railway.
 
+## Personal calendars, busy times only (optional)
+
+Each person can connect their own calendar in the Mini App (Connect your calendar). Groupie stores only start and end times for the next 14 days, never titles, and syncs every 30 minutes. Canvas timed events (not due dates) count too, as one hour blocks.
+
+- Calendar link (ICS): works with no extra setup beyond `FEED_ENCRYPTION_KEY`. Apple iCloud public links (`webcal://`), Outlook published ICS links, and Google's Secret address in iCal format. Links are encrypted at rest and never logged or returned.
+- Google sign in: needs a separate OAuth client of type Web application (the team client above is a Desktop client). Authorized redirect URI `PUBLIC_URL/api/google/callback`, scope `https://www.googleapis.com/auth/calendar.freebusy` only. Set `GOOGLE_USER_CLIENT_ID` and `GOOGLE_USER_CLIENT_SECRET` (plus `PUBLIC_URL`, `LINK_SIGNING_SECRET`, `FEED_ENCRYPTION_KEY`). Without them the Google option is hidden. While the consent screen is in testing mode, add every teammate's Google email as a test user, and note that refresh tokens expire after 7 days (they reconnect from the Mini App).
+
+Code: `apps/server/src/calendarSync.ts`, `busy.ts`, `googleUser.ts`, `icsBusy.ts`, `routes/calendar.ts`, `routes/googleCallback.ts`.
+
 ## Canvas via Cubbie (optional)
 
 - `CUBBIE_PUBLIC_SIGNING_KEY` (renamed from `CUBBIE_HMAC_SECRET`): signs `POST /api/cubbie/import`. Make it with `openssl rand -hex 32`. Empty means every import is refused with 503.
