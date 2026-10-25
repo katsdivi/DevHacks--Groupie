@@ -21,6 +21,7 @@ import { onAvailabilityChanged, scheduleComposer } from './schedule.ts';
 import { applyMeetingLink, meetingComposer } from './meeting.ts';
 import { checkinComposer } from './checkin.ts';
 import { qaComposer } from './qa.ts';
+import { canvasComposer } from '../canvas/bot.ts';
 import { seedAvailability } from '../availability.ts';
 
 import { appButton, appUrl, bot } from './core.ts';
@@ -274,6 +275,7 @@ bot.filter((ctx) => isGroupChat(ctx)).use(splitComposer);
 bot.filter((ctx) => isGroupChat(ctx)).use(scheduleComposer);
 bot.filter((ctx) => isGroupChat(ctx)).use(meetingComposer);
 bot.filter((ctx) => isGroupChat(ctx)).use(checkinComposer);
+bot.use(canvasComposer);
 
 // Capture the reply after [Name me] / [Rename].
 bot.on('message:text', async (ctx, next) => {

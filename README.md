@@ -56,6 +56,13 @@ Without keys, Groupie still shares the meeting: a card with the join link, an "A
 3. Run `pnpm google:auth` and click Allow. It saves `GOOGLE_REFRESH_TOKEN` to `.env`.
 4. Set all three on Railway.
 
+## Canvas via Cubbie (optional)
+
+- `CUBBIE_HMAC_SECRET`: signs `POST /api/cubbie/import`. It ships inside the public Cubbie Skill, so treat it as public. Empty means every import is refused with 503.
+- `FEED_ENCRYPTION_KEY`: 32 random bytes, base64 (`openssl rand -base64 32`). Encrypts pasted Canvas calendar feed URLs at rest. Missing or the wrong length means feeds cannot be saved and the poller stays off.
+
+The feed poller starts with the server and checks each feed every 30 minutes. Code lives in `apps/server/src/canvas/`.
+
 ## Deploy
 
 One Railway service built from the `Dockerfile`, with a volume mounted at `/data` for SQLite.
