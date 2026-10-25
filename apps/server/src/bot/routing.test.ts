@@ -136,7 +136,7 @@ describe('wrong-app catch in a DM', () => {
     expect(talk).not.toHaveBeenCalled();
     const reply = lastSent();
     const text = String(reply.payload.text);
-    expect(text).toContain(copy.WRONG_APP);
+    expect(text).toContain(copy.WRONG_APP_CUBBIE);
     expect(text).toContain(`<code>Groupie import ${pc.code} Project 2</code>`);
     expect(text).not.toContain(copy.CODE_EXPIRED_FRESH);
     expect(reply.payload.parse_mode).toBe('HTML');
@@ -188,7 +188,7 @@ describe('wrong-app catch in a group', () => {
     expect(talk).not.toHaveBeenCalled();
     const reply = lastSent();
     const text = String(reply.payload.text);
-    expect(text).toContain(copy.WRONG_APP);
+    expect(text).toContain(copy.WRONG_APP_CUBBIE);
     const code = codeIn(text)!;
     expect(text).toContain(`<code>Groupie import ${code} project 2</code>`);
     expect(getPairCode(code)).toMatchObject({ telegramUserId: 6201, groupChatId: G });

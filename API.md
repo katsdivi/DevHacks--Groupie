@@ -264,10 +264,10 @@ Telegram auth. Makes a single-use code (6 characters, no lookalikes, 30 minutes)
 `groupChatId` is optional; when set, the caller must be in that group, and the import posts there. Response:
 
 ```json
-{ "code": "K7Q2MX", "expiresAt": "2026-10-25T02:15:00.000Z", "cubbieMessage": "Groupie import K7Q2MX" }
+{ "code": "K7Q2MX", "expiresAt": "2026-10-25T02:15:00.000Z", "cubbieMessage": "Groupie import K7Q2MX", "linked": true }
 ```
 
-`cubbieMessage` is the exact text the student sends Cubbie.
+`cubbieMessage` is the exact text the student sends Cubbie. `linked` is true when the caller has a live iMessage link (`cubbie_links`, not revoked); the Mini App then hides the "install the skill" step. `skillOutdated: true` is added only when the caller's Skill was last seen (since the last server restart) on a user agent `groupie-import-skill/N` older than `CUBBIE_SKILL_VERSION` (3); the Mini App then shows the install step again as an update. Both fields are also on `GET /api/cubbie/pair-code/:code`.
 
 Rate limited (in memory, `PAIR_CODE_RATE_LIMITS` in `apps/server/src/canvas/routes.ts`): 20 codes per IP per 10 minutes and 600 per hour across the server. Over either: `429 rate_limited` with `{ error, message }`.
 
@@ -276,7 +276,7 @@ Rate limited (in memory, `PAIR_CODE_RATE_LIMITS` in `apps/server/src/canvas/rout
 Telegram auth, only the code's owner. Live status for the Mini App: `waiting`, `received`, `imported`, `failed`, or `expired`.
 
 ```json
-{ "code": "K7Q2MX", "status": "imported", "expiresAt": "...", "assignmentTitle": "Project 2: Campus Food Finder", "error": null }
+{ "code": "K7Q2MX", "status": "imported", "expiresAt": "...", "assignmentTitle": "Project 2: Campus Food Finder", "error": null, "linked": true }
 ```
 
 Rate limited to 240 polls per IP per minute (the Mini App polls every 2.5 s, 24 a minute, so a few students behind one campus NAT fit). Over it: `429 rate_limited`.
@@ -313,7 +313,46 @@ The signing key (`CUBBIE_PUBLIC_SIGNING_KEY`) ships inside the public Skill, so 
 { "ok": true, "importId": 12, "message": "Sent to Groupie. Check your group." }
 ```
 
-Errors: `400 bad_payload`, `401 bad_signature`, `404 unknown_code`, `409 code_used` or `code_expired`, `409 not_expecting` (the group already has its assignment; the code stays usable), `422 <reason>` (intake failed, for example `too_short`), `429 rate_limited`, `503 imports_off` (server has no `CUBBIE_PUBLIC_SIGNING_KEY`). A code made without a group (from `/canvas` in a private chat, or the Mini App without `groupChatId`) is a personal import: the server plans the assignment for one person (`parseAssignment` with team size 1, rubric as extra context), DMs the student the title, course, due date in Canvas time (America/Phoenix), points, and the numbered steps with effort, and adds the assignment to the student's own `calendar_events` (uid `cubbie-import-<importId>`, kind `assignment`, due date in UTC) so it shows in Upcoming, private chat and reminders. With no Canvas due date nothing is added, and the DM says so. If the same title and due time are already in the student's calendar (from the feed or an earlier import), no second item is added. Feed polls and `DELETE /api/feed` never remove `cubbie-import-*` items. Response: `200` with `"message": "Sent to Groupie. Check your Telegram messages."` (also when the plan could not be made; the DM then says so). Link codes (purpose `link`) are rejected here as `404 unknown_code`.
+Errors, all `{ error, message, requestId }` (see `IMPORT_ERROR_STATUS` in `canvas/importer.ts`): `401 bad_signature`, `400 invalid_payload`, `413 payload_too_large` (body over 15 MB), `404 code_unknown`, `409 code_used` (also while the same code is being imported), `409 code_expired`, `409 not_expecting` (the group already has its assignment; the code stays usable), `429 rate_limited`, `500 server_error` (also imports off, and every intake failure; the code stays usable). The code is marked used only after a successful import. A code made without a group (from `/canvas` in a private chat, or the Mini App without `groupChatId`) is a personal import: the server plans the assignment for one person (`parseAssignment` with team size 1, rubric as extra context), DMs the student the title, course, due date in Canvas time (America/Phoenix), points, and the numbered steps with effort, and adds the assignment to the student's own `calendar_events` (uid `cubbie-import-<importId>`, kind `assignment`, due date in UTC) so it shows in Upcoming, private chat and reminders. With no Canvas due date nothing is added, and the DM says so. If the same title and due time are already in the student's calendar (from the feed or an earlier import), no second item is added. Feed polls and `DELETE /api/feed` never remove `cubbie-import-*` items. Response: `200` with `"message": "Sent to Groupie. Check your Telegram messages."` (also when the plan could not be made; the DM then says so). Link codes (purpose `link`) are rejected here as `404 unknown_code`.
+
+### `POST /api/cubbie/import/linked`
+
+Code-free import for a student who linked iMessage (`/imessage`, then the Skill's `link.py`). Same raw-body parser, 15 MB limit and JSON 413 handler as the import (it is mounted under `/api/cubbie/import`). Two gates, both required:
+
+```
+X-Groupie-Signature: sha256=<hex HMAC-SHA256(CUBBIE_PUBLIC_SIGNING_KEY, raw body)>
+Authorization: Bearer <link token from POST /api/cubbie/link>
+```
+
+The token must match a non-revoked `cubbie_links` row (sha256 compare); the student is taken only from that row, never from the body, so the public key plus a guessed user id gets `401 bad_link`. Body: the import payload without `pairCode`, plus an optional `target` (`CubbieLinkedImportPayload`):
+
+```json
+{ "course": { "name": "CSE 340" }, "assignment": { "title": "Project 2", "dueAt": null, "descriptionText": "..." }, "target": { "kind": "group", "groupId": -5305218337 } }
+```
+
+`target` is `{ "kind": "group", "groupId": <chat id> }` or `{ "kind": "me" }` (a personal plan by DM, exactly like a code made in a private chat). Where it goes:
+
+1. With `target` group: the student must have a `members` row in that group or have made an import code for it, else `400 invalid_payload` ("That is not one of your Groupie groups..."). With `target` me: personal.
+2. With no `target`: the student's unused import codes made in the last 30 minutes. If they all point at one place (one group, or all DM codes), that is the target. If there are none, or more than one place, the answer is `409 choose_target`:
+
+```json
+{ "error": "choose_target", "message": "Which group should this go to?", "options": [{ "kind": "group", "groupId": -5305218337, "title": "CSE 340 Team" }, { "kind": "me", "title": "Just me" }], "requestId": "..." }
+```
+
+`options` lists up to 5 of the student's groups (joined or made codes for, newest first, groups that still exist) and then Just me. The Skill asks the student and calls again with `target`.
+
+When a matching recent unused code exists for the chosen place (also with an explicit `target`), the import is recorded against it (so the Mini App's status poll for that code shows it) and the code is marked used only on success. Otherwise `cubbie_imports.pair_code` is null. Everything after that is the same import core as `POST /api/cubbie/import` (rate limits per IP and per student, schema tolerance, attachments, files posted after the task list, personal path, `not_expecting`). Response is the same `200 { ok, importId, message }`.
+
+Errors: the import's list plus `401 bad_link` (missing, malformed, unknown or revoked token; message "Your Groupie link expired. Send /imessage in Groupie to relink.") and `409 choose_target` (with `options`). `code_unknown` and `code_expired` do not occur here. `code_used` means an import for the same place is already running.
+
+### `GET /go/cubbie?text=<prefilled>`
+
+Public. A tiny self-contained HTML page (inline CSS and JS, no external assets) for Telegram buttons, which cannot open `sms:` links. It shows a big **Open in iMessage** link to `sms:<CUBBIE_HANDLE>&body=<encodeURIComponent(text)>`, the text in a selectable box, and a big **Copy** button (Clipboard API, with a select plus `execCommand('copy')` fallback). On iOS and Android it also tries `location.href = <sms link>` 400 ms after load; the page works without JS. The `&body=` form is the one iOS 8+ reads (iMessage is iOS); Android also accepts it in most messaging apps.
+
+- Only `text` is read: a string (arrays become empty), capped at 500 characters, then HTML-escaped. Nothing else is reflected.
+- `CUBBIE_HANDLE` (env; a phone number or Apple ID, `[+0-9A-Za-z@._-]`): when unset or unsafe, there is no sms link and the page says "Open Messages and send this to Cubbie." above the text and Copy.
+- Headers: `cache-control: no-store`, `referrer-policy: no-referrer`, `x-content-type-options: nosniff`. No CSP and no `X-Frame-Options`, so Telegram's in-app browser and webviews load it.
+- Server code builds the URL with `cubbieOpenUrl(text)` (`canvas/goCubbie.ts`); the Mini App uses `goCubbiePath(text)` from `@groupie/shared` and opens it with Telegram `openLink`.
 
 ### `PUT /api/feed`, `DELETE /api/feed`, `GET /api/feed/status`, `GET /api/feed/upcoming`
 

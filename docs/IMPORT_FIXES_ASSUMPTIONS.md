@@ -13,7 +13,7 @@ Evidence (read-only: Railway HTTP logs, production DB via `railway ssh`; no secr
 - **Group -5305218337 at the time:** status `setup`, `team_size` NULL, no assignment.
 - **cubbie_imports row 2:** status `failed`, error `Set the team size first: send /setup in the group.`
 - **Signature:** passed (a mismatch returns 401 before this point), so the installed Skill's key matches production. No reinstall needed for the key.
-- **Payload shape (7,727 bytes stored):** top keys `pairCode, course, assignment, attachments`; `assignment` has `title, dueAt, pointsPossible, descriptionText, url`; description empty; **no rubric**; 1 attachment `{filename, mimeType (docx), text}` with 2,765 characters of extracted **text**, no `base64` bytes. Schema validation passed.
+- **Payload shape (7,727 bytes stored):** top keys `pairCode, course, assignment, attachments`; `assignment` has `title, dueAt, pointsPossible, descriptionText, url`; `descriptionText` is 4,411 characters (corrected: a first read checked the old `description` key and wrongly reported it empty); **no rubric**; 1 attachment `{filename, mimeType (docx), text}` with 2,765 characters of extracted **text**, no `base64` bytes. Schema validation passed.
 
 **Cause:** intake refuses an import while the group has no team size (`no_team_size`, mapped to 422). The Mini App's Canvas screen issues codes without that check (only the `/canvas` command checks it), and the importer claims the code before intake runs, so the failure also burned the code. Cubbie only showed the generic "rejected" line because the Skill does not map 422 / `no_team_size`.
 

@@ -119,6 +119,33 @@ export const CubbieImportResponse = z.object({
 });
 export type CubbieImportResponse = z.infer<typeof CubbieImportResponse>;
 
+// Linked imports: the Skill sends with the student's link token instead of a pair code.
+/** The current Skill version (its user agent is `groupie-import-skill/<N>`). Older linked Skills get `skillOutdated`. */
+export const CUBBIE_SKILL_VERSION = 3;
+
+/** Where a linked import goes: one of the student's groups, or a personal plan. */
+export const ImportTarget = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('group'), groupId: z.number().int() }),
+  z.object({ kind: z.literal('me') }),
+]);
+export type ImportTarget = z.infer<typeof ImportTarget>;
+
+/** POST /api/cubbie/import/linked: the import payload with no pair code, plus an optional target. */
+export const CubbieLinkedImportPayload = CubbieImportPayload.omit({ pairCode: true }).extend({ target: ImportTarget.optional() });
+export type CubbieLinkedImportPayload = z.infer<typeof CubbieLinkedImportPayload>;
+
+/** One choice in a `choose_target` answer. */
+export const ImportTargetOption = z.union([
+  z.object({ kind: z.literal('group'), groupId: z.number(), title: z.string() }),
+  z.object({ kind: z.literal('me'), title: z.string() }),
+]);
+export type ImportTargetOption = z.infer<typeof ImportTargetOption>;
+
+/** The one-tap "Open in iMessage" page. Takes only `text` (capped at GO_CUBBIE_MAX_TEXT). */
+export const GO_CUBBIE_PATH = '/go/cubbie';
+export const GO_CUBBIE_MAX_TEXT = 500;
+export const goCubbiePath = (text: string) => `${GO_CUBBIE_PATH}?text=${encodeURIComponent(text)}`;
+
 // Pair codes (Mini App).
 export const PairCodeRequest = z.object({ groupChatId: z.number().int().nullable().optional() });
 export type PairCodeRequest = z.infer<typeof PairCodeRequest>;
@@ -127,6 +154,10 @@ export const PairCodeResponse = z.object({
   code: z.string(),
   expiresAt: z.string(),
   cubbieMessage: z.string(),
+  /** True when the student has a live iMessage link (the Skill is installed and linked). */
+  linked: z.boolean().optional(),
+  /** True when the linked Skill was last seen on a version older than CUBBIE_SKILL_VERSION. */
+  skillOutdated: z.boolean().optional(),
 });
 export type PairCodeResponse = z.infer<typeof PairCodeResponse>;
 
@@ -140,6 +171,8 @@ export const PairCodeStatusResponse = z.object({
   expiresAt: z.string(),
   assignmentTitle: z.string().nullable(),
   error: z.string().nullable(),
+  linked: z.boolean().optional(),
+  skillOutdated: z.boolean().optional(),
 });
 export type PairCodeStatusResponse = z.infer<typeof PairCodeStatusResponse>;
 

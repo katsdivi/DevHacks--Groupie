@@ -8,6 +8,7 @@ import {
   normalizeFeedUrl,
   type FeedUpcomingResponse,
   type PairCodeResponse,
+  type PairCodeStatusResponse,
 } from '@groupie/shared';
 import { isGroupMember, tgUser } from '../auth.ts';
 import { getGroup } from '../groups.ts';
@@ -16,6 +17,8 @@ import { deleteFeed, feedStatus, saveFeed, upcomingEvents } from './feeds.ts';
 import { handleImport, importError, IMPORT_MESSAGES, newRequestId, takeRateLimit } from './importer.ts';
 import { createPairCode, getPairCode, pairCodeStatus } from './pairCodes.ts';
 import { pollFeed } from './poller.ts';
+import { isLinked } from './link.ts';
+import { handleLinkedImport, noteImportSkillVersion, skillOutdated } from './linkedImport.ts';
 
 /** How long PUT /api/feed waits for the first poll before answering. */
 export const FIRST_POLL_WAIT_MS = 10_000;
@@ -75,7 +78,7 @@ canvasRouter.post('/cubbie/pair-code', async (req, res) => {
     }
   }
   const pc = createPairCode(uid, groupChatId);
-  const body: PairCodeResponse = { code: pc.code, expiresAt: pc.expiresAt, cubbieMessage: cubbieMessage(pc.code) };
+  const body: PairCodeResponse = { code: pc.code, expiresAt: pc.expiresAt, cubbieMessage: cubbieMessage(pc.code), ...linkState(uid) };
   res.json(body);
 });
 
@@ -88,8 +91,14 @@ canvasRouter.get('/cubbie/pair-code/:code', (req, res) => {
   const pc = code.success ? getPairCode(code.data) : undefined;
   // Someone else's code looks the same as a missing one, so codes can't be probed.
   if (!pc || pc.telegramUserId !== uid) return void res.status(404).json({ error: 'unknown_code', message: 'No such pair code.' });
-  res.json(pairCodeStatus(pc));
+  const body: PairCodeStatusResponse = { ...pairCodeStatus(pc), ...linkState(uid) };
+  res.json(body);
 });
+
+/** What the Mini App needs to hide or show the Skill install step. */
+function linkState(uid: number): { linked: boolean; skillOutdated?: boolean } {
+  return { linked: isLinked(uid), ...(skillOutdated(uid) ? { skillOutdated: true } : {}) };
+}
 
 canvasRouter.put('/feed', async (req, res) => {
   const uid = userId(res);
@@ -136,7 +145,7 @@ export function clientIp(req: Request): string {
   return last ?? req.socket.remoteAddress ?? 'unknown';
 }
 
-/** Public: POST /api/cubbie/import. Mount before the authed `/api` router. Needs the raw body parser. */
+/** Public: POST /api/cubbie/import and /api/cubbie/import/linked. Mount before the authed `/api` router. Needs the raw body parser. */
 export const cubbieImportRouter = Router();
 
 /** Railway's per-request id, else a random one. Shown in every import error body and log line. */
@@ -145,6 +154,17 @@ const importRequestId = (req: Request) => req.header('x-railway-request-id')?.sl
 cubbieImportRouter.post('/', async (req, res) => {
   const raw = (req as unknown as { rawBody?: Buffer }).rawBody;
   const reply = await handleImport(raw, req.header(CUBBIE_SIGNATURE_HEADER), clientIp(req), { requestId: importRequestId(req) });
+  if ('ok' in reply.body) noteImportSkillVersion(reply.body.importId, req.header('user-agent'));
+  res.status(reply.status).json(reply.body);
+});
+
+/** POST /api/cubbie/import/linked: same parser and error handler as the import (mounted under it). */
+cubbieImportRouter.post('/linked', async (req, res) => {
+  const raw = (req as unknown as { rawBody?: Buffer }).rawBody;
+  const reply = await handleLinkedImport(raw, req.header(CUBBIE_SIGNATURE_HEADER), req.header('authorization'), clientIp(req), {
+    requestId: importRequestId(req),
+    userAgent: req.header('user-agent'),
+  });
   res.status(reply.status).json(reply.body);
 });
 
