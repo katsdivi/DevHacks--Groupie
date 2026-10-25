@@ -1,10 +1,11 @@
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNotNull, lte } from 'drizzle-orm';
 import { DateTime } from 'luxon';
 import {
   buildGrid,
   formatMeeting,
   MEETING_SLOTS,
   normalizeSlot,
+  SLOT_MINUTES,
   slotEnd,
   slotStart,
   type HeatmapBest,
@@ -83,6 +84,74 @@ export function bestWindows(slotMap: Record<string, number[]>, tz: string, now =
   return out.slice(0, limit);
 }
 
+export type TimeCandidate = {
+  start: string;
+  end: string;
+  /** Members free for the whole hour. */
+  member_ids: number[];
+  /** Extra 30-minute slots around the hour when every one of them is still free. */
+  fit: number;
+  /** "Sun, Oct 25 · 4 to 5 PM (5/5 free)". */
+  label: string;
+};
+
+/** Members free for every slot of the hour starting here. */
+export function freeForHour(slotMap: Record<string, number[]>, start: string): number[] {
+  let free = new Set(slotMap[start] ?? []);
+  let cursor = start;
+  for (let k = 1; k < MEETING_SLOTS && free.size; k++) {
+    cursor = slotEnd(cursor);
+    const next = new Set(slotMap[cursor] ?? []);
+    free = new Set([...free].filter((id) => next.has(id)));
+  }
+  return [...free].sort((a, b) => a - b);
+}
+
+/** Back-to-back slots before and after [start, end) when all of these members stay free. */
+function runAround(slotMap: Record<string, number[]>, start: string, end: string, ids: number[]): number {
+  const allFree = (slot: string) => {
+    const at = new Set(slotMap[slot] ?? []);
+    return ids.every((id) => at.has(id));
+  };
+  const step = SLOT_MINUTES * 60_000;
+  let n = 0;
+  for (let t = Date.parse(start) - step; allFree(new Date(t).toISOString()); t -= step) n++;
+  for (let t = Date.parse(end); allFree(new Date(t).toISOString()); t += step) n++;
+  return n;
+}
+
+/**
+ * Top one-hour slots for the time poll: most people free, then the longest shared free run around
+ * the hour (duration fit), then earliest. Picks never overlap. Viable means at least two people
+ * free (one for a team of one). Only future hours count.
+ */
+export function topSlots(
+  slotMap: Record<string, number[]>,
+  tz: string,
+  teamSize: number,
+  now = new Date(),
+  limit = 3,
+): TimeCandidate[] {
+  const nowIso = now.toISOString();
+  const minFree = Math.min(2, Math.max(1, teamSize));
+  const all: TimeCandidate[] = [];
+  for (const start of Object.keys(slotMap).sort()) {
+    if (start < nowIso) continue;
+    const ids = freeForHour(slotMap, start);
+    if (ids.length < minFree) continue;
+    const end = slotEnd(start, MEETING_SLOTS);
+    all.push({ start, end, member_ids: ids, fit: runAround(slotMap, start, end, ids), label: '' });
+  }
+  all.sort((a, b) => b.member_ids.length - a.member_ids.length || b.fit - a.fit || a.start.localeCompare(b.start));
+  const picked: TimeCandidate[] = [];
+  for (const c of all) {
+    if (picked.length >= limit) break;
+    if (picked.some((p) => c.start < p.end && c.end > p.start)) continue;
+    picked.push({ ...c, label: `${formatMeeting(c.start, c.end, tz)} (${c.member_ids.length}/${teamSize} free)` });
+  }
+  return picked;
+}
+
 export function heatmap(groupId: number, now = new Date()): HeatmapResponse {
   const group = getGroup(groupId)!;
   const members = listMembers(groupId);
@@ -145,6 +214,20 @@ export function meetingByPoll(pollId: string) {
 
 export function setAvailMessage(groupId: number, availMessageId: number | null) {
   db.update(groups).set({ availMessageId }).where(and(eq(groups.id, groupId))).run();
+}
+
+/** Lock the meeting at this time even if not everyone has answered (null clears it). */
+export function setAvailDeadline(groupId: number, at: string | null) {
+  db.update(groups).set({ availDeadlineAt: at }).where(eq(groups.id, groupId)).run();
+}
+
+/** Groups still scheduling whose deadline has passed. */
+export function dueAvailDeadlines(now = new Date()) {
+  return db
+    .select()
+    .from(groups)
+    .where(and(eq(groups.status, 'scheduling'), isNotNull(groups.availDeadlineAt), lte(groups.availDeadlineAt, now.toISOString())))
+    .all();
 }
 
 export function setGroupStatus(groupId: number, status: 'scheduling' | 'active') {

@@ -32,6 +32,7 @@ import { maybeRunSplit, postSplitCard } from './bot/split.ts';
 import { requestSwap, splitView, SwapError } from './splitService.ts';
 import { cleanSlots, getSlots, heatmap, latestMeeting, respondedCount, setSlots } from './availability.ts';
 import { meetingSummary } from './bot/meeting.ts';
+import { prefillFor } from './busyRead.ts';
 import { getTask, progressView, setTaskStatus } from './progress.ts';
 import { scheduleProgressCard } from './bot/checkin.ts';
 import { chatTurn, history, suggestions } from './agent.ts';
@@ -217,6 +218,9 @@ api.get('/groups/:id/availability/me', async (req, res) => {
     member: { id: member.id, name: member.name, color: member.color },
     slots: getSlots(member.id),
   };
+  // Only the caller's own busy data, and only when their member row has a Telegram id with calendar data.
+  const prefill = prefillFor(member, group.tz);
+  if (prefill) body.prefill = prefill;
   res.json(body);
 });
 
