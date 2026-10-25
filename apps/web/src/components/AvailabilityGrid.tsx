@@ -39,7 +39,17 @@ type Props = {
   heat: Heat | null;
   onPaint: (slots: string[], add: boolean) => void;
   onPick: (slot: string) => void;
+  /** Your own busy slots from your calendar (Mine view only, never titles). */
+  busy?: Set<string>;
+  /** Selected because the calendar prefill picked them, not touched since. */
+  fromCal?: Set<string>;
 };
+
+/** Dotted "busy on your calendar" texture, distinct from the striped past cells. */
+export const BUSY_BG = 'radial-gradient(circle, rgba(255,255,255,0.22) 0.9px, transparent 1.3px)';
+export const BUSY_BG_SIZE = '5px 5px';
+/** Prefilled selections are the member's color, slightly lighter. */
+export const PREFILL_OPACITY = 0.6;
 
 /** "4 PM" or "4:30 PM" for the top of a painted block. */
 function shortTime(row: { hour: number; minute: number }) {
@@ -47,7 +57,7 @@ function shortTime(row: { hour: number; minute: number }) {
   return `${row.minute ? `${h}:${String(row.minute).padStart(2, '0')}` : h} ${row.hour < 12 ? 'AM' : 'PM'}`;
 }
 
-export function AvailabilityGrid({ grid, cells, now, mode, selected, color, heat, onPaint, onPick }: Props) {
+export function AvailabilityGrid({ grid, cells, now, mode, selected, color, heat, onPaint, onPick, busy, fromCal }: Props) {
   const matrix = useRef<HTMLDivElement>(null);
   const drag = useRef<{ id: number; add: boolean; d: number; r: number; seen: Set<string> } | null>(null);
   const lastBuzz = useRef(0);
@@ -195,6 +205,8 @@ export function AvailabilityGrid({ grid, cells, now, mode, selected, color, heat
               const n = heat ? heat.count(c.slot) : 0;
               const level = heat && n > 0 ? n / heat.max : 0;
               const picked = !mine && heat?.picked === c.slot;
+              const isBusy = mine && !c.past && Boolean(busy?.has(c.slot));
+              const cal = on && Boolean(fromCal?.has(c.slot));
               const nowInCell = grid.days[d].isToday && now >= Date.parse(c.slot) && now < Date.parse(c.slot) + SLOT_MS;
               return (
                 <div
@@ -205,6 +217,7 @@ export function AvailabilityGrid({ grid, cells, now, mode, selected, color, heat
                   data-slot={c.slot}
                   data-d={c.d}
                   data-r={c.r}
+                  title={isBusy ? 'Busy on your calendar' : cal ? 'Filled from your calendar' : undefined}
                   className={`relative ${d > 0 ? 'border-l border-l-[#2C2C2C]' : ''} ${
                     onHour ? 'border-t border-t-line' : 'border-t border-t-[#333333]'
                   } ${c.past ? 'cursor-not-allowed' : mine ? 'hover:bg-white/[0.04]' : 'cursor-pointer'}`}
@@ -214,7 +227,11 @@ export function AvailabilityGrid({ grid, cells, now, mode, selected, color, heat
                     borderTopStyle: onHour ? 'solid' : 'dashed',
                     backgroundImage: c.past
                       ? 'repeating-linear-gradient(135deg, rgba(255,255,255,0.035) 0 3px, transparent 3px 7px)'
-                      : undefined,
+                      : isBusy
+                        ? BUSY_BG
+                        : undefined,
+                    backgroundSize: isBusy && !c.past ? BUSY_BG_SIZE : undefined,
+                    backgroundColor: isBusy ? 'rgba(255,255,255,0.025)' : undefined,
                   }}
                 >
                   {on && (
@@ -226,6 +243,7 @@ export function AvailabilityGrid({ grid, cells, now, mode, selected, color, heat
                         top: above ? -1 : 2,
                         bottom: below ? 0 : 2,
                         background: color,
+                        opacity: cal ? PREFILL_OPACITY : undefined,
                         borderTopLeftRadius: above ? 0 : 6,
                         borderTopRightRadius: above ? 0 : 6,
                         borderBottomLeftRadius: below ? 0 : 6,
@@ -236,6 +254,12 @@ export function AvailabilityGrid({ grid, cells, now, mode, selected, color, heat
                         <span className="truncate px-1 pt-[3px] text-[9px] leading-none font-bold whitespace-nowrap text-ink/75 tabular-nums">
                           {shortTime(row)}
                         </span>
+                      )}
+                      {isBusy && (
+                        <span
+                          className="absolute inset-0"
+                          style={{ backgroundImage: BUSY_BG.replace('255,255,255,0.22', '30,30,30,0.35'), backgroundSize: BUSY_BG_SIZE }}
+                        />
                       )}
                     </span>
                   )}

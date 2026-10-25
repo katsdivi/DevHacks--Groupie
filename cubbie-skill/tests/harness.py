@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """Replay the Cubbie import fixtures through scripts/send.py and print what happened to each one.
 
+It also runs the iMessage link flow offline: scripts/link.py against a stub POST /api/cubbie/link, then
+scripts/status.py against stub GET /api/cubbie/me and DELETE /api/cubbie/link, with HOME in a temporary folder.
+
 Offline (default): starts a stub Groupie server on a random local port that checks the HMAC signature over the
 raw body, enforces single-use codes, and answers with contract-shaped responses. Every result is asserted, so
 exit 0 means signing and the exit code mapping work.
@@ -25,8 +28,10 @@ import importlib.util
 import io
 import json
 import os
+import secrets
 import socket
 import sys
+import tempfile
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -49,6 +54,18 @@ def load_send():
 send = load_send()
 
 
+def load_script(name: str):
+    spec = importlib.util.spec_from_file_location(f"groupie_{name}_harness", SKILL / "scripts" / f"{name}.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+link_cli = load_script("link")
+status_cli = load_script("status")
+SAMPLE_STATUS = json.loads((SKILL / "assets" / "sample_status.json").read_text(encoding="utf-8"))
+
+
 class StubGroupie(ThreadingHTTPServer):
     """A tiny stand-in for POST /api/cubbie/import."""
 
@@ -58,6 +75,7 @@ class StubGroupie(ThreadingHTTPServer):
         super().__init__(("127.0.0.1", 0), StubHandler)
         self.key = key.encode("utf-8")
         self.used = set()
+        self.tokens = set()
         self.requests = 0
         self.lock = threading.Lock()
 
@@ -80,10 +98,54 @@ class StubHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(raw)
 
+    def bearer(self):
+        header = self.headers.get("Authorization") or ""
+        token = header[7:] if header.startswith("Bearer ") else ""
+        with self.server.lock:
+            return token if token in self.server.tokens else None
+
+    def do_GET(self) -> None:
+        with self.server.lock:
+            self.server.requests += 1
+        if self.path != "/api/cubbie/me":
+            return self.reply(404, {"error": "not_found", "message": "No such route."})
+        if not self.bearer():
+            return self.reply(401, {"error": "not_linked", "message": "Not linked."})
+        self.reply(200, SAMPLE_STATUS)
+
+    def do_DELETE(self) -> None:
+        with self.server.lock:
+            self.server.requests += 1
+        if self.path != "/api/cubbie/link":
+            return self.reply(404, {"error": "not_found", "message": "No such route."})
+        token = self.bearer()
+        if not token:
+            return self.reply(401, {"error": "not_linked", "message": "Not linked."})
+        with self.server.lock:
+            self.server.tokens.discard(token)
+        self.reply(200, {"ok": True, "message": "Unlinked from Groupie."})
+
+    def link(self, raw: bytes) -> None:
+        try:
+            code = send.normalize_code(json.loads(raw).get("pairCode"))
+        except (ValueError, AttributeError):
+            code = None
+        if code is None:
+            return self.reply(400, {"error": "bad_payload", "message": "pairCode must be a code."})
+        if code == UNKNOWN_CODE:
+            return self.reply(404, {"error": "unknown_code", "message": "No such code."})
+        with self.server.lock:
+            if code in self.server.used:
+                return self.reply(409, {"error": "code_used", "message": "Code already used."})
+            self.server.used.add(code)
+            token = "grp_" + secrets.token_urlsafe(32)
+            self.server.tokens.add(token)
+        self.reply(200, {"ok": True, "token": token, "name": "Ana", "message": "Linked to Groupie."})
+
     def do_POST(self) -> None:
         with self.server.lock:
             self.server.requests += 1
-        if self.path != send.IMPORT_PATH:
+        if self.path not in (send.IMPORT_PATH, "/api/cubbie/link"):
             return self.reply(404, {"error": "not_found", "message": "No such route."})
         raw = self.rfile.read(int(self.headers.get("Content-Length") or 0))
         expected = "sha256=" + hmac.new(self.server.key, raw, hashlib.sha256).hexdigest()
@@ -91,6 +153,8 @@ class StubHandler(BaseHTTPRequestHandler):
             return self.reply(401, {"error": "bad_signature", "message": "Signature does not match."})
         if self.headers.get("Content-Type") != "application/json":
             return self.reply(400, {"error": "bad_payload", "message": "Expected JSON."})
+        if self.path == "/api/cubbie/link":
+            return self.link(raw)
         try:
             payload = json.loads(raw)
         except ValueError:
@@ -167,9 +231,55 @@ def offline(code: str, key: str) -> int:
     ok = got == send.EXIT_NETWORK
     failures += not ok
     print(f"{'PASS' if ok else 'FAIL'}  server down (one retry): exit {got} (want {send.EXIT_NETWORK})  {line}")
+    failures += offline_link(stub, key)
     stub.shutdown()
     print(f"{'All passed' if not failures else f'{failures} failed'} ({stub.requests} requests reached the stub)")
     return 1 if failures else 0
+
+
+def run_cli(module, args: list, key: str) -> tuple:
+    """Run link.py or status.py in process; return (exit code, printed text)."""
+    module.send.GROUPIE_SIGNING_KEY = key
+    out = io.StringIO()
+    with contextlib.redirect_stdout(out), contextlib.redirect_stderr(out):
+        code = module.main(args)
+    return code, out.getvalue().strip()
+
+
+def offline_link(stub: StubGroupie, key: str) -> int:
+    """Link, status, unlink, status again, all against the stub with a throwaway HOME."""
+    home = tempfile.mkdtemp()
+    old_home = os.environ.get("HOME")
+    os.environ["HOME"] = home
+    url = ["--url", stub.url]
+    failures = 0
+    try:
+        cases = [
+            ("status before linking", status_cli, [], key, 12, "/imessage"),
+            ("link, wrong key", link_cli, ["--code", "MNKCDE"], key + "x", 7, "signature"),
+            ("link with a fresh code", link_cli, ["--code", "mnkcde"], key, 0, "Linked to Groupie, Ana."),
+            ("link, same code again", link_cli, ["--code", "MNKCDE"], key, 8, "used"),
+            ("link, unknown code", link_cli, ["--code", UNKNOWN_CODE], key, 8, "unknown"),
+            ("status", status_cli, [], key, 0, "Next meeting:"),
+            ("unlink", status_cli, ["--unlink"], key, 0, "Unlinked"),
+            ("status after unlinking", status_cli, [], key, 12, "Not linked"),
+        ]
+        for label, module, args, use_key, expected, needle in cases:
+            got, text = run_cli(module, args + url, use_key)
+            tokens = list(stub.tokens)
+            ok = got == expected and needle in text and not any(t in text for t in tokens)
+            failures += not ok
+            print(f"{'PASS' if ok else 'FAIL'}  {label}: exit {got} (want {expected})  {text.splitlines()[0] if text else ''}")
+        token_file = Path(home) / ".config" / "groupie" / "token"
+        ok = not token_file.exists()
+        failures += not ok
+        print(f"{'PASS' if ok else 'FAIL'}  the token file is gone after unlinking")
+    finally:
+        if old_home is None:
+            os.environ.pop("HOME", None)
+        else:
+            os.environ["HOME"] = old_home
+    return failures
 
 
 def online(url: str, code: str, key: str) -> int:

@@ -15,18 +15,23 @@ import {
   type Group,
 } from '../groups.ts';
 import { html } from './format.ts';
+import { featureGuide } from './guide.ts';
 import { assignment } from './assignment.ts';
 import { maybeRunSplit, splitComposer } from './split.ts';
 import { onAvailabilityChanged, scheduleComposer } from './schedule.ts';
 import { applyMeetingLink, meetingComposer } from './meeting.ts';
 import { checkinComposer } from './checkin.ts';
 import { qaComposer } from './qa.ts';
+import { dmComposer } from './dm.ts';
 import { canvasComposer } from '../canvas/bot.ts';
 import { seedAvailability } from '../availability.ts';
 
 import { appButton, appUrl, bot } from './core.ts';
 import { postJoinStatus, refreshJoinStatus } from './joinStatus.ts';
 import { seedMembers } from '../members.ts';
+import { setCanDm } from '../prefs.ts';
+
+export const REMINDERS_READY = "You're set. I'll DM you reminders before things are due. Change them in Settings.";
 
 export { bot, appUrl };
 
@@ -65,21 +70,37 @@ async function sendWelcome(ctx: Context) {
   );
 }
 
-const TEAM_SIZES = [3, 4, 5, 6];
+/** Any of these can be tapped; the buttons show 2 to 6 plus the real head count if it is bigger. */
+export const TEAM_SIZES = [2, 3, 4, 5, 6, 7, 8];
+const BASE_SIZES = [2, 3, 4, 5, 6];
+
+/** People in the chat, not counting Groupie. Null when Telegram will not say. */
+async function peopleInChat(chatId: number): Promise<number | null> {
+  try {
+    return (await bot.api.getChatMemberCount(chatId)) - 1;
+  } catch {
+    return null;
+  }
+}
+
+/** Size buttons: the real head count first (marked), then the usual sizes. */
+export function sizeKeyboard(here: number | null) {
+  const kb = new InlineKeyboard();
+  const hereOk = here !== null && TEAM_SIZES.includes(here);
+  if (hereOk) kb.text(`${here} (everyone here)`, `size:${here}`).row();
+  for (const n of BASE_SIZES) if (!(hereOk && n === here)) kb.text(String(n), `size:${n}`);
+  return kb;
+}
 
 const askSizeText = (g: Group) => `<b>${html(g.nickname)} here.</b> How many people are on this project?`;
-const askSizeKeyboard = () => {
-  const kb = new InlineKeyboard();
-  for (const n of TEAM_SIZES) kb.text(String(n), `size:${n}`);
-  return kb;
-};
+const askSizeKeyboard = async (chatId: number) => sizeKeyboard(await peopleInChat(chatId));
 const askPdfText = (g: Group) =>
-  `<b>Team of ${g.teamSize}.</b> Love that for us.\n\nNow drop the assignment PDF in this chat and I'll turn it into tasks with effort points.`;
+  `<b>Team of ${g.teamSize}.</b> Love that for us.\n\nNow drop the assignment file in this chat (PDF, Word, slides) or send /canvas to pull it straight from Canvas, and I'll turn it into tasks with effort points.`;
 
 /** Posts the setup prompt and remembers it so later steps can edit it in place. */
 async function sendSetupPrompt(ctx: Context) {
   const group = getGroup(ctx.chat!.id)!;
-  const msg = await ctx.reply(askSizeText(group), { parse_mode: 'HTML', reply_markup: askSizeKeyboard() });
+  const msg = await ctx.reply(askSizeText(group), { parse_mode: 'HTML', reply_markup: await askSizeKeyboard(group.id) });
   setStatusMessage(group.id, msg.message_id);
 }
 
@@ -134,17 +155,37 @@ bot.on('message:migrate_to_chat_id', (ctx) => {
 
 bot.command('start', async (ctx) => {
   if (!isGroupChat(ctx)) {
-    await ctx.reply("Hey, I'm Groupie, your group project's biggest fan. Add me to your project group chat and I'll take it from there.");
+    // A DM /start (including the "reminders" deep link) means Telegram now lets us DM them.
+    if (ctx.chat?.type === 'private' && ctx.from) setCanDm(ctx.from.id, true);
+    if (ctx.match.trim() === 'reminders') {
+      await ctx.reply(REMINDERS_READY);
+      return;
+    }
+    await ctx.reply(`${featureGuide()}\n\n${html(REMINDERS_READY)}`, {
+      parse_mode: 'HTML',
+      reply_markup: addToGroupButton(),
+    });
     return;
   }
   const known = getGroup(ctx.chat.id);
   groupFromCtx(ctx);
   if (!known) await sendWelcome(ctx);
   else
-    await ctx.reply(`${html(known.nickname)} here. Already on it.`, {
+    await ctx.reply(featureGuide(known.nickname), {
       parse_mode: 'HTML',
       reply_markup: appButton(ctx.chat.id),
     });
+});
+
+/** Opens Telegram's "add to group" picker for this bot. */
+const addToGroupButton = () => new InlineKeyboard().url('Add me to a group', `https://t.me/${env.botUsername}?startgroup=true`);
+
+bot.command('help', async (ctx) => {
+  const group = isGroupChat(ctx) ? getGroup(ctx.chat.id) : undefined;
+  await ctx.reply(featureGuide(group?.nickname), {
+    parse_mode: 'HTML',
+    reply_markup: group ? appButton(group.id) : addToGroupButton(),
+  });
 });
 
 const GROUP_ONLY = "That one works in your project group chat. Add me there and send it again!";
@@ -228,7 +269,7 @@ bot.callbackQuery('size:change', async (ctx) => {
   const group = getGroup(ctx.chat!.id);
   if (!group || group.status !== 'setup') return void (await ctx.answerCallbackQuery());
   await ctx.answerCallbackQuery();
-  await ctx.editMessageText(askSizeText(group), { parse_mode: 'HTML', reply_markup: askSizeKeyboard() });
+  await ctx.editMessageText(askSizeText(group), { parse_mode: 'HTML', reply_markup: await askSizeKeyboard(group.id) });
 });
 
 bot.command('join', async (ctx) => {
@@ -288,6 +329,8 @@ bot.on('message:text', async (ctx, next) => {
 
 // "Max, what's due?" and @mentions: answered last, after every other handler passed.
 bot.filter((ctx) => isGroupChat(ctx)).use(qaComposer);
+// Plain text in a private chat with the bot: a real reply, last so commands and pending inputs win.
+bot.filter((ctx) => ctx.chat?.type === 'private').use(dmComposer);
 
 bot.catch((err) => {
   console.error('Bot error', err.error);

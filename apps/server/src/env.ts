@@ -28,6 +28,9 @@ export const env = {
   feedEncryptionKey: process.env.FEED_ENCRYPTION_KEY ?? '',
   /** Set to 'true' to turn on calendar-load-aware splitting. */
   loadAwareSplit: process.env.LOAD_AWARE_SPLIT === 'true',
+  /** Per-user Google OAuth (Web client, redirect PUBLIC_URL/api/google/callback, free/busy scope). Optional. */
+  googleUserClientId: process.env.GOOGLE_USER_CLIENT_ID ?? '',
+  googleUserClientSecret: process.env.GOOGLE_USER_CLIENT_SECRET ?? '',
   defaultTz: process.env.DEFAULT_TZ ?? 'America/Phoenix',
   // webhook: production. polling: local testing (takes the bot away from prod). off: no bot.
   botMode: (process.env.BOT_MODE ?? (isProd ? 'webhook' : 'off')) as 'webhook' | 'polling' | 'off',

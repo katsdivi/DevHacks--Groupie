@@ -16,6 +16,7 @@ export type WebApp = {
   ready(): void;
   close(): void;
   openLink?(url: string, options?: { try_instant_view?: boolean }): void;
+  openTelegramLink?(url: string): void;
   expand(): void;
   isVersionAtLeast(v: string): boolean;
   setHeaderColor(c: string): void;
@@ -88,4 +89,14 @@ export function openExternal(url: string, e?: { preventDefault(): void }) {
     e?.preventDefault();
     tg.openLink(url);
   }
+}
+
+/** Opens a t.me link: Telegram's own handler inside the Mini App, else like openExternal. */
+export function openTelegram(url: string, e?: { preventDefault(): void }) {
+  if (tg?.openTelegramLink) {
+    e?.preventDefault();
+    tg.openTelegramLink(url);
+    return;
+  }
+  openExternal(url, e);
 }

@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { db, schema } from './db/index.ts';
-import { groupContext, memberContext, weekAheadText } from './context.ts';
+import { weekAheadText } from './context.ts';
+import { buildContext, renderContext } from './contextPolicy.ts';
 import type { Member } from './db/schema.ts';
-import { getGroup } from './groups.ts';
 import { bot } from './bot/core.ts';
 import { runCheckin } from './bot/checkin.ts';
 import { buildQaMessages } from './bot/qa.ts';
@@ -48,7 +48,13 @@ ev(99, 'CSE 340 (Fall 2026)', 'Stranger homework', inDays(1));
 db.update(schema.calendarEvents).set({ removedAt: created }).where(eq(schema.calendarEvents.title, 'Quiz 3')).run();
 ev(12, 'CSE 340 (Fall 2026)', 'Quiz 4', inDays(10));
 
-describe('groupContext Canvas section', () => {
+/** Group facts as a non-member sees them (group mode). */
+const groupContext = (groupId: number, at: Date) => renderContext(buildContext({ askerId: 0, groupChatId: groupId, mode: 'group', now: at }));
+/** A member's own private-mode context. */
+const memberContext = (m: Member, groupId: number, at: Date) =>
+  renderContext(buildContext({ askerId: m.tgUserId!, groupChatId: groupId, mode: 'private', now: at }));
+
+describe('group-mode Canvas section', () => {
   const out = groupContext(G, now);
   it('lists this course only, once per item, with owners and local due time', () => {
     expect(out).toContain('Coming up (from Canvas, CSE 340: Software Engineering, next 14 days):');
@@ -68,7 +74,7 @@ describe('groupContext Canvas section', () => {
   });
 });
 
-describe('memberContext Canvas items', () => {
+describe('private-mode Canvas items', () => {
   it("shows a user's own items across all courses", () => {
     const mine = memberContext(divyam, G, now);
     for (const t of ['Homework 5: Testing', 'Essay 2 draft', 'Reading response 6', 'Calc quiz']) expect(mine).toContain(t);
@@ -126,7 +132,7 @@ describe('group views never leak other courses', () => {
   });
 
   it('the group Q&A facts block has no other-course names or counts', () => {
-    const messages = buildQaMessages(getGroup(G)!, 'Ava', 'what is Divyam doing this week?', now);
+    const messages = buildQaMessages(buildContext({ askerId: 12, groupChatId: G, mode: 'group', now }), 'what is Divyam doing this week?');
     expect(messages.map((m) => m.role)).toEqual(['system', 'user']);
     const system = messages[0]!.content;
     const facts = system.slice(system.indexOf('GROUP FACTS'));

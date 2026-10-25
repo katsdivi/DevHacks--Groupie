@@ -18,6 +18,8 @@ export const groups = sqliteTable('groups', {
   lastCheckinAt: text('last_checkin_at'),
   /** Canvas course name from a Cubbie import; scopes calendar items in group answers. */
   canvasCourse: text('canvas_course'),
+  /** Optional: lock the meeting at this time even if not everyone has answered. */
+  availDeadlineAt: text('avail_deadline_at'),
 });
 
 export const pendingInputs = sqliteTable(
@@ -123,6 +125,8 @@ export const cubbiePairCodes = sqliteTable('cubbie_pair_codes', {
   expiresAt: text('expires_at').notNull(),
   usedAt: text('used_at'),
   createdAt: text('created_at').notNull(),
+  /** 'import' sends an assignment; 'link' connects the student's Cubbie (iMessage) to Groupie. */
+  purpose: text('purpose', { enum: ['import', 'link'] }).notNull().default('import'),
 });
 
 export const cubbieImports = sqliteTable('cubbie_imports', {
@@ -166,3 +170,81 @@ export const calendarEvents = sqliteTable('calendar_events', {
 });
 
 export type CalendarEvent = typeof calendarEvents.$inferSelect;
+
+/** Facts Groupie remembers about one person. Private unless they mark it shared with one group. */
+export const userMemory = sqliteTable('user_memory', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  telegramUserId: integer('telegram_user_id').notNull(),
+  key: text('key').notNull(),
+  value: text('value').notNull(),
+  source: text('source', { enum: ['chat', 'mini_app'] }).notNull(),
+  visibility: text('visibility', { enum: ['private', 'group'] }).notNull().default('private'),
+  /** Required when visibility is 'group': the one group that may see it. */
+  groupChatId: integer('group_chat_id'),
+  updatedAt: text('updated_at').notNull(),
+});
+
+export const userPrefs = sqliteTable('user_prefs', {
+  telegramUserId: integer('telegram_user_id').primaryKey(),
+  remindersEnabled: integer('reminders_enabled', { mode: 'boolean' }).notNull().default(true),
+  /** Hours before a due time to send a reminder. */
+  reminderOffsets: text('reminder_offsets', { mode: 'json' }).$type<number[]>().notNull().default([48, 24, 3]),
+  quietStart: text('quiet_start').notNull().default('23:00'),
+  quietEnd: text('quiet_end').notNull().default('08:00'),
+  tz: text('tz').notNull().default('America/Phoenix'),
+  /** True once they started the bot in a DM; false after Telegram refuses a DM (403). */
+  canDm: integer('can_dm', { mode: 'boolean' }).notNull().default(false),
+  updatedAt: text('updated_at').notNull(),
+});
+
+export const remindersSent = sqliteTable(
+  'reminders_sent',
+  {
+    telegramUserId: integer('telegram_user_id').notNull(),
+    itemKey: text('item_key').notNull(),
+    offsetH: integer('offset_h').notNull(),
+    sentAt: text('sent_at').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.telegramUserId, t.itemKey, t.offsetH] })],
+);
+
+export const calendarConnections = sqliteTable(
+  'calendar_connections',
+  {
+    telegramUserId: integer('telegram_user_id').notNull(),
+    kind: text('kind', { enum: ['google', 'ics'] }).notNull(),
+    /** Google refresh token, AES-256-GCM. Never log or return. */
+    tokenEncrypted: text('token_encrypted'),
+    /** ICS secret address, AES-256-GCM. Never log or return. */
+    icsUrlEncrypted: text('ics_url_encrypted'),
+    lastSyncAt: text('last_sync_at'),
+    lastError: text('last_error'),
+    createdAt: text('created_at').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.telegramUserId, t.kind] })],
+);
+
+/** When someone is busy. Never titles, locations, or attendees. */
+export const busyBlocks = sqliteTable('busy_blocks', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  telegramUserId: integer('telegram_user_id').notNull(),
+  startAt: text('start_at').notNull(),
+  endAt: text('end_at').notNull(),
+  source: text('source', { enum: ['google', 'ics', 'canvas'] }).notNull(),
+});
+
+export type UserMemory = typeof userMemory.$inferSelect;
+export type UserPrefs = typeof userPrefs.$inferSelect;
+export type BusyBlock = typeof busyBlocks.$inferSelect;
+
+/** Cubbie (iMessage) links. Only the sha256 of the token is stored; the raw token lives in the student's Cubbie sandbox. */
+export const cubbieLinks = sqliteTable('cubbie_links', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  telegramUserId: integer('telegram_user_id').notNull(),
+  tokenHash: text('token_hash').notNull().unique(),
+  createdAt: text('created_at').notNull(),
+  lastUsedAt: text('last_used_at'),
+  revokedAt: text('revoked_at'),
+});
+
+export type CubbieLink = typeof cubbieLinks.$inferSelect;

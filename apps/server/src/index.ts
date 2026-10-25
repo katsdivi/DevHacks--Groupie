@@ -1,3 +1,7 @@
+import { startAvailDeadlines } from './bot/schedule.ts';
+import { googleCallbackRouter } from './routes/googleCallback.ts';
+import { startReminderScheduler } from './reminders.ts';
+import { startCalendarSync } from './calendarSync.ts';
 import express from 'express';
 import path from 'node:path';
 import fs from 'node:fs';
@@ -16,6 +20,7 @@ import { listMembers } from './members.ts';
 import { signLinkToken } from './linkToken.ts';
 import { progressPreviewHtml, renderProgressPng, startWeeklyCheckins } from './bot/checkin.ts';
 import { cubbieImportRouter } from './canvas/routes.ts';
+import { cubbieLinkRouter } from './canvas/link.ts';
 import { startFeedPoller } from './canvas/poller.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -24,7 +29,7 @@ const webDist = path.resolve(here, '../../web/dist');
 const app = express();
 // The Cubbie import is signed over its raw body and may carry attachments, so it gets its own parser.
 app.use(
-  '/api/cubbie/import',
+  ['/api/cubbie/import', '/api/cubbie/link'],
   express.json({
     limit: '16mb',
     verify: (req, _res, buf) => {
@@ -41,6 +46,9 @@ app.get('/health', (_req, res) => {
 
 // Public: the Cubbie Skill has no Telegram login. The pair code and signature gate it.
 app.use('/api/cubbie/import', cubbieImportRouter);
+// Public: the iMessage link and status. A signed single-use code, then a bearer token, gate them.
+app.use('/api/cubbie', cubbieLinkRouter);
+app.use('/api', googleCallbackRouter);
 app.use('/api', api);
 
 if (env.devMode) {
@@ -56,7 +64,7 @@ if (env.devMode) {
     res.type('html').send(splitCardHtml(splitCardData(view)));
   });
 
-  // Signed browser links to each member's availability page (for email, Track 1).
+  // Signed browser links to each member's availability page (for teammates not on Telegram).
   app.get('/dev/links', (req, res) => {
     const group = getGroup(Number(req.query.group));
     if (!group) return void res.status(404).type('text').send('Unknown group. See /dev/state for ids.');
@@ -111,6 +119,9 @@ app.listen(env.port, (err) => {
   if (err) throw err;
   console.log(`Groupie listening on port ${env.port}`);
   startFeedPoller();
+  startReminderScheduler();
+  startCalendarSync();
+  startAvailDeadlines();
   startBot().catch((err) => console.error('Bot failed to start', err));
 });
 
@@ -120,12 +131,16 @@ async function startBot() {
     return;
   }
   await bot.api.setMyCommands([
+    { command: 'help', description: 'Everything I can do' },
     { command: 'app', description: 'Open Groupie' },
     { command: 'setup', description: 'Set team size and get started' },
     { command: 'join', description: 'Show who has joined' },
     { command: 'split', description: 'Show the fair split' },
     { command: 'canvas', description: 'Import the assignment from Canvas via Cubbie' },
+    { command: 'imessage', description: 'Link your iMessage (Cubbie) to Groupie' },
+    { command: 'unlink', description: 'Disconnect your iMessage from Groupie' },
     { command: 'avail', description: 'When is everyone free?' },
+    { command: 'deadline', description: 'Pick times automatically after 24h or 48h' },
     { command: 'meetlink', description: 'Set the meeting link or place' },
     { command: 'checkin', description: 'How is everyone doing?' },
     { command: 'progress', description: 'Show the progress card' },

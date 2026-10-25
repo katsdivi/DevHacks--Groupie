@@ -56,6 +56,15 @@ Without keys, Groupie still shares the meeting: a card with the join link, an "A
 3. Run `pnpm google:auth` and click Allow. It saves `GOOGLE_REFRESH_TOKEN` to `.env`.
 4. Set all three on Railway.
 
+## Personal calendars, busy times only (optional)
+
+Each person can connect their own calendar in the Mini App (Connect your calendar). Groupie stores only start and end times for the next 14 days, never titles, and syncs every 30 minutes. Canvas timed events (not due dates) count too, as one hour blocks.
+
+- Calendar link (ICS): works with no extra setup beyond `FEED_ENCRYPTION_KEY`. Apple iCloud public links (`webcal://`), Outlook published ICS links, and Google's Secret address in iCal format. Links are encrypted at rest and never logged or returned.
+- Google sign in: needs a separate OAuth client of type Web application (the team client above is a Desktop client). Authorized redirect URI `PUBLIC_URL/api/google/callback`, scope `https://www.googleapis.com/auth/calendar.freebusy` only. Set `GOOGLE_USER_CLIENT_ID` and `GOOGLE_USER_CLIENT_SECRET` (plus `PUBLIC_URL`, `LINK_SIGNING_SECRET`, `FEED_ENCRYPTION_KEY`). Without them the Google option is hidden. While the consent screen is in testing mode, add every teammate's Google email as a test user, and note that refresh tokens expire after 7 days (they reconnect from the Mini App).
+
+Code: `apps/server/src/calendarSync.ts`, `busy.ts`, `googleUser.ts`, `icsBusy.ts`, `routes/calendar.ts`, `routes/googleCallback.ts`.
+
 ## Canvas via Cubbie (optional)
 
 - `CUBBIE_PUBLIC_SIGNING_KEY` (renamed from `CUBBIE_HMAC_SECRET`): signs `POST /api/cubbie/import`. Make it with `openssl rand -hex 32`. Empty means every import is refused with 503.
@@ -63,7 +72,15 @@ Without keys, Groupie still shares the meeting: a card with the join link, an "A
 
 The feed poller starts with the server and checks each feed every 30 minutes. Code lives in `apps/server/src/canvas/`.
 
+Inspect production, read-only: `pnpm canvas:inspect [N]` (latest imports: status, rubric, attachment kinds and sizes, never the text) and `pnpm feed:inspect <telegram_user_id>` (calendar item stats, never the feed link). Both accept `--local <db>` for a backup copy. They use the app's `better-sqlite3` in read-only mode because the container has no `sqlite3` CLI. What Cubbie can and cannot do, with live evidence: `docs/CUBBIE_CAPABILITIES.md`.
+
 The signing key is public by design. Cubbie cannot host team keys, so the value ships inside the public Skill (as `GROUPIE_SIGNING_KEY` in `cubbie-skill/scripts/send.py`) and anyone can read it. It is integrity and spam friction only; single-use, 15 minute pair codes plus rate limits are the real protection. Never reuse another secret for it: the server refuses to start if `CUBBIE_PUBLIC_SIGNING_KEY` equals `FEED_ENCRYPTION_KEY`, `BOT_TOKEN`, `WEBHOOK_SECRET`, `LINK_SIGNING_SECRET`, `GROQ_API_KEY`, `GOOGLE_CLIENT_SECRET` or `GOOGLE_REFRESH_TOKEN`, or if `FEED_ENCRYPTION_KEY` equals any of the others.
+
+## Personal agents
+
+- `GOOGLE_USER_CLIENT_ID`, `GOOGLE_USER_CLIENT_SECRET`: optional per-user Google free/busy. Create a **Web application** OAuth client with redirect URI `PUBLIC_URL/api/google/callback` and scope `calendar.freebusy`. In Google testing mode each teammate's Gmail must be a test user, and tokens expire after 7 days. Without these, students connect with a calendar link (ICS) instead.
+- `PREFILL_START_HOUR`, `PREFILL_END_HOUR`: the hours the availability grid treats as reasonable when prefilling (default 8 and 22).
+- Background jobs started with the server: reminders (15 min), calendar sync (30 min), availability deadlines (5 min), feed poller (30 min), weekly check-in.
 
 ## Deploy
 

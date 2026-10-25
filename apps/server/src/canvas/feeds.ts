@@ -1,4 +1,4 @@
-import { and, asc, eq, gte, isNull } from 'drizzle-orm';
+import { and, asc, eq, gte, isNull, notLike } from 'drizzle-orm';
 import type { FeedEvent, FeedStatusResponse } from '@groupie/shared';
 import { db, schema } from '../db/index.ts';
 import { encryptSecret } from './crypto.ts';
@@ -49,11 +49,13 @@ export function saveFeed(telegramUserId: number, feedUrl: string, now = new Date
     .run();
 }
 
-/** Disconnects the feed and forgets its events. */
+/** Disconnects the feed and forgets its events (Cubbie imports are kept: they did not come from the feed). */
 export function deleteFeed(telegramUserId: number) {
   db.transaction((tx) => {
     tx.delete(calendarFeeds).where(eq(calendarFeeds.telegramUserId, telegramUserId)).run();
-    tx.delete(calendarEvents).where(eq(calendarEvents.telegramUserId, telegramUserId)).run();
+    tx.delete(calendarEvents)
+      .where(and(eq(calendarEvents.telegramUserId, telegramUserId), notLike(calendarEvents.uid, 'cubbie-import-%')))
+      .run();
   });
 }
 

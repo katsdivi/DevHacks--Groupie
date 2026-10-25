@@ -14,7 +14,7 @@ import {
 } from '@groupie/shared';
 import { api, ApiError } from '../api.ts';
 import { haptic, tg } from '../telegram.ts';
-import { AvailabilityGrid, buildCells, type Heat } from '../components/AvailabilityGrid.tsx';
+import { AvailabilityGrid, buildCells, BUSY_BG, BUSY_BG_SIZE, PREFILL_OPACITY, type Heat } from '../components/AvailabilityGrid.tsx';
 import { AvailabilitySkeleton } from '../components/Skeleton.tsx';
 import { Header } from '../components/Header.tsx';
 import { Message } from '../components/Message.tsx';
@@ -210,10 +210,28 @@ function Board({ data, standalone }: { data: AvailabilityMeResponse; standalone:
   const grid = useMemo(() => buildGrid(tz, new Date(now)), [tz, now]);
   const cells = useMemo(() => buildCells(grid, now), [grid, now]);
 
-  const selRef = useRef<Set<string>>(
-    new Set(data.slots.map((s) => normalizeSlot(s)).filter((s): s is string => Boolean(s))),
+  const prefill = data.prefill?.prefilled ? data.prefill : undefined;
+  const busy = useMemo(
+    () => new Set((prefill?.busy_slots ?? []).map((s) => normalizeSlot(s)).filter((s): s is string => Boolean(s))),
+    [prefill],
   );
+  // Nothing saved yet and a calendar is connected: start from every free future slot in reasonable hours.
+  const [initial] = useState(() => {
+    const saved = data.slots.map((s) => normalizeSlot(s)).filter((s): s is string => Boolean(s));
+    if (saved.length || !prefill) return { slots: new Set(saved), fromCal: new Set<string>() };
+    const picked = new Set<string>();
+    for (const col of cells)
+      for (const c of col) {
+        const hour = grid.rows[c.r].hour;
+        if (!c.past && hour >= prefill.hours.start && hour < prefill.hours.end && !busy.has(c.slot)) picked.add(c.slot);
+      }
+    return { slots: picked, fromCal: new Set(picked) };
+  });
+  const selRef = useRef<Set<string>>(initial.slots);
   const [selected, setSelected] = useState(selRef.current);
+  const [fromCal, setFromCal] = useState(initial.fromCal);
+  /** The prefill is on screen but not saved yet (until Looks right or the first edit). */
+  const [prefillPending, setPrefillPending] = useState(() => Boolean(prefill) && data.slots.length === 0);
   const [view, setView] = useState<View>('mine');
   const [counts, setCounts] = useState<Counts | null>(null);
   const [heat, setHeat] = useState<HeatmapResponse | null>(null);
@@ -245,10 +263,24 @@ function Board({ data, standalone }: { data: AvailabilityMeResponse; standalone:
       }
       selRef.current = next;
       setSelected(next);
+      setFromCal((prev) => {
+        if (!slots.some((s) => prev.has(s))) return prev;
+        const rest = new Set(prev);
+        for (const s of slots) rest.delete(s);
+        return rest;
+      });
+      setPrefillPending(false);
       changed();
     },
     [changed],
   );
+
+  const confirmPrefill = () => {
+    haptic.tap();
+    setPrefillPending(false);
+    changed();
+    void flush();
+  };
 
   // Group view: flush my latest edits first so the heatmap includes them.
   useEffect(() => {
@@ -284,19 +316,19 @@ function Board({ data, standalone }: { data: AvailabilityMeResponse; standalone:
     return {
       count: (slot: string) => {
         const ids = heat.slots[slot] ?? [];
-        // My own column always reflects what I see locally.
-        return ids.filter((id) => id !== member.id).length + (selected.has(slot) ? 1 : 0);
+        // My own column always reflects what I see locally (an unconfirmed prefill does not count yet).
+        return ids.filter((id) => id !== member.id).length + (!prefillPending && selected.has(slot) ? 1 : 0);
       },
       max: Math.max(heat.team_size, heat.members.length, 1),
       best,
       bestSpan: MEETING_SLOTS,
       picked,
     };
-  }, [heat, member.id, selected, picked]);
+  }, [heat, member.id, selected, picked, prefillPending]);
 
   const freeAt = (slot: string) => {
     const ids = new Set((heat?.slots[slot] ?? []).filter((id) => id !== member.id));
-    if (selected.has(slot)) ids.add(member.id);
+    if (!prefillPending && selected.has(slot)) ids.add(member.id);
     return ids;
   };
 
@@ -341,6 +373,13 @@ function Board({ data, standalone }: { data: AvailabilityMeResponse; standalone:
           <SavePill state={save.state} onRetry={() => void save.flush()} />
         </div>
 
+        {view === 'mine' && prefill && (
+          <>
+            {prefillPending && <PrefillBanner onConfirm={confirmPrefill} />}
+            <PrefillLegend color={member.color} />
+          </>
+        )}
+
         {view === 'group' && (
           <BestCard heat={heat} error={heatError} onRetry={() => setHeatAttempt((a) => a + 1)} nick={nick} />
         )}
@@ -357,6 +396,8 @@ function Board({ data, standalone }: { data: AvailabilityMeResponse; standalone:
           heat={view === 'group' ? heatView : null}
           onPaint={paint}
           onPick={onPick}
+          busy={prefill ? busy : undefined}
+          fromCal={fromCal}
         />
       </div>
 
@@ -386,7 +427,7 @@ function Board({ data, standalone }: { data: AvailabilityMeResponse; standalone:
             </p>
           </div>
         ) : (
-          heat && <Roster heat={heat} selfId={member.id} selfResponded={selected.size > 0} />
+          heat && <Roster heat={heat} selfId={member.id} selfResponded={!prefillPending && selected.size > 0} />
         )}
       </div>
 
@@ -441,6 +482,43 @@ function Segmented({ view, onChange, color }: { view: View; onChange: (v: View) 
           </button>
         );
       })}
+    </div>
+  );
+}
+
+function PrefillBanner({ onConfirm }: { onConfirm: () => void }) {
+  return (
+    <section
+      className="mt-4 flex animate-enter items-center justify-between gap-3 rounded-3xl border p-4"
+      style={{ borderColor: `${LIME}55`, background: `linear-gradient(135deg, ${LIME}12, transparent 65%)` }}
+    >
+      <p className="min-w-0 text-[14px] leading-snug">
+        We filled this from your calendar. Fix anything that's off, then tap Looks right.
+      </p>
+      <button
+        onClick={onConfirm}
+        className="shrink-0 rounded-full bg-text px-4 py-2.5 text-[14px] font-semibold text-ink active:scale-[0.98]"
+      >
+        Looks right
+      </button>
+    </section>
+  );
+}
+
+function PrefillLegend({ color }: { color: string }) {
+  return (
+    <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[12px] text-muted">
+      <span className="inline-flex items-center gap-1.5">
+        <span
+          className="h-3 w-3 rounded-[3px] border border-line"
+          style={{ backgroundImage: BUSY_BG, backgroundSize: BUSY_BG_SIZE, backgroundColor: 'rgba(255,255,255,0.025)' }}
+        />
+        Busy on your calendar
+      </span>
+      <span className="inline-flex items-center gap-1.5">
+        <span className="h-3 w-3 rounded-[3px]" style={{ background: color, opacity: PREFILL_OPACITY }} />
+        Filled from your calendar
+      </span>
     </div>
   );
 }
