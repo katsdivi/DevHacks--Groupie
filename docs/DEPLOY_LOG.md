@@ -32,3 +32,12 @@
 - **Backup:** `backups/pre-step18-import-fixes-20261024-2154.db`, integrity ok, user_version 9, groups=2 members=0 tasks=0.
 - **Migrations in this deploy:** 10 (`dm_messages`), 11 (`groups.canvas_import_id, canvas_file_at, assignment_file_id/name/mime`), 12 (`groups.assignment_text`). Additive only. Rehearsed on a copy of the backup: 9 to 12, integrity ok, `dm_messages` and all new columns present.
 - **Rollback:** `git revert -m 1 <merge sha> && git push`, then confirm `/health`. The new columns and table are additive, so old code runs on the migrated DB. Restore the DB only after asking Divyam.
+- **Deployed:** merge `b25e53d`, Railway SUCCESS, boot clean, `user_version` 12, integrity ok, webhook set. Smoke tests pass: `/health`; signed import requests return `bad_signature` 401, `code_unknown` 404, `invalid_payload` 400 (broken JSON and bad shape), `payload_too_large` 413 JSON (16 MB), all with a requestId; pair code without auth 401; production `CUBBIE_PUBLIC_SIGNING_KEY` hash equals the published Skill's embedded key. Restart test: a DM saved at 05:04:56Z, then `railway redeploy`, SUCCESS by 05:06Z (phone check of the answer pending). First real Cubbie import after the fix: import 3 at 05:08Z, imported.
+- **Skill republished:** `katsdivi/groupie-cubbie-skill` commit `e79584b` (groupie-import v2). gitleaks clean, `.env` values absent (only the public bot username), embedded key matches production by hash.
+
+## Canvas UX: instant /canvas, linked imports, one-tap iMessage (2026-10-24)
+
+- **Rollback point (main before merge):** `b25e53d` ("Merge step 18 and import fixes").
+- **Backup:** `backups/pre-canvas-ux-20261024-2246.db`, integrity ok, user_version 12, groups=2 tasks=12.
+- **Migrations:** none. New endpoint `POST /api/cubbie/import/linked`, page `GET /go/cubbie`, env `CUBBIE_HANDLE` (optional).
+- **Rollback:** `git revert -m 1 <merge sha> && git push`, then `/health`.
