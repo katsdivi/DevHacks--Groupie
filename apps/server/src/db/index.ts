@@ -210,6 +210,12 @@ const MIGRATIONS = [
      created_at TEXT NOT NULL
    );
    CREATE INDEX dm_messages_user ON dm_messages(telegram_user_id, id);`,
+  // import-fixes: which Cubbie import gave the group its assignment, when a dropped file was attached, and the assignment's Telegram file.
+  `ALTER TABLE groups ADD COLUMN canvas_import_id INTEGER;
+   ALTER TABLE groups ADD COLUMN canvas_file_at TEXT;
+   ALTER TABLE groups ADD COLUMN assignment_file_id TEXT;
+   ALTER TABLE groups ADD COLUMN assignment_file_name TEXT;
+   ALTER TABLE groups ADD COLUMN assignment_file_mime TEXT;`,
 ];
 
 export function openDb(file: string) {

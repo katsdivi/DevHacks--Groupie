@@ -1,4 +1,4 @@
-import { Router, type Request, type Response } from 'express';
+import { Router, type ErrorRequestHandler, type Request, type Response } from 'express';
 import {
   CUBBIE_SIGNATURE_HEADER,
   FeedPutRequest,
@@ -13,7 +13,7 @@ import { isGroupMember, tgUser } from '../auth.ts';
 import { getGroup } from '../groups.ts';
 import { feedKey } from './crypto.ts';
 import { deleteFeed, feedStatus, saveFeed, upcomingEvents } from './feeds.ts';
-import { handleImport, takeRateLimit } from './importer.ts';
+import { handleImport, importError, IMPORT_MESSAGES, newRequestId, takeRateLimit } from './importer.ts';
 import { createPairCode, getPairCode, pairCodeStatus } from './pairCodes.ts';
 import { pollFeed } from './poller.ts';
 
@@ -139,8 +139,29 @@ export function clientIp(req: Request): string {
 /** Public: POST /api/cubbie/import. Mount before the authed `/api` router. Needs the raw body parser. */
 export const cubbieImportRouter = Router();
 
+/** Railway's per-request id, else a random one. Shown in every import error body and log line. */
+const importRequestId = (req: Request) => req.header('x-railway-request-id')?.slice(0, 64) || newRequestId();
+
 cubbieImportRouter.post('/', async (req, res) => {
   const raw = (req as unknown as { rawBody?: Buffer }).rawBody;
-  const reply = await handleImport(raw, req.header(CUBBIE_SIGNATURE_HEADER), clientIp(req));
+  const reply = await handleImport(raw, req.header(CUBBIE_SIGNATURE_HEADER), clientIp(req), { requestId: importRequestId(req) });
   res.status(reply.status).json(reply.body);
 });
+
+/**
+ * Mount right after `cubbieImportRouter`: the body parser runs before the router, so its errors (body over
+ * the limit, broken JSON) skip the router and land here. Answers in the same `{ error, message, requestId }` shape.
+ */
+export const cubbieImportErrors: ErrorRequestHandler = (err: { type?: string }, req, res, next) => {
+  if (res.headersSent) return next(err);
+  const id = importRequestId(req);
+  const reply =
+    err?.type === 'entity.too.large'
+      ? importError(id, 'payload_too_large', IMPORT_MESSAGES.tooLarge)
+      : err?.type === 'entity.parse.failed' || err?.type === 'encoding.unsupported' || err?.type === 'charset.unsupported'
+        ? importError(id, 'invalid_payload', IMPORT_MESSAGES.notJson, err.type)
+        : importError(id, 'server_error', IMPORT_MESSAGES.serverError, err?.type ?? 'unexpected');
+  // The parser may stop reading a big body early; drain it so the client sees the answer, not a reset.
+  req.resume();
+  res.status(reply.status).set('connection', 'close').json(reply.body);
+};
