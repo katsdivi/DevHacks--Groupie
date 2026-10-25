@@ -13,7 +13,9 @@
     "typecheck": "pnpm -r typecheck",
     "lint": "eslint .",
     "test": "pnpm -r test",
-    "google:auth": "pnpm --filter @groupie/server google:auth"
+    "google:auth": "pnpm --filter @groupie/server google:auth",
+    "canvas:inspect": "scripts/inspect-imports.sh",
+    "feed:inspect": "scripts/inspect-feed.sh"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
