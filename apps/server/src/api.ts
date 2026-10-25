@@ -153,7 +153,7 @@ api.patch('/groups/:id/members/me/workload', async (req, res) => {
   if (!group) return;
   const parsed = WorkloadRequest.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: 'bad_workload', message: 'Send shareWorkload as true or false.' });
+    res.status(400).json({ error: 'bad_workload', message: 'Something went wrong saving that. Try the switch again?' });
     return;
   }
   const me = getMemberByTgUser(group.id, tgUser(res).id);

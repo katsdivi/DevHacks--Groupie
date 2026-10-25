@@ -4,6 +4,7 @@ import { api, ApiError } from '../api.ts';
 import { haptic } from '../telegram.ts';
 import { useMainButton } from '../useMainButton.ts';
 import { DmStart } from '../components/DmStart.tsx';
+import { ClearChatCard } from '../components/ClearChatCard.tsx';
 
 export function Settings({ me, onRenamed }: { me: MeResponse; onRenamed: (nickname: string) => void }) {
   const [value, setValue] = useState(me.group.nickname);
@@ -65,7 +66,7 @@ export function Settings({ me, onRenamed }: { me: MeResponse; onRenamed: (nickna
         </button>
       )}
       <Reminders />
-      {/* ClearChatCard goes here */}
+      <ClearChatCard nickname={me.group.nickname} />
     </div>
   );
 }

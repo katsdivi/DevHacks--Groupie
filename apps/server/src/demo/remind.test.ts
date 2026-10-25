@@ -31,7 +31,7 @@ describe('demo remind', () => {
     expect(res.sent).toBe(true);
     expect(sent).toHaveLength(1);
     expect(sent[0]!.userId).toBe(PRESENTER);
-    expect(sent[0]!.text).toContain('Heads up: 1 thing due soon');
+    expect(sent[0]!.text).toContain('Heads up! 1 thing due soon:');
     expect(sent[0]!.text).toContain(SOON_ITEM);
     expect(sent[0]!.text).toContain('in 3 h');
     // REAL2 also has reminders on but was not asked for.

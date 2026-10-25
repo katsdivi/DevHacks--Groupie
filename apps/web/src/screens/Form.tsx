@@ -90,7 +90,7 @@ export function Form({ me, onSaved }: Props) {
   }, [done, name, email, skills, weak, me.group.id, onSaved]);
 
   const native = useMainButton({
-    text: done ? 'Back to the group' : existing ? 'Save my details' : 'Join the team',
+    text: done ? 'Back to the group' : existing ? 'Save my details' : 'Add my details',
     onClick: submit,
     enabled: done ? true : valid,
     loading: saving,
@@ -180,7 +180,7 @@ export function Form({ me, onSaved }: Props) {
           disabled={!valid || saving}
           className="mt-10 w-full rounded-full bg-text py-4 text-[16px] font-semibold text-ink disabled:bg-line disabled:text-muted"
         >
-          {saving ? 'Saving...' : existing ? 'Save my details' : 'Join the team'}
+          {saving ? 'Saving...' : existing ? 'Save my details' : 'Add my details'}
         </button>
       )}
     </form>

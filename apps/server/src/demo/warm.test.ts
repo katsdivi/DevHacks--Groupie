@@ -37,7 +37,8 @@ describe('demo warm', () => {
     // The self question's private part went to the stub, not Telegram.
     expect(res.stubbedTelegramCalls).toBe(1);
     expect(res.steps[1]!.reply).toContain('Sent you the rest in DM.');
-    // 4 group LLM questions (self needs 2 calls) plus the DM.
-    expect(vi.mocked(talk)).toHaveBeenCalledTimes(6);
+    expect(res.steps[2]!.reply).toBe('Nice try. I only talk about this project in here.');
+    // Grades and the injection are deterministic; 3 LLM questions (self needs 2 calls) plus the DM.
+    expect(vi.mocked(talk)).toHaveBeenCalledTimes(5);
   });
 });

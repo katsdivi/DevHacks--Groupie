@@ -146,6 +146,7 @@ async function startBot() {
     { command: 'progress', description: 'Show the progress card' },
     { command: 'settings', description: 'Group settings' },
     { command: 'rename', description: 'Give me a new name' },
+    { command: 'forgetchat', description: 'Wipe our private chat' },
   ]);
   startWeeklyCheckins();
   if (env.botMode === 'webhook') {

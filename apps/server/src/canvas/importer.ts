@@ -124,23 +124,24 @@ export async function handleImport(rawBody: Buffer | undefined, signature: strin
   try {
     json = JSON.parse(rawBody.toString('utf8'));
   } catch {
-    return fail(400, 'bad_payload', 'Body is not JSON.');
+    return fail(400, 'bad_payload', "Groupie couldn't read that request. Try again?");
   }
   const parsed = CubbieImportPayload.safeParse(json);
   if (!parsed.success) {
     const issue = parsed.error.issues[0];
-    return fail(400, 'bad_payload', issue ? `${issue.path.join('.') || 'body'}: ${issue.message}` : 'Invalid payload.');
+    if (issue) console.warn(`[import] rejected: ${issue.path.join('.') || 'body'}: ${issue.message}`);
+    return fail(400, 'bad_payload', "Groupie couldn't read this assignment. Try sending it again?");
   }
   const p = parsed.data;
 
   if (!takeRateLimit(`ip:${ip}`, IMPORT_RATE_LIMIT.perIpPerHour)) return RATE_LIMITED();
   const pc = getPairCode(p.pairCode);
   // A link code is not an import code; it looks the same as a missing one.
-  if (!pc || pc.purpose !== 'import') return fail(404, 'unknown_code', 'That pair code does not exist. Make a new one in Groupie.');
+  if (!pc || pc.purpose !== 'import') return fail(404, 'unknown_code', 'That code does not exist. Tap Get my code in Groupie for a new one.');
   if (!takeRateLimit(`user:${pc.telegramUserId}`, IMPORT_RATE_LIMIT.perUserPerHour)) return RATE_LIMITED();
   const now = opts.now ?? new Date();
-  if (pc.usedAt) return fail(409, 'code_used', 'That pair code was already used. Make a new one in Groupie.');
-  if (pc.expiresAt <= now.toISOString()) return fail(409, 'code_expired', 'That pair code expired. Make a new one in Groupie.');
+  if (pc.usedAt) return fail(409, 'code_used', 'That code was already used. Tap Get my code in Groupie for a new one.');
+  if (pc.expiresAt <= now.toISOString()) return fail(409, 'code_expired', 'That code expired. Tap Get my code in Groupie for a new one.');
 
   const group = pc.groupChatId != null ? getGroup(pc.groupChatId) : undefined;
   if (group && !expectingAssignment(group)) {
@@ -150,8 +151,8 @@ export async function handleImport(rawBody: Buffer | undefined, signature: strin
   if (!claimPairCode(pc.code, now)) {
     const again = getPairCode(pc.code);
     return again?.usedAt
-      ? fail(409, 'code_used', 'That pair code was already used. Make a new one in Groupie.')
-      : fail(409, 'code_expired', 'That pair code expired. Make a new one in Groupie.');
+      ? fail(409, 'code_used', 'That code was already used. Tap Get my code in Groupie for a new one.')
+      : fail(409, 'code_expired', 'That code expired. Tap Get my code in Groupie for a new one.');
   }
 
   const importId = db
