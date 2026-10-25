@@ -151,7 +151,7 @@ export function Upcoming({ me, go }: Props) {
         setNow(Date.now());
         setData({ status, events: up.events });
       })
-      .catch((e) => live && setError(e instanceof ApiError ? e.message : 'Could not reach Groupie. Try again in a sec?'));
+      .catch((e) => live && setError(e instanceof ApiError ? e.message : `Could not reach ${nick}. Try again in a sec?`));
     return () => {
       live = false;
     };
@@ -200,7 +200,7 @@ export function Upcoming({ me, go }: Props) {
     return (
       <Empty
         icon="◷"
-        title="Connect your calendar"
+        title="Connect Canvas"
         body={`Paste your Canvas calendar link once and ${nick} lists everything you have due, across every course.`}
         action={{ label: 'Connect Canvas', onClick: () => go('canvas') }}
       />

@@ -5,6 +5,7 @@ import { db, schema } from '../db/index.ts';
 import { bot } from '../bot/core.ts';
 import { html } from '../bot/format.ts';
 import { parseAssignment } from '../parse.ts';
+import { PLAN_FAILED, PLAN_INTRO, PLAN_NO_DUE, PLAN_SAVED } from '../copy.ts';
 
 /**
  * Personal Canvas import: a code made in a private chat (no group). The assignment becomes a step-by-step
@@ -67,19 +68,17 @@ export function personalPlanText(p: CubbieImportPayload, plan: ParsedAssignment 
   ].filter(Boolean);
   const lines = [`<b>${html(a.title)}</b>`, html(p.course.name), facts.join(' · '), ''];
   if (plan) {
-    lines.push('Your plan, step by step:');
+    lines.push(PLAN_INTRO);
     plan.tasks.forEach((t, i) => {
       lines.push(`${i + 1}. ${html(t.title)} <i>(${t.effort} pt, ${EFFORT_LABEL[t.effort] ?? 'some time'})</i>`);
       if (t.description) lines.push(`   ${html(t.description)}`);
     });
   } else {
-    lines.push("I couldn't turn this one into steps. Ask me about it here, or open it in Canvas.");
+    lines.push(PLAN_FAILED);
   }
   lines.push('');
   lines.push(
-    calendarSaved
-      ? "It's in your Upcoming list, and I'll remind you before it's due."
-      : "Canvas has no due date for this one, so I didn't add it to your Upcoming list.",
+    calendarSaved ? PLAN_SAVED : PLAN_NO_DUE,
   );
   if (a.url) lines.push(a.url);
   return lines.join('\n');

@@ -207,7 +207,7 @@ export function Progress({ me, go }: Props) {
         setData(res);
       })
       .catch((e) => {
-        if (live) setLoadError(e instanceof ApiError ? e.message : 'Could not reach Groupie. Try again in a sec?');
+        if (live) setLoadError(e instanceof ApiError ? e.message : `Could not reach ${nick}. Try again in a sec?`);
       });
     return () => {
       live = false;
@@ -293,7 +293,7 @@ export function Progress({ me, go }: Props) {
       <Blocked
         icon="✦"
         title="Add your details first"
-        body={`${nick} tracks progress per person. Join the group project and your tasks show up here.`}
+        body={`${nick} tracks progress per person. Add your details and your tasks show up here.`}
         action={{ label: 'Add my details', onClick: () => go('form') }}
       />
     );

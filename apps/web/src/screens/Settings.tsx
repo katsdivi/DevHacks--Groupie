@@ -65,6 +65,7 @@ export function Settings({ me, onRenamed }: { me: MeResponse; onRenamed: (nickna
         </button>
       )}
       <Reminders />
+      {/* ClearChatCard goes here */}
     </div>
   );
 }

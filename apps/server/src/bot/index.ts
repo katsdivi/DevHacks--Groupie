@@ -30,8 +30,32 @@ import { appButton, appUrl, bot } from './core.ts';
 import { postJoinStatus, refreshJoinStatus } from './joinStatus.ts';
 import { seedMembers } from '../members.ts';
 import { setCanDm } from '../prefs.ts';
+import {
+  alreadySetUp,
+  appText,
+  askAssignmentText,
+  askNameText,
+  askSizeText as askSizeCopy,
+  BAD_NAME,
+  BUTTON,
+  GROUP_ONLY,
+  joinTooEarly,
+  KEPT_TOAST,
+  namedText,
+  REMINDERS_READY,
+  renameText,
+  RESET_DONE,
+  SEED_TOO_EARLY,
+  seededText,
+  settingsText,
+  SIZE_LOCKED,
+  sizeHereLabel,
+  sizeToast,
+  WELCOME,
+  WELCOME_KEPT,
+} from '../copy.ts';
 
-export const REMINDERS_READY = "You're set. I'll DM you reminders before things are due. Change them in Settings.";
+export { REMINDERS_READY, renameText };
 
 export { bot, appUrl };
 
@@ -50,8 +74,6 @@ export const ALLOWED_UPDATES = ['message', 'callback_query', 'my_chat_member', '
 const mention = (id: number, name: string) => `<a href="tg://user?id=${id}">${html(name)}</a>`;
 
 
-export const renameText = (name: string) => `New name, who dis. I'm ${html(name)} now.`;
-
 export async function announceRename(groupId: number, name: string) {
   await bot.api.sendMessage(groupId, renameText(name), { parse_mode: 'HTML' });
 }
@@ -65,8 +87,8 @@ function groupFromCtx(ctx: Context) {
 
 async function sendWelcome(ctx: Context) {
   await ctx.reply(
-    "Hey, I'm Groupie, your group project's biggest fan. Want to give me a nickname for this group?",
-    { reply_markup: new InlineKeyboard().text('Name me', 'nick:name').text('Keep Groupie', 'nick:keep') },
+    WELCOME,
+    { reply_markup: new InlineKeyboard().text(BUTTON.nameMe, 'nick:name').text(BUTTON.keepName, 'nick:keep') },
   );
 }
 
@@ -87,15 +109,14 @@ async function peopleInChat(chatId: number): Promise<number | null> {
 export function sizeKeyboard(here: number | null) {
   const kb = new InlineKeyboard();
   const hereOk = here !== null && TEAM_SIZES.includes(here);
-  if (hereOk) kb.text(`${here} (everyone here)`, `size:${here}`).row();
+  if (hereOk) kb.text(sizeHereLabel(here), `size:${here}`).row();
   for (const n of BASE_SIZES) if (!(hereOk && n === here)) kb.text(String(n), `size:${n}`);
   return kb;
 }
 
-const askSizeText = (g: Group) => `<b>${html(g.nickname)} here.</b> How many people are on this project?`;
+const askSizeText = (g: Group) => askSizeCopy(g.nickname);
 const askSizeKeyboard = async (chatId: number) => sizeKeyboard(await peopleInChat(chatId));
-const askPdfText = (g: Group) =>
-  `<b>Team of ${g.teamSize}.</b> Love that for us.\n\nNow drop the assignment file in this chat (PDF, Word, slides) or send /canvas to pull it straight from Canvas, and I'll turn it into tasks with effort points.`;
+const askPdfText = (g: Group) => askAssignmentText(g.teamSize ?? 0);
 
 /** Posts the setup prompt and remembers it so later steps can edit it in place. */
 async function sendSetupPrompt(ctx: Context) {
@@ -113,7 +134,7 @@ async function continueToSetup(ctx: Context) {
 async function askForName(ctx: Context, kind: 'nickname' | 'rename') {
   const user = ctx.from!;
   setPending(ctx.chat!.id, user.id, kind);
-  await ctx.reply(`${mention(user.id, user.first_name)}, reply with my new name.`, {
+  await ctx.reply(askNameText(mention(user.id, user.first_name)), {
     parse_mode: 'HTML',
     reply_markup: { force_reply: true, selective: true, input_field_placeholder: 'Max' },
   });
@@ -122,7 +143,7 @@ async function askForName(ctx: Context, kind: 'nickname' | 'rename') {
 async function applyName(ctx: Context, raw: string, kind: 'nickname' | 'rename') {
   const name = parseNickname(raw);
   if (!name) {
-    await ctx.reply('Hmm, I need 1 to 20 letters, numbers, spaces, or basic punctuation. Try again?', {
+    await ctx.reply(BAD_NAME, {
       reply_parameters: { message_id: ctx.msg!.message_id },
       reply_markup: { force_reply: true, selective: true, input_field_placeholder: 'Max' },
     });
@@ -130,7 +151,7 @@ async function applyName(ctx: Context, raw: string, kind: 'nickname' | 'rename')
   }
   clearPending(ctx.chat!.id, ctx.from!.id);
   setNickname(ctx.chat!.id, name);
-  await ctx.reply(kind === 'rename' ? renameText(name) : `Call me ${html(name)} from now on.`, {
+  await ctx.reply(kind === 'rename' ? renameText(name) : namedText(name), {
     parse_mode: 'HTML',
     reply_markup: appButton(ctx.chat!.id),
   });
@@ -178,7 +199,7 @@ bot.command('start', async (ctx) => {
 });
 
 /** Opens Telegram's "add to group" picker for this bot. */
-const addToGroupButton = () => new InlineKeyboard().url('Add me to a group', `https://t.me/${env.botUsername}?startgroup=true`);
+const addToGroupButton = () => new InlineKeyboard().url(BUTTON.addToGroup, `https://t.me/${env.botUsername}?startgroup=true`);
 
 bot.command('help', async (ctx) => {
   const group = isGroupChat(ctx) ? getGroup(ctx.chat.id) : undefined;
@@ -188,12 +209,11 @@ bot.command('help', async (ctx) => {
   });
 });
 
-const GROUP_ONLY = "That one works in your project group chat. Add me there and send it again!";
 
 bot.command('app', async (ctx) => {
   if (!isGroupChat(ctx)) return void (await ctx.reply(GROUP_ONLY));
   const group = groupFromCtx(ctx);
-  await ctx.reply(`${html(group.nickname)} here. Tap below to open me.`, {
+  await ctx.reply(appText(group.nickname), {
     parse_mode: 'HTML',
     reply_markup: appButton(ctx.chat.id),
   });
@@ -209,11 +229,11 @@ bot.command('rename', async (ctx) => {
 bot.command('settings', async (ctx) => {
   if (!isGroupChat(ctx)) return void (await ctx.reply(GROUP_ONLY));
   const group = groupFromCtx(ctx);
-  await ctx.reply(`<b>Settings</b>\nI go by <b>${html(group.nickname)}</b> in this group.`, {
+  await ctx.reply(settingsText(group.nickname), {
     parse_mode: 'HTML',
     reply_markup: new InlineKeyboard()
-      .text('Rename', 'nick:rename')
-      .url('Open settings', appUrl(ctx.chat.id, 'settings')),
+      .text(BUTTON.rename, 'nick:rename')
+      .url(BUTTON.settings, appUrl(ctx.chat.id, 'settings')),
   });
 });
 
@@ -229,10 +249,10 @@ bot.callbackQuery('nick:rename', async (ctx) => {
 });
 
 bot.callbackQuery('nick:keep', async (ctx) => {
-  await ctx.answerCallbackQuery({ text: 'Groupie it is!' });
+  await ctx.answerCallbackQuery({ text: KEPT_TOAST });
   groupFromCtx(ctx);
   await ctx
-    .editMessageText("Hey, I'm Groupie, your group project's biggest fan. Groupie it is, love that for us.", {
+    .editMessageText(WELCOME_KEPT, {
       reply_markup: appButton(ctx.chat!.id),
     })
     .catch(() => {});
@@ -243,7 +263,7 @@ bot.command('setup', async (ctx) => {
   if (!isGroupChat(ctx)) return void (await ctx.reply(GROUP_ONLY));
   const group = groupFromCtx(ctx);
   if (group.status !== 'setup') {
-    await ctx.reply(`${html(group.nickname)} here. We're already set up. Use /reset to start over.`, { parse_mode: 'HTML' });
+    await ctx.reply(alreadySetUp(group.nickname), { parse_mode: 'HTML' });
     return;
   }
   await sendSetupPrompt(ctx);
@@ -254,14 +274,14 @@ bot.callbackQuery(/^size:(\d)$/, async (ctx) => {
   const size = Number(ctx.match[1]);
   if (!group || !TEAM_SIZES.includes(size)) return void (await ctx.answerCallbackQuery());
   if (group.status !== 'setup') {
-    return void (await ctx.answerCallbackQuery({ text: "Team's locked in. /reset to start over.", show_alert: true }));
+    return void (await ctx.answerCallbackQuery({ text: SIZE_LOCKED, show_alert: true }));
   }
   setTeamSize(group.id, size);
   setStatusMessage(group.id, ctx.callbackQuery.message!.message_id);
-  await ctx.answerCallbackQuery({ text: `Team of ${size}!` });
+  await ctx.answerCallbackQuery({ text: sizeToast(size) });
   await ctx.editMessageText(askPdfText({ ...group, teamSize: size }), {
     parse_mode: 'HTML',
-    reply_markup: new InlineKeyboard().text('Change team size', 'size:change'),
+    reply_markup: new InlineKeyboard().text(BUTTON.changeSize, 'size:change'),
   });
 });
 
@@ -276,7 +296,7 @@ bot.command('join', async (ctx) => {
   if (!isGroupChat(ctx)) return void (await ctx.reply(GROUP_ONLY));
   const group = groupFromCtx(ctx);
   if (group.status === 'setup') {
-    await ctx.reply(`${html(group.nickname)} here. Send the assignment file first, then everyone can join.`, { parse_mode: 'HTML' });
+    await ctx.reply(joinTooEarly(group.nickname), { parse_mode: 'HTML' });
     return;
   }
   await postJoinStatus(group.id);
@@ -286,16 +306,12 @@ bot.command('seed', async (ctx) => {
   if (!isGroupChat(ctx) || !env.devMode) return;
   const group = groupFromCtx(ctx);
   if (group.status === 'setup' || !group.teamSize) {
-    await ctx.reply('Set the team size and send the assignment first, then /seed.');
+    await ctx.reply(SEED_TOO_EARLY);
     return;
   }
   const added = seedMembers(group.id, group.teamSize);
   const painted = seedAvailability(group.id);
-  await ctx.reply(
-    added || painted
-      ? `Added ${added} pretend teammates${painted ? ` and painted free times for ${painted}` : ''}.`
-      : 'No empty seats to fill.',
-  );
+  await ctx.reply(seededText(added, painted));
   if (added) {
     await refreshJoinStatus(group.id);
     await maybeRunSplit(group.id);
@@ -306,7 +322,7 @@ bot.command('seed', async (ctx) => {
 bot.command('reset', async (ctx) => {
   if (!isGroupChat(ctx) || !env.devMode) return;
   deleteGroup(ctx.chat.id);
-  await ctx.reply('Fresh start. Everything for this group is wiped.');
+  await ctx.reply(RESET_DONE);
   groupFromCtx(ctx);
   await sendWelcome(ctx);
 });

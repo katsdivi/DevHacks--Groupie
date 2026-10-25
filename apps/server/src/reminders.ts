@@ -5,6 +5,8 @@ import type { UserPrefs } from './db/schema.ts';
 import { env } from './env.ts';
 import { courseCode, upcomingForUser } from './calendarQueries.ts';
 import { isForbidden, isValidTz, markCannotDm } from './prefs.ts';
+import { appUrl } from './bot/core.ts';
+import { BUTTON, REMINDER_FOOT, reminderHead } from './copy.ts';
 
 /**
  * Step 18a: per-user reminder DMs. Every run, for each user with reminders on and a working DM,
@@ -16,7 +18,9 @@ const HOUR_MS = 60 * 60 * 1000;
 const { userPrefs, remindersSent, members, groups, tasks } = schema;
 
 export type ReminderItem = { key: string; title: string; context: string | null; due: Date };
-export type ReminderDeps = { send: (userId: number, text: string) => Promise<unknown> };
+/** One URL button under the reminder. */
+export type ReminderMarkup = { inline_keyboard: { text: string; url: string }[][] };
+export type ReminderDeps = { send: (userId: number, text: string, extra?: { reply_markup: ReminderMarkup }) => Promise<unknown> };
 export type ReminderRun = { users: number; sent: number; skippedQuiet: number; failed: number };
 
 /** True when `now` falls inside the user's quiet window (local time; may wrap midnight). Equal start and end means no quiet hours. */
@@ -95,16 +99,45 @@ function inLabel(ms: number): string {
   return `in ${Math.round(ms / HOUR_MS)} h`;
 }
 
-/** The batched DM text. Plain text, so titles with markup characters are safe. */
+/** "Today", "Tomorrow", or "Tue", in the user's zone. */
+function dayLabel(due: DateTime, now: DateTime): string {
+  const days = due.startOf('day').diff(now.startOf('day'), 'days').days;
+  if (days === 0) return 'Today';
+  if (days === 1) return 'Tomorrow';
+  return due.toFormat('ccc');
+}
+
+/**
+ * The batched DM text, in the user's local time. Plain text, so titles with markup characters are safe.
+ * One block per item: the title (and course) on one line, when it is due on the next.
+ */
 export function formatReminder(items: ReminderItem[], now: Date, tz: string): string {
   const sorted = [...items].sort((a, b) => a.due.getTime() - b.due.getTime() || a.key.localeCompare(b.key));
-  const head = `Heads up: ${sorted.length} ${sorted.length === 1 ? 'thing' : 'things'} due soon`;
-  const lines = sorted.map((i) => {
-    const when = DateTime.fromJSDate(i.due).setZone(tz).toFormat('ccc h:mm a');
+  const local = DateTime.fromJSDate(now).setZone(tz);
+  const lines = sorted.flatMap((i) => {
+    const due = DateTime.fromJSDate(i.due).setZone(tz);
     const what = i.context ? `${i.title} (${i.context})` : i.title;
-    return `${when}: ${what}, ${inLabel(i.due.getTime() - now.getTime())}`;
+    return [`• ${what}`, `   ${dayLabel(due, local)} ${due.toFormat('h:mm a')}, ${inLabel(i.due.getTime() - now.getTime())}`];
   });
-  return [head, '', ...lines, '', 'Change reminders in Settings.'].join('\n');
+  return [reminderHead(sorted.length), '', ...lines, '', REMINDER_FOOT].join('\n');
+}
+
+/** The user's most recent group (newest membership), or null. */
+export function latestGroupId(userId: number): number | null {
+  const rows = db
+    .select({ id: members.id, groupId: members.groupId })
+    .from(members)
+    .where(and(eq(members.tgUserId, userId), eq(members.isSeed, false)))
+    .all();
+  if (!rows.length) return null;
+  return rows.reduce((a, b) => (b.id > a.id ? b : a)).groupId;
+}
+
+/** One button: Upcoming in the user's most recent group, or the bot chat when they have no group. */
+export function reminderMarkup(userId: number): ReminderMarkup {
+  const groupId = latestGroupId(userId);
+  const url = groupId === null ? `https://t.me/${env.botUsername}` : appUrl(groupId, 'upcoming');
+  return { inline_keyboard: [[{ text: groupId === null ? BUTTON.open : BUTTON.upcoming, url }]] };
 }
 
 function sentKeys(userId: number): Set<string> {
@@ -156,7 +189,7 @@ export async function runReminders(now: Date, deps: ReminderDeps): Promise<Remin
       tz,
     );
     try {
-      await deps.send(p.telegramUserId, text);
+      await deps.send(p.telegramUserId, text, { reply_markup: reminderMarkup(p.telegramUserId) });
     } catch (err) {
       run.failed++;
       if (isForbidden(err)) markCannotDm(p.telegramUserId);
@@ -188,9 +221,9 @@ export function startReminderScheduler(
   const clock = deps?.clock ?? (() => new Date());
   const send =
     deps?.send ??
-    (async (userId: number, text: string) => {
+    (async (userId: number, text: string, extra?: { reply_markup: ReminderMarkup }) => {
       const { bot } = await import('./bot/core.ts');
-      return bot.api.sendMessage(userId, text);
+      return bot.api.sendMessage(userId, text, extra);
     });
   let running = false;
   const tick = async () => {
