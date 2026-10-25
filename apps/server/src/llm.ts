@@ -1,4 +1,5 @@
 import { env } from './env.ts';
+import { cacheKey, DEMO_TIMEOUT_MS, demoCacheOn, serveCached, store } from './demo/llmCache.ts';
 
 const BASE = 'https://api.groq.com/openai/v1';
 
@@ -21,7 +22,10 @@ export class LlmError extends Error {}
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-/** Groq chat completion with a short backoff on 429s. Returns the message content. */
+/**
+ * Groq chat completion with a short backoff on 429s. Returns the message content. With DEMO_MODE=true,
+ * successful answers are cached and a cached answer is served on 429, 5xx, network error, or a 12 s timeout.
+ */
 export async function chat(opts: ChatOpts): Promise<string> {
   const body: Record<string, unknown> = {
     model: opts.model,
@@ -36,14 +40,30 @@ export async function chat(opts: ChatOpts): Promise<string> {
   }
   if (opts.reasoningEffort) body.reasoning_effort = opts.reasoningEffort;
 
+  const demo = demoCacheOn();
+  const key = demo
+    ? cacheKey({ model: opts.model, messages: opts.messages, format: opts.jsonSchema ? `schema:${opts.jsonSchema.name}` : opts.jsonObject ? 'json' : 'text' })
+    : '';
+  const cached = (why: string) => (demo ? serveCached(key, why) : undefined);
+
   let waited = false;
   for (let attempt = 0; attempt < 4; attempt++) {
-    const res = await fetch(`${BASE}/chat/completions`, {
-      method: 'POST',
-      headers: { authorization: `Bearer ${env.groqApiKey}`, 'content-type': 'application/json' },
-      body: JSON.stringify(body),
-    });
+    let res: Response;
+    try {
+      res = await fetch(`${BASE}/chat/completions`, {
+        method: 'POST',
+        headers: { authorization: `Bearer ${env.groqApiKey}`, 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+        signal: demo ? AbortSignal.timeout(DEMO_TIMEOUT_MS) : undefined,
+      });
+    } catch (err) {
+      const hit = cached(err instanceof Error && err.name === 'TimeoutError' ? 'timeout' : 'network error');
+      if (hit !== undefined) return hit;
+      throw err;
+    }
     if (res.status === 429 || res.status === 503) {
+      const hit = cached(`Groq ${res.status}`);
+      if (hit !== undefined) return hit;
       const retryAfter = Number(res.headers.get('retry-after'));
       const delay = Math.min(Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : 2000 * 2 ** attempt, 20_000);
       if (!waited) opts.onWait?.();
@@ -55,9 +75,19 @@ export async function chat(opts: ChatOpts): Promise<string> {
       choices?: { message?: { content?: string } }[];
       error?: { message?: string };
     } | null;
-    if (!res.ok) throw new LlmError(`Groq ${res.status}: ${json?.error?.message ?? 'unknown error'}`);
+    if (!res.ok) {
+      const hit = res.status >= 500 ? cached(`Groq ${res.status}`) : undefined;
+      if (hit !== undefined) return hit;
+      throw new LlmError(`Groq ${res.status}: ${json?.error?.message ?? 'unknown error'}`);
+    }
     const content = json?.choices?.[0]?.message?.content;
-    if (!content) throw new LlmError('Groq returned an empty message');
+    if (!content) {
+      // A body cut off by the demo timeout lands here.
+      const hit = json === null ? cached('timeout') : undefined;
+      if (hit !== undefined) return hit;
+      throw new LlmError('Groq returned an empty message');
+    }
+    if (demo) store(key, content);
     return content;
   }
   throw new LlmError('Groq rate limit did not clear');

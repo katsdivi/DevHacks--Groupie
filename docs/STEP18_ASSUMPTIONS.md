@@ -46,3 +46,17 @@
 | `cubbie-skill/scripts/send.py` | 251 | `"Groupie could not read this assignment (bad_payload)."` | `"Groupie couldn't read this assignment. Try sending it again."` | DEMO / Skill |
 | `cubbie-skill/scripts/send.py` | 253 | `"Groupie rejected the Skill's signature; the Skill needs an update."` | `"Groupie didn't accept this message. Reinstall the Groupie skill and try again."` | DEMO / Skill |
 | `cubbie-skill/scripts/link.py` | 43 | `"Linked, but the token could not be saved here. Send /imessage again for a new code."` | `"Linked, but I couldn't save it on this device. Send /imessage again for a new code."` | DEMO / Skill |
+
+### From demo
+
+## DEMO
+
+4. **Config travels to the container.** `demo.config.json` is gitignored, so it is not in the Railway image. `scripts/demo/remote.sh` ships no code, but it does pass the config's contents as `DEMO_CONFIG_JSON` (base64) on the `railway ssh` command line. Without a local config, admins come from `DEMO_ADMIN_IDS` on Railway.
+5. **Scoped reminders live in `demo/remind.ts`.** `reminders.ts` (POLISH-B) is unchanged. The scoped pass is rebuilt from its exports (`collectItems`, `formatReminder`, `inQuietHours`) and a test checks its text equals what `runReminders` sends that user. It honors quiet hours and reports why nothing was sent.
+6. **Seed resets first.** That is what makes it idempotent. Fully joined seeds also apply the split (no card is posted) and mark one pretend teammate's task stuck and another's done, so "who's stuck?" and "what do I have due?" have something to say. `--leave-join` leaves the split for the live last join.
+7. **Seed uses `replaceBusyBlocks(..., 'ics', ...)`** as asked, which replaces a real user's synced ICS blocks until their next sync. Reset does not touch busy blocks (user-level data).
+8. **Demo Canvas items** have uids `groupie-demo:<groupChatId>:<role>:<n>` so reset can remove exactly those and their `reminders_sent` rows. Non-urgent items are due 3 to 6 days out so the reminder batch is only the 3 hour item.
+9. **Cache key family.** `parse` for `GROQ_PARSE_MODEL`, `chat` for the chat and fallback models, so a fallback failure can serve the main model's answer. The response format is part of the key. Lookups re-read the file so the separate `warm` process and the server share it.
+10. **One env line.** `env.demoMode` (`DEMO_MODE=true`) added to `env.ts`. `.env.example` is not edited; `docs/DEMO_TOOLS.md` documents `DEMO_MODE` and `DEMO_ADMIN_IDS`.
+11. **Warm** always forces `DEMO_MODE=true` in its own process, but the live server only uses the cache if the service itself has `DEMO_MODE=true`. Not set by this branch (no production changes).
+12. **Root scripts load `../../.env` from `apps/server`.** They run `pnpm --filter @groupie/server exec tsx --env-file-if-exists=../../.env ...` (root has no tsx). That is the root `.env`, and a relative `DATABASE_PATH` resolves to the same file the `dev` server uses.

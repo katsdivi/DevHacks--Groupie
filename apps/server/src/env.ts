@@ -32,6 +32,8 @@ export const env = {
   googleUserClientId: process.env.GOOGLE_USER_CLIENT_ID ?? '',
   googleUserClientSecret: process.env.GOOGLE_USER_CLIENT_SECRET ?? '',
   defaultTz: process.env.DEFAULT_TZ ?? 'America/Phoenix',
+  /** Set to 'true' for demos: caches LLM answers and serves them when Groq fails (see demo/llmCache.ts). */
+  demoMode: process.env.DEMO_MODE === 'true',
   // webhook: production. polling: local testing (takes the bot away from prod). off: no bot.
   botMode: (process.env.BOT_MODE ?? (isProd ? 'webhook' : 'off')) as 'webhook' | 'polling' | 'off',
 };
