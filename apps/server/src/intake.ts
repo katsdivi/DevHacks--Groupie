@@ -3,6 +3,7 @@ import { bot } from './bot/core.ts';
 import { html } from './bot/format.ts';
 import { taskListText } from './bot/assignment.ts';
 import { postJoinStatus } from './bot/joinStatus.ts';
+import { guessTeamSize, postSizePrompt } from './bot/teamSize.ts';
 import { countMembers, getGroup, saveAssignment } from './groups.ts';
 import { db, schema } from './db/index.ts';
 import { parseAssignment } from './parse.ts';
@@ -28,7 +29,7 @@ export type IngestInput = {
 
 export type IngestResult =
   | { ok: true; parsed: ParsedAssignment }
-  | { ok: false; reason: 'no_group' | 'no_team_size' | 'not_expecting' | 'busy' | 'too_short' | 'failed'; message: string };
+  | { ok: false; reason: 'no_group' | 'not_expecting' | 'busy' | 'too_short' | 'failed'; message: string };
 
 const inFlight = new Set<number>();
 
@@ -38,14 +39,12 @@ export const expectingAssignment = (g: Group | undefined) =>
 
 /**
  * Text in, tasks out: parses the assignment, saves the tasks, and posts the task list and the join
- * message in the group. Every intake path ends here so they all behave the same.
+ * message in the group. Every intake path ends here so they all behave the same. With no team size
+ * yet, the size question follows the task list instead, and picking a size posts the join message.
  */
 export async function ingestAssignment(groupId: number, input: IngestInput): Promise<IngestResult> {
   const group = getGroup(groupId);
   if (!group) return { ok: false, reason: 'no_group', message: "I'm not in that group yet. Add me, then send /setup." };
-  if (!group.teamSize) {
-    return { ok: false, reason: 'no_team_size', message: 'Pick the team size first: send /setup in the group.' };
-  }
   if (!expectingAssignment(group)) {
     return { ok: false, reason: 'not_expecting', message: 'This group already has its assignment. Use /reset to start over.' };
   }
@@ -75,7 +74,8 @@ export async function ingestAssignment(groupId: number, input: IngestInput): Pro
       };
     }
     await bot.api.sendChatAction(groupId, 'typing').catch(() => {});
-    let parsed = await parseAssignment(input.text, group.teamSize, () => void edit(`Reading ${label}. Thinking hard, one sec...`), input.extraContext);
+    const planSize = group.teamSize ?? (await guessTeamSize(groupId));
+    let parsed = await parseAssignment(input.text, planSize, () => void edit(`Reading ${label}. Thinking hard, one sec...`), input.extraContext);
     if (input.dueDate !== undefined) parsed = { ...parsed, due_date: input.dueDate ? input.dueDate.slice(0, 10) : parsed.due_date };
     saveAssignment(groupId, parsed);
     if (input.courseName) {
@@ -83,7 +83,9 @@ export async function ingestAssignment(groupId: number, input: IngestInput): Pro
     }
     if (group.statusMessageId) await bot.api.editMessageReplyMarkup(groupId, group.statusMessageId).catch(() => {});
     await edit(taskListText(group.nickname, parsed, group.tz));
-    await postJoinStatus(groupId);
+    // Re-read: someone may have tapped a size while the model was thinking.
+    if (getGroup(groupId)?.teamSize) await postJoinStatus(groupId);
+    else await postSizePrompt(groupId);
     return { ok: true, parsed };
   } catch (err) {
     console.error('Assignment parse failed', err);

@@ -28,6 +28,7 @@ import { seedAvailability } from '../availability.ts';
 
 import { appButton, appUrl, bot } from './core.ts';
 import { postJoinStatus, refreshJoinStatus } from './joinStatus.ts';
+import { askSizeKeyboard, nudgeTeamSize, postSizePrompt, sizeKeyboard, TEAM_SIZES } from './teamSize.ts';
 import { seedMembers } from '../members.ts';
 import { setCanDm } from '../prefs.ts';
 import {
@@ -49,7 +50,7 @@ import {
   seededText,
   settingsText,
   SIZE_LOCKED,
-  sizeHereLabel,
+  sizeSetText,
   sizeToast,
   WELCOME,
   WELCOME_KEPT,
@@ -85,45 +86,26 @@ function groupFromCtx(ctx: Context) {
   return upsertGroup(chat.id, 'title' in chat ? (chat.title ?? '') : '');
 }
 
-async function sendWelcome(ctx: Context) {
-  await ctx.reply(
-    WELCOME,
-    { reply_markup: new InlineKeyboard().text(BUTTON.nameMe, 'nick:name').text(BUTTON.keepName, 'nick:keep') },
-  );
+/** The fresh-join welcome with [Name me] and [Keep Groupie]. Joining and /reset both send exactly this. */
+export const welcomeKeyboard = () => new InlineKeyboard().text(BUTTON.nameMe, 'nick:name').text(BUTTON.keepName, 'nick:keep');
+
+/** Sends the fresh-join welcome to a group. The name is never kept until someone taps. */
+export async function sendWelcome(chatId: number) {
+  await bot.api.sendMessage(chatId, WELCOME, { reply_markup: welcomeKeyboard() });
 }
 
-/** Any of these can be tapped; the buttons show 2 to 6 plus the real head count if it is bigger. */
-export const TEAM_SIZES = [2, 3, 4, 5, 6, 7, 8];
-const BASE_SIZES = [2, 3, 4, 5, 6];
-
-/** People in the chat, not counting Groupie. Null when Telegram will not say. */
-async function peopleInChat(chatId: number): Promise<number | null> {
-  try {
-    return (await bot.api.getChatMemberCount(chatId)) - 1;
-  } catch {
-    return null;
-  }
-}
-
-/** Size buttons: the real head count first (marked), then the usual sizes. */
-export function sizeKeyboard(here: number | null) {
-  const kb = new InlineKeyboard();
-  const hereOk = here !== null && TEAM_SIZES.includes(here);
-  if (hereOk) kb.text(sizeHereLabel(here), `size:${here}`).row();
-  for (const n of BASE_SIZES) if (!(hereOk && n === here)) kb.text(String(n), `size:${n}`);
-  return kb;
-}
+export { sizeKeyboard, TEAM_SIZES };
 
 const askSizeText = (g: Group) => askSizeCopy(g.nickname);
-const askSizeKeyboard = async (chatId: number) => sizeKeyboard(await peopleInChat(chatId));
 const askPdfText = (g: Group) => askAssignmentText(g.teamSize ?? 0);
 
 /** Posts the setup prompt and remembers it so later steps can edit it in place. */
 async function sendSetupPrompt(ctx: Context) {
-  const group = getGroup(ctx.chat!.id)!;
-  const msg = await ctx.reply(askSizeText(group), { parse_mode: 'HTML', reply_markup: await askSizeKeyboard(group.id) });
-  setStatusMessage(group.id, msg.message_id);
+  await postSizePrompt(ctx.chat!.id);
 }
+
+/** Tasks are in but the team size is not: the one state where a size can still be picked after setup. */
+const needsSizeAfterImport = (g: Group) => g.status === 'collecting_members' && !g.teamSize;
 
 /** Setup runs once, right after naming, unless it's already underway. */
 async function continueToSetup(ctx: Context) {
@@ -166,7 +148,7 @@ bot.on('my_chat_member', async (ctx) => {
   const isIn = after.status === 'member' || after.status === 'administrator';
   if (wasOut && isIn) {
     groupFromCtx(ctx);
-    await sendWelcome(ctx);
+    await sendWelcome(ctx.chat!.id);
   }
 });
 
@@ -190,7 +172,7 @@ bot.command('start', async (ctx) => {
   }
   const known = getGroup(ctx.chat.id);
   groupFromCtx(ctx);
-  if (!known) await sendWelcome(ctx);
+  if (!known) await sendWelcome(ctx.chat.id);
   else
     await ctx.reply(featureGuide(known.nickname), {
       parse_mode: 'HTML',
@@ -262,6 +244,7 @@ bot.callbackQuery('nick:keep', async (ctx) => {
 bot.command('setup', async (ctx) => {
   if (!isGroupChat(ctx)) return void (await ctx.reply(GROUP_ONLY));
   const group = groupFromCtx(ctx);
+  if (needsSizeAfterImport(group)) return void (await postSizePrompt(group.id));
   if (group.status !== 'setup') {
     await ctx.reply(alreadySetUp(group.nickname), { parse_mode: 'HTML' });
     return;
@@ -273,6 +256,15 @@ bot.callbackQuery(/^size:(\d)$/, async (ctx) => {
   const group = getGroup(ctx.chat!.id);
   const size = Number(ctx.match[1]);
   if (!group || !TEAM_SIZES.includes(size)) return void (await ctx.answerCallbackQuery());
+  if (needsSizeAfterImport(group)) {
+    // The task list is already up: lock the size and go straight to joining.
+    setTeamSize(group.id, size);
+    await ctx.answerCallbackQuery({ text: sizeToast(size) });
+    await ctx.editMessageText(sizeSetText(size), { parse_mode: 'HTML' }).catch(() => {});
+    await postJoinStatus(group.id);
+    await maybeRunSplit(group.id);
+    return;
+  }
   if (group.status !== 'setup') {
     return void (await ctx.answerCallbackQuery({ text: SIZE_LOCKED, show_alert: true }));
   }
@@ -299,12 +291,14 @@ bot.command('join', async (ctx) => {
     await ctx.reply(joinTooEarly(group.nickname), { parse_mode: 'HTML' });
     return;
   }
+  if (!group.teamSize) return void (await nudgeTeamSize(group.id, ctx.msg.message_id));
   await postJoinStatus(group.id);
 });
 
 bot.command('seed', async (ctx) => {
   if (!isGroupChat(ctx) || !env.devMode) return;
   const group = groupFromCtx(ctx);
+  if (needsSizeAfterImport(group)) return void (await nudgeTeamSize(group.id, ctx.msg.message_id));
   if (group.status === 'setup' || !group.teamSize) {
     await ctx.reply(SEED_TOO_EARLY);
     return;
@@ -324,7 +318,7 @@ bot.command('reset', async (ctx) => {
   deleteGroup(ctx.chat.id);
   await ctx.reply(RESET_DONE);
   groupFromCtx(ctx);
-  await sendWelcome(ctx);
+  await sendWelcome(ctx.chat.id);
 });
 
 bot.use(assignment);

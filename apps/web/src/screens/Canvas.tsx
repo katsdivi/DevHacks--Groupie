@@ -517,7 +517,7 @@ function ImportCard({ me, go }: { me: MeResponse; go: (s: Screen) => void }) {
           {current === 'expired' && (
             <div className="mt-5 text-center">
               <p className="text-[15px] leading-relaxed text-muted">
-                Codes last 15 minutes and work once. Grab a fresh one and text it to Cubbie.
+                Codes last 30 minutes and work once. Grab a fresh one and text it to Cubbie.
               </p>
               <button className={`${primary} mt-4`} onClick={getCode} disabled={requesting}>
                 {requesting ? 'Making a new code...' : 'Get a new code'}

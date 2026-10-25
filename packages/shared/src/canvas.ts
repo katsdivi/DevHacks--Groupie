@@ -5,10 +5,10 @@ import { z } from 'zod';
  * See docs/CANVAS_RECON.md for what Cubbie can and cannot do.
  */
 
-// Pair codes: 6 characters, no lookalikes (0/O, 1/I/L), single use, 15 minute lifetime.
+// Pair codes: 6 characters, no lookalikes (0/O, 1/I/L), single use, 30 minute lifetime.
 export const PAIR_CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 export const PAIR_CODE_LENGTH = 6;
-export const PAIR_CODE_TTL_MS = 15 * 60 * 1000;
+export const PAIR_CODE_TTL_MS = 30 * 60 * 1000;
 export const PairCodeString = z
   .string()
   .trim()
