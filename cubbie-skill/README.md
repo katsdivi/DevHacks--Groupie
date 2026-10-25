@@ -31,6 +31,13 @@ Groupie plans that assignment for one person, DMs the student the steps, adds th
 4. "Groupie unlink" runs `scripts/status.py --unlink` (revokes the token on the server and deletes the file).
    `/unlink` in Telegram revokes every token of that student; the next status check then deletes the file too.
 
+5. Once linked, "Groupie import Project 2" needs no code: `scripts/send.py` sends the assignment to
+   `POST /api/cubbie/import/linked` with the token as a bearer (signed like the import). Groupie picks the group the
+   student just made a code for, or answers `choose_target`; the script then prints "Which group? 1. ... 2. ...
+   3. Just me", saves the choices next to the token, and Cubbie reruns it with `--target <number>`. A revoked or
+   unknown token prints "Your Groupie link expired. Send /imessage in Groupie to relink." and deletes the file.
+   A message with a code always uses the code. Skill version 3 (user agent `groupie-import-skill/3`).
+
 The token is Groupie's own credential, made for this student, not a Canvas or Telegram login, so the rule
 against sending a student's credentials to a team server does not apply: it only ever goes back to Groupie.
 

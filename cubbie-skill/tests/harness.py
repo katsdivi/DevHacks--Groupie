@@ -83,6 +83,8 @@ class StubGroupie(ThreadingHTTPServer):
         self.tokens = set()
         self.requests = 0
         self.imports = []  # every parsed import payload, in order
+        self.linked = []  # every linked import: (Authorization header, parsed payload)
+        self.choose_options = []  # when set, a linked import with no target answers choose_target with these
         self.lock = threading.Lock()
 
     @property
@@ -155,11 +157,11 @@ class StubHandler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         with self.server.lock:
             self.server.requests += 1
-        if self.path not in (send.IMPORT_PATH, "/api/cubbie/link"):
+        if self.path not in (send.IMPORT_PATH, send.LINKED_PATH, "/api/cubbie/link"):
             return self.reply(404, {"error": "not_found", "message": "No such route."})
         raw = self.rfile.read(int(self.headers.get("Content-Length") or 0))
         expected = "sha256=" + hmac.new(self.server.key, raw, hashlib.sha256).hexdigest()
-        is_import = self.path == send.IMPORT_PATH
+        is_import = self.path in (send.IMPORT_PATH, send.LINKED_PATH)
         if not hmac.compare_digest(expected, self.headers.get("X-Groupie-Signature") or ""):
             if is_import:
                 return self.fail(401, "bad_signature", "Signature does not match.")
@@ -168,6 +170,8 @@ class StubHandler(BaseHTTPRequestHandler):
             return self.reply(400, {"error": "bad_payload", "message": "Expected JSON."})
         if self.path == "/api/cubbie/link":
             return self.link(raw)
+        if self.path == send.LINKED_PATH:
+            return self.linked_import(raw)
         try:
             payload = json.loads(raw)
         except ValueError:
@@ -209,6 +213,27 @@ class StubHandler(BaseHTTPRequestHandler):
             self.server.used.add(code)
             import_id = len(self.server.used)
         self.reply(200, {"ok": True, "importId": import_id, "message": "Sent to Groupie. Check your group."})
+
+    def linked_import(self, raw: bytes) -> None:
+        """POST /api/cubbie/import/linked: a live bearer token, then choose_target or a normal import."""
+        if not self.bearer():
+            return self.fail(401, "bad_link", "Link not found.")
+        try:
+            payload = json.loads(raw)
+        except ValueError:
+            return self.fail(400, "invalid_payload", "Body is not JSON.")
+        if "pairCode" in payload or send.validate(payload, linked=True):
+            return self.fail(400, "invalid_payload", "Payload does not match the linked contract.")
+        with self.server.lock:
+            self.server.linked.append((self.headers.get("Authorization"), payload))
+            options = list(self.server.choose_options)
+        if options and "target" not in payload:
+            body = {"error": "choose_target", "message": "Which group should this go to?", "options": options,
+                    "requestId": STUB_REQUEST_ID}
+            return self.reply(409, body)
+        message = "Sent to Groupie. Check your Telegram messages." if payload.get("target", {}).get("kind") == "me" \
+            else "Sent to Groupie. Check your group."
+        self.reply(200, {"ok": True, "importId": len(self.server.linked), "message": message})
 
 
 def run_send(args: list, key: str) -> tuple:

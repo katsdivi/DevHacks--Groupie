@@ -24,6 +24,7 @@ export const env = {
    * pair codes plus rate limits are the real protection. Never reuse another secret here.
    */
   cubbiePublicSigningKey: process.env.CUBBIE_PUBLIC_SIGNING_KEY ?? '',
+  cubbieHandle: process.env.CUBBIE_HANDLE ?? '', // Cubbie's iMessage handle for /go/cubbie's sms: link; unset shows Copy only.
   /** 32 bytes, base64. Encrypts calendar feed URLs at rest. */
   feedEncryptionKey: process.env.FEED_ENCRYPTION_KEY ?? '',
   /** Set to 'true' to turn on calendar-load-aware splitting. */

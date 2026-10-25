@@ -22,6 +22,8 @@ import { progressPreviewHtml, renderProgressPng, startWeeklyCheckins } from './b
 import { cubbieImportErrors, cubbieImportRouter } from './canvas/routes.ts';
 import { cubbieLinkRouter } from './canvas/link.ts';
 import { startFeedPoller } from './canvas/poller.ts';
+import { skillVersionTap } from './canvas/linkedImport.ts';
+import { goCubbiePage } from './canvas/goPage.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const webDist = path.resolve(here, '../../web/dist');
@@ -44,11 +46,15 @@ app.get('/health', (_req, res) => {
   res.json(body);
 });
 
-// Public: the Cubbie Skill has no Telegram login. The pair code and signature gate it.
+// Notes the Skill version of requests carrying a link token (for skillOutdated). Never blocks.
+app.use('/api/cubbie', skillVersionTap);
+// Public: the Cubbie Skill has no Telegram login. The pair code (or link token, for /linked) and signature gate it.
 app.use('/api/cubbie/import', cubbieImportRouter, cubbieImportErrors);
 // Public: the iMessage link and status. A signed single-use code, then a bearer token, gate them.
 app.use('/api/cubbie', cubbieLinkRouter);
 app.use('/api', googleCallbackRouter);
+// Public: the one-tap "Open in iMessage" page. Before the SPA fallback, which would otherwise serve /go/*.
+app.get('/go/cubbie', goCubbiePage);
 app.use('/api', api);
 
 if (env.devMode) {

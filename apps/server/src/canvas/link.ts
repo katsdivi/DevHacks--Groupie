@@ -253,3 +253,19 @@ linkComposer.command('unlink', async (ctx) => {
   const n = revokeAllLinks(ctx.from.id);
   await ctx.reply(n ? UNLINKED : NOT_LINKED);
 });
+
+// ---------------------------------------------------------------- added for linked imports (canvas-ux)
+
+/** True when the student has a live (not revoked) iMessage link. */
+export function isLinked(telegramUserId: number): boolean {
+  return !!db
+    .select({ id: cubbieLinks.id })
+    .from(cubbieLinks)
+    .where(and(eq(cubbieLinks.telegramUserId, telegramUserId), isNull(cubbieLinks.revokedAt)))
+    .get();
+}
+
+/** Marks a link as just used (the linked import calls this after the token checks out). */
+export function touchLink(id: number, now = new Date()): void {
+  db.update(cubbieLinks).set({ lastUsedAt: now.toISOString() }).where(eq(cubbieLinks.id, id)).run();
+}
