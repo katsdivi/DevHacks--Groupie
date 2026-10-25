@@ -10,18 +10,18 @@ import {
 } from '@groupie/shared';
 import { env } from '../env.ts';
 import { db, schema } from '../db/index.ts';
-import { bot } from '../bot/core.ts';
-import { html } from '../bot/format.ts';
 import { getGroup } from '../groups.ts';
 import { expectingAssignment, ingestAssignment, type IngestResult } from '../intake.ts';
 import { extractDocumentText, fileExtension } from '../parse.ts';
 import { claimPairCode, getPairCode } from './pairCodes.ts';
 import { verifySignature } from './crypto.ts';
+import { runPersonalImport } from './personal.ts';
 
 const { cubbieImports } = schema;
 
 export const IMPORTED_MESSAGE = 'Sent to Groupie. Check your group.';
-export const NO_GROUP_MESSAGE = 'Groupie got it, but this code was not made in a group. Check your Telegram messages from Groupie.';
+/** For a code made in a private chat: the plan arrives as a Telegram DM. */
+export const PERSONAL_MESSAGE = 'Sent to Groupie. Check your Telegram messages.';
 /** How long the HTTP request waits for the intake before answering anyway. */
 export const INGEST_WAIT_MS = 25_000;
 
@@ -93,6 +93,20 @@ export async function buildIntakeText(p: CubbieImportPayload): Promise<string> {
   return parts.join('\n\n');
 }
 
+/** The promise's value, or 'timeout' after `ms` (the work keeps running). */
+async function raceTimeout<T>(work: Promise<T>, ms: number): Promise<T | 'timeout'> {
+  let timer: NodeJS.Timeout | undefined;
+  const timeout = new Promise<'timeout'>((resolve) => {
+    timer = setTimeout(() => resolve('timeout'), ms);
+    timer.unref();
+  });
+  try {
+    return await Promise.race([work, timeout]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 const setImport = (id: number, status: 'imported' | 'failed', error: string | null) =>
   db.update(cubbieImports).set({ status, error }).where(eq(cubbieImports.id, id)).run();
 
@@ -121,7 +135,8 @@ export async function handleImport(rawBody: Buffer | undefined, signature: strin
 
   if (!takeRateLimit(`ip:${ip}`, IMPORT_RATE_LIMIT.perIpPerHour)) return RATE_LIMITED();
   const pc = getPairCode(p.pairCode);
-  if (!pc) return fail(404, 'unknown_code', 'That pair code does not exist. Make a new one in Groupie.');
+  // A link code is not an import code; it looks the same as a missing one.
+  if (!pc || pc.purpose !== 'import') return fail(404, 'unknown_code', 'That pair code does not exist. Make a new one in Groupie.');
   if (!takeRateLimit(`user:${pc.telegramUserId}`, IMPORT_RATE_LIMIT.perUserPerHour)) return RATE_LIMITED();
   const now = opts.now ?? new Date();
   if (pc.usedAt) return fail(409, 'code_used', 'That pair code was already used. Make a new one in Groupie.');
@@ -152,18 +167,6 @@ export async function handleImport(rawBody: Buffer | undefined, signature: strin
     .returning({ id: cubbieImports.id })
     .get().id;
 
-  if (!group) {
-    setImport(importId, 'failed', 'This code is not linked to a group. Send /canvas in your project group to make one.');
-    await bot.api
-      .sendMessage(
-        pc.telegramUserId,
-        `Cubbie sent me <b>${html(p.assignment.title)}</b>, but that code was not made in a group, so I don't know where to post it. Send /canvas in your project group and text Cubbie the new code.`,
-        { parse_mode: 'HTML' },
-      )
-      .catch(() => {});
-    return { status: 200, body: { ok: true, importId, message: NO_GROUP_MESSAGE } };
-  }
-
   let text: string;
   try {
     text = await buildIntakeText(p);
@@ -172,11 +175,25 @@ export async function handleImport(rawBody: Buffer | undefined, signature: strin
     setImport(importId, 'failed', message);
     return fail(400, 'bad_payload', message);
   }
+  const extraContext = p.rubric ? formatRubric(p.rubric.criteria) : undefined;
+
+  // A code made in a private chat: the student's own assignment, planned for one and sent by DM.
+  if (!group) {
+    const personal = runPersonalImport(pc.telegramUserId, importId, p, text, extraContext).then(
+      (r) => setImport(importId, r.plan || r.calendarSaved ? 'imported' : 'failed', r.plan ? null : 'No plan could be made.'),
+      (err: unknown) => {
+        console.error('Personal import failed', err);
+        setImport(importId, 'failed', 'Could not make a plan.');
+      },
+    );
+    await raceTimeout(personal, opts.ingestWaitMs ?? INGEST_WAIT_MS);
+    return { status: 200, body: { ok: true, importId, message: PERSONAL_MESSAGE } };
+  }
 
   const ingest = ingestAssignment(group.id, {
     text,
     sourceLabel: p.assignment.title,
-    extraContext: p.rubric ? formatRubric(p.rubric.criteria) : undefined,
+    extraContext,
     dueDate: p.assignment.dueAt,
     courseName: p.course.name,
   }).then(
@@ -192,13 +209,7 @@ export async function handleImport(rawBody: Buffer | undefined, signature: strin
     },
   );
 
-  let timer: NodeJS.Timeout | undefined;
-  const timeout = new Promise<'timeout'>((resolve) => {
-    timer = setTimeout(() => resolve('timeout'), opts.ingestWaitMs ?? INGEST_WAIT_MS);
-    timer.unref();
-  });
-  const result = await Promise.race([ingest, timeout]);
-  clearTimeout(timer);
+  const result = await raceTimeout(ingest, opts.ingestWaitMs ?? INGEST_WAIT_MS);
 
   if (result === 'timeout' || result.ok) return { status: 200, body: { ok: true, importId, message: IMPORTED_MESSAGE } };
   if (result.reason === 'not_expecting') return fail(409, 'not_expecting', result.message);

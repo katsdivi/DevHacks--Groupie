@@ -125,6 +125,8 @@ export const cubbiePairCodes = sqliteTable('cubbie_pair_codes', {
   expiresAt: text('expires_at').notNull(),
   usedAt: text('used_at'),
   createdAt: text('created_at').notNull(),
+  /** 'import' sends an assignment; 'link' connects the student's Cubbie (iMessage) to Groupie. */
+  purpose: text('purpose', { enum: ['import', 'link'] }).notNull().default('import'),
 });
 
 export const cubbieImports = sqliteTable('cubbie_imports', {
@@ -234,3 +236,15 @@ export const busyBlocks = sqliteTable('busy_blocks', {
 export type UserMemory = typeof userMemory.$inferSelect;
 export type UserPrefs = typeof userPrefs.$inferSelect;
 export type BusyBlock = typeof busyBlocks.$inferSelect;
+
+/** Cubbie (iMessage) links. Only the sha256 of the token is stored; the raw token lives in the student's Cubbie sandbox. */
+export const cubbieLinks = sqliteTable('cubbie_links', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  telegramUserId: integer('telegram_user_id').notNull(),
+  tokenHash: text('token_hash').notNull().unique(),
+  createdAt: text('created_at').notNull(),
+  lastUsedAt: text('last_used_at'),
+  revokedAt: text('revoked_at'),
+});
+
+export type CubbieLink = typeof cubbieLinks.$inferSelect;

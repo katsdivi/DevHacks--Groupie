@@ -313,7 +313,7 @@ The signing key (`CUBBIE_PUBLIC_SIGNING_KEY`) ships inside the public Skill, so 
 { "ok": true, "importId": 12, "message": "Sent to Groupie. Check your group." }
 ```
 
-Errors: `400 bad_payload`, `401 bad_signature`, `404 unknown_code`, `409 code_used` or `code_expired`, `409 not_expecting` (the group already has its assignment; the code stays usable), `422 <reason>` (intake failed, for example `too_short`), `429 rate_limited`, `503 imports_off` (server has no `CUBBIE_PUBLIC_SIGNING_KEY`). A code made without a group returns `200` with a different message and the student gets a DM to make the code from inside a group.
+Errors: `400 bad_payload`, `401 bad_signature`, `404 unknown_code`, `409 code_used` or `code_expired`, `409 not_expecting` (the group already has its assignment; the code stays usable), `422 <reason>` (intake failed, for example `too_short`), `429 rate_limited`, `503 imports_off` (server has no `CUBBIE_PUBLIC_SIGNING_KEY`). A code made without a group (from `/canvas` in a private chat, or the Mini App without `groupChatId`) is a personal import: the server plans the assignment for one person (`parseAssignment` with team size 1, rubric as extra context), DMs the student the title, course, due date in Canvas time (America/Phoenix), points, and the numbered steps with effort, and adds the assignment to the student's own `calendar_events` (uid `cubbie-import-<importId>`, kind `assignment`, due date in UTC) so it shows in Upcoming, private chat and reminders. With no Canvas due date nothing is added, and the DM says so. If the same title and due time are already in the student's calendar (from the feed or an earlier import), no second item is added. Feed polls and `DELETE /api/feed` never remove `cubbie-import-*` items. Response: `200` with `"message": "Sent to Groupie. Check your Telegram messages."` (also when the plan could not be made; the DM then says so). Link codes (purpose `link`) are rejected here as `404 unknown_code`.
 
 ### `PUT /api/feed`, `DELETE /api/feed`, `GET /api/feed/status`, `GET /api/feed/upcoming`
 
@@ -325,6 +325,45 @@ Telegram auth, per Telegram user (not per group).
 - `GET /api/feed/upcoming`: `{ "events": [FeedEvent, ...] }`, the caller's own items, soonest first.
 
 The server polls each feed every 30 minutes with conditional GETs (ETag / If-Modified-Since) and backs off on errors. `POST /api/cubbie/feed` (Cubbie handing over the feed URL) is not built: the feed URL is a credential, and Cubbie Skills may not send credentials to a team's server.
+
+## iMessage link (Cubbie)
+
+Lets the student ask Cubbie "Groupie status" in iMessage. Schemas: `packages/shared/src/cubbieLink.ts`. Link codes live in `cubbie_pair_codes` with `purpose = 'link'` (migration 9); tokens live in `cubbie_links`, which keeps only `token_hash` (sha256 hex), never the token.
+
+### `POST /api/cubbie/link`
+
+Public, called by the Skill's `scripts/link.py`. Signed exactly like the import (`X-Groupie-Signature: sha256=<hex HMAC-SHA256(CUBBIE_PUBLIC_SIGNING_KEY, raw body)>`). Body: `{ "pairCode": "K7Q2MX" }`, a link code from `/imessage` (single use, 15 minutes). Response, once:
+
+```json
+{ "ok": true, "token": "grp_...", "name": "Ana", "message": "Linked to Groupie. Text me 'Groupie status' any time." }
+```
+
+`name` is the student's name from any Groupie group they joined, else `null`. A new link revokes the student's older tokens. The student gets a Telegram DM: "Your iMessage is linked to Groupie. Text Cubbie 'Groupie status' any time. Send /unlink to disconnect."
+
+Errors: `400 bad_payload`, `401 bad_signature`, `404 unknown_code` (also for import codes), `409 code_used` or `code_expired`, `429 rate_limited` (20 per IP per 10 minutes), `503 links_off` (no `CUBBIE_PUBLIC_SIGNING_KEY`).
+
+### `GET /api/cubbie/me`
+
+Public, `Authorization: Bearer <token>`. Only the token owner's data: their groups (title, assignment, due date, days left, their own tasks with status and points, group task counts, the next meeting with time label, mode, join link and place), and their own `calendar_events` for the next 7 days (title, course, due, a due label in Canvas time). Never another member's calendar, memory, chat history or profile. Updates `last_used_at`.
+
+```json
+{
+  "name": "Ana",
+  "now": "2026-10-24T17:00:00.000Z",
+  "groups": [{ "title": "CSE 340 Team", "assignmentTitle": "Project 2", "dueDate": "2026-11-20", "dueLabel": "Fri, Nov 20", "daysLeft": 27,
+    "myTasks": [{ "title": "Write the requirements", "status": "on_track", "points": 5 }], "myTasksLeft": 1, "groupTasksDone": 4, "groupTasksTotal": 12,
+    "nextMeeting": { "start": "...", "label": "Tue, Oct 28, 4:00 PM", "mode": "zoom", "joinUrl": "https://zoom.us/j/123", "location": null } }],
+  "upcoming": [{ "title": "Lab 4", "course": "CSE 340 (Fall 2026)", "dueAt": "2026-10-27T06:59:00.000Z", "dueLabel": "Sun Oct 26, 11:59 PM", "kind": "assignment" }],
+  "counts": { "myTasksLeft": 1, "upcoming": 1, "groups": 1 },
+  "summary": "1 task left, 1 thing due in the next 7 days"
+}
+```
+
+Errors: `401 not_linked` (missing, unknown or revoked token), `429 rate_limited` (30 per token and 120 per IP per 10 minutes).
+
+### `DELETE /api/cubbie/link`
+
+Public, `Authorization: Bearer <token>`. Revokes that token: `{ "ok": true, "message": "Unlinked from Groupie." }`. `401 not_linked` if it was already revoked or unknown. Same rate limits as `/me`.
 
 ## Dev only (`DEV_MODE=true`, no auth)
 
@@ -345,6 +384,9 @@ The server polls each feed every 30 minutes with conditional GETs (ETag / If-Mod
 | `/join` | group | Repost the "N/5 joined" message with the details button |
 | `/split` | group | Repost the current split card |
 | `/canvas` | group | Make a Cubbie pair code for this group and show the exact message to text Cubbie |
+| `/canvas` | private chat | Make a personal pair code: "Text this to Cubbie: `Groupie import CODE <assignment name>`. I'll send you a plan here." |
+| `/imessage` | private chat | Make a link code: "Text Cubbie: `Groupie link CODE`". In a group it only points the student to the DM |
+| `/unlink` | private chat | Revoke every iMessage (Cubbie) token of the student |
 | `/checkin` | group | Post [Done] [On track] [Stuck] for each member's open tasks (also runs Mondays at 10 AM) |
 | `/progress` | group | Post the progress card |
 | `<nickname>, ...` or `@CubbieGroupieBot ...` | group | Ask about tasks, owners, due dates, the meeting. Replies to Groupie's messages work too |

@@ -6,6 +6,7 @@ import { db, schema } from '../db/index.ts';
 const { cubbiePairCodes, cubbieImports } = schema;
 
 export type PairCode = typeof cubbiePairCodes.$inferSelect;
+export type PairCodePurpose = PairCode['purpose'];
 
 /** A random code from the no-lookalike alphabet. */
 export function randomCode(): string {
@@ -15,7 +16,13 @@ export function randomCode(): string {
 }
 
 /** Makes and stores a fresh single-use code. Retries on the (very rare) collision. */
-export function createPairCode(telegramUserId: number, groupChatId: number | null, now = new Date(), gen = randomCode): PairCode {
+export function createPairCode(
+  telegramUserId: number,
+  groupChatId: number | null,
+  now = new Date(),
+  gen = randomCode,
+  purpose: PairCodePurpose = 'import',
+): PairCode {
   for (let attempt = 0; attempt < 8; attempt++) {
     const row: PairCode = {
       code: gen(),
@@ -24,6 +31,7 @@ export function createPairCode(telegramUserId: number, groupChatId: number | nul
       expiresAt: new Date(now.getTime() + PAIR_CODE_TTL_MS).toISOString(),
       usedAt: null,
       createdAt: now.toISOString(),
+      purpose,
     };
     try {
       db.insert(cubbiePairCodes).values(row).run();

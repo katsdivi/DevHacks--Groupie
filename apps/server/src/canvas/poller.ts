@@ -1,4 +1,4 @@
-import { and, eq, isNull, lte, notInArray, or } from 'drizzle-orm';
+import { and, eq, isNull, lte, notInArray, notLike, or } from 'drizzle-orm';
 import { FEED_POLL_INTERVAL_MS, type FeedEvent } from '@groupie/shared';
 import { db, schema } from '../db/index.ts';
 import { decryptSecret, feedKey } from './crypto.ts';
@@ -28,7 +28,7 @@ export type PollResult = { ok: true; changed: boolean; count: number } | { ok: f
 
 const inFlight = new Map<number, Promise<PollResult>>();
 
-/** Upserts the feed's events and marks UIDs missing from it as removed. */
+/** Upserts the feed's events and marks UIDs missing from it as removed (Cubbie imports are not feed items, so they stay). */
 export function applyFeedEvents(telegramUserId: number, events: FeedEvent[], now = new Date()) {
   const iso = now.toISOString();
   db.transaction((tx) => {
@@ -46,6 +46,7 @@ export function applyFeedEvents(telegramUserId: number, events: FeedEvent[], now
     const missing = and(
       eq(calendarEvents.telegramUserId, telegramUserId),
       isNull(calendarEvents.removedAt),
+      notLike(calendarEvents.uid, 'cubbie-import-%'),
       uids.length ? notInArray(calendarEvents.uid, uids) : undefined,
     );
     tx.update(calendarEvents).set({ removedAt: iso, updatedAt: iso }).where(missing).run();

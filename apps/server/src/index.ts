@@ -19,6 +19,7 @@ import { listMembers } from './members.ts';
 import { signLinkToken } from './linkToken.ts';
 import { progressPreviewHtml, renderProgressPng, startWeeklyCheckins } from './bot/checkin.ts';
 import { cubbieImportRouter } from './canvas/routes.ts';
+import { cubbieLinkRouter } from './canvas/link.ts';
 import { startFeedPoller } from './canvas/poller.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -27,7 +28,7 @@ const webDist = path.resolve(here, '../../web/dist');
 const app = express();
 // The Cubbie import is signed over its raw body and may carry attachments, so it gets its own parser.
 app.use(
-  '/api/cubbie/import',
+  ['/api/cubbie/import', '/api/cubbie/link'],
   express.json({
     limit: '16mb',
     verify: (req, _res, buf) => {
@@ -44,6 +45,8 @@ app.get('/health', (_req, res) => {
 
 // Public: the Cubbie Skill has no Telegram login. The pair code and signature gate it.
 app.use('/api/cubbie/import', cubbieImportRouter);
+// Public: the iMessage link and status. A signed single-use code, then a bearer token, gate them.
+app.use('/api/cubbie', cubbieLinkRouter);
 app.use('/api', googleCallbackRouter);
 app.use('/api', api);
 
@@ -131,6 +134,8 @@ async function startBot() {
     { command: 'join', description: 'Show who has joined' },
     { command: 'split', description: 'Show the fair split' },
     { command: 'canvas', description: 'Import the assignment from Canvas via Cubbie' },
+    { command: 'imessage', description: 'Link your iMessage (Cubbie) to Groupie' },
+    { command: 'unlink', description: 'Disconnect your iMessage from Groupie' },
     { command: 'avail', description: 'When is everyone free?' },
     { command: 'meetlink', description: 'Set the meeting link or place' },
     { command: 'checkin', description: 'How is everyone doing?' },

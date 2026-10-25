@@ -2,6 +2,7 @@ import express from 'express';
 import { once } from 'node:events';
 import type { AddressInfo } from 'node:net';
 import { cubbieImportRouter, canvasRouter } from './routes.ts';
+import { cubbieLinkRouter } from './link.ts';
 
 /**
  * Test-only: the same mounts as index.ts (raw body parser, public import, authed /api), with a fake
@@ -10,7 +11,7 @@ import { cubbieImportRouter, canvasRouter } from './routes.ts';
 export async function startTestApp() {
   const app = express();
   app.use(
-    '/api/cubbie/import',
+    ['/api/cubbie/import', '/api/cubbie/link'],
     express.json({
       limit: '16mb',
       verify: (req, _res, buf) => {
@@ -20,6 +21,7 @@ export async function startTestApp() {
   );
   app.use(express.json());
   app.use('/api/cubbie/import', cubbieImportRouter);
+  app.use('/api/cubbie', cubbieLinkRouter);
   app.use('/api', (req, res, next) => {
     const id = Number(req.header('x-test-user'));
     if (!id) return void res.status(401).json({ error: 'unauthorized' });
