@@ -90,7 +90,7 @@ export async function maybeRunSplit(groupId: number) {
   applySplit(groupId, result);
   await postSplitCard(
     groupId,
-    `<b>${html(group.nickname)} here.</b> Fair split, done. Everyone is within ${pts(result.maxGap)} of each other.\nHappy? Tap <b>Looks fair</b>. Want to trade? <b>Request swap</b>.`,
+    `<b>${html(group.nickname)} here.</b> Fair split, done: everyone's within ${pts(result.maxGap)}.\nTap <b>Looks fair</b>, or <b>Request swap</b> to trade.`,
   );
   await postAvailStatus(groupId);
 }
@@ -98,11 +98,11 @@ export async function maybeRunSplit(groupId: number) {
 splitComposer.command('split', async (ctx) => {
   const group = getGroup(ctx.chat.id);
   if (!group || group.status === 'setup' || group.status === 'collecting_members') {
-    await ctx.reply('No split yet. It lands as soon as everyone has joined.');
+    await ctx.reply('No split yet. It lands once everyone joins.');
     return;
   }
   const view = splitView(group.id, null);
-  await postSplitCard(group.id, `<b>${html(group.nickname)} here.</b> Here's the current split. Max difference: ${pts(view.max_gap)}.`);
+  await postSplitCard(group.id, `<b>${html(group.nickname)} here.</b> The current split. Max difference: ${pts(view.max_gap)}.`);
 });
 
 splitComposer.callbackQuery('split:fair', async (ctx) => {

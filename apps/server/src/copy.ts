@@ -61,15 +61,15 @@ export const REMINDER_FOOT = "You've got this. Change reminders in Settings.";
 // ---------------------------------------------------------------- setup, /start, /help (bot/index.ts)
 
 /** Reply to /start in a DM and to the "reminders" deep link. */
-export const REMINDERS_READY = "You're set. I'll DM you reminders before things are due. Change them in Settings.";
+export const REMINDERS_READY = "You're set. I'll DM you before things are due.";
 /** First message after Groupie joins a group. */
-export const WELCOME = "Hey, I'm Groupie, your group project's biggest fan. Want to give me a nickname for this group?";
+export const WELCOME = "Hey, I'm Groupie, your group's biggest fan. Want to give me a nickname?";
 /** The welcome, edited after [Keep Groupie]. */
-export const WELCOME_KEPT = "Hey, I'm Groupie, your group project's biggest fan. Groupie it is, love that for us.";
+export const WELCOME_KEPT = "Hey, I'm Groupie, your group's biggest fan. Groupie it is!";
 /** Toast for [Keep Groupie]. */
 export const KEPT_TOAST = 'Groupie it is!';
 /** A group-only command sent in a DM. */
-export const GROUP_ONLY = 'That one works in your project group chat. Add me there and send it again!';
+export const GROUP_ONLY = 'That one works in your project group. Add me there!';
 /** After a rename (HTML). */
 export const renameText = (name: string) => `New name, who dis. I'm ${esc(name)} now.`;
 /** After the first naming (HTML). */
@@ -77,7 +77,7 @@ export const namedText = (name: string) => `Call me ${esc(name)} from now on.`;
 /** Asks a person to reply with the new name (HTML; `who` is already a mention link). */
 export const askNameText = (who: string) => `${who}, reply with my new name.`;
 /** The nickname did not parse. */
-export const BAD_NAME = 'Hmm, I need 1 to 20 letters, numbers, spaces, or basic punctuation. Try again?';
+export const BAD_NAME = 'Hmm, try 1 to 20 letters, numbers or basic punctuation?';
 /** /settings in a group (HTML). */
 export const settingsText = (nickname: string) => `<b>Settings</b>\nI go by <b>${esc(nickname)}</b> in this group.`;
 /** /app in a group (HTML). */
@@ -88,7 +88,7 @@ export const askSizeText = (nickname: string) => `<b>${esc(nickname)} here.</b> 
 export const sizeHereLabel = (n: number) => `${n} (everyone here)`;
 /** After the team size is picked (HTML). */
 export const askAssignmentText = (size: number) =>
-  `<b>Team of ${size}.</b> Love that for us.\n\nNow drop the assignment file in this chat (PDF, Word, slides) or send /canvas to pull it straight from Canvas, and I'll turn it into tasks with effort points.`;
+  `<b>Team of ${size}.</b> Love that for us.\nNow drop the assignment file here, or send /canvas to pull it from Canvas.`;
 /** The team size picked after the task list already posted (HTML). The join message follows. */
 export const sizeSetText = (size: number) => `<b>Team of ${size}.</b> Love that for us.`;
 /** A group step needs the team size and the size buttons are close above. */
@@ -113,7 +113,7 @@ export const RESET_DONE = 'Fresh start. Everything for this group is wiped.';
 
 /** Check-in header (HTML). `week` is the optional week-ahead block. */
 export const checkinHead = (nickname: string, week: string | null) =>
-  `<b>Check-in time!</b> ${esc(nickname)} here. Tap how each task is going. Only the owner's taps count.${week ? `\n\n${week}` : ''}`;
+  `<b>Check-in time!</b> ${esc(nickname)} here. Tap how your tasks are going.${week ? `\n\n${week}` : ''}`;
 /** A member with every task done. */
 export const ALL_DONE = 'All done. Absolute legend.';
 /** /checkin before the split. */
@@ -134,16 +134,16 @@ export const PROGRESS_ALL_DONE = 'Everything is done. I am so proud of you all.'
 // ---------------------------------------------------------------- iMessage link (canvas/link.ts)
 
 /** DM after Cubbie links. */
-export const LINKED_DM = "Your iMessage is linked to Groupie. Text Cubbie 'Groupie status' any time. Send /unlink to disconnect.";
+export const LINKED_DM = "iMessage linked! Text Cubbie 'Groupie status' any time. /unlink to disconnect.";
 /** What Cubbie shows after linking. */
 export const LINKED_MESSAGE = "Linked to Groupie. Text me 'Groupie status' any time.";
 /** /imessage in a group. */
-export const IMESSAGE_IN_GROUP = 'Linking iMessage is personal, so DM me /imessage and I will send your code there.';
+export const IMESSAGE_IN_GROUP = "DM me /imessage and I'll send your code there.";
 /** /unlink in a group. */
 export const UNLINK_IN_GROUP = 'DM me /unlink to disconnect your iMessage.';
 /** /unlink results. */
-export const UNLINKED = 'Done. Your iMessage is no longer linked to Groupie. Send /imessage to link it again.';
-export const NOT_LINKED = 'Your iMessage is not linked to Groupie. Send /imessage to link it.';
+export const UNLINKED = 'Done, iMessage unlinked. Send /imessage to link it again.';
+export const NOT_LINKED = "Your iMessage isn't linked yet. Send /imessage to link it.";
 /** Messages Cubbie may relay to the student. */
 export const LINK_ERR = {
   unreadable: "Groupie couldn't read that request. Try again?",
@@ -174,11 +174,11 @@ export const CODE_EXPIRED_FRESH = "That code expired, here's a fresh one.";
 /** Caption when the original assignment file is re-sent. */
 export const fileCaption = (title: string) => `Here's the assignment: ${title}`;
 /** Caption for a PDF made from text that came from Canvas (the original file never reached Groupie). */
-export const CANVAS_PDF_CAPTION = "Here's the assignment text from Canvas as a PDF. The original file didn't come through, so drop it in the group if you have it.";
+export const CANVAS_PDF_CAPTION = "Here's the assignment text from Canvas. Got the original file? Drop it in the group.";
 /** Caption for a PDF made from text pasted or read from a file Groupie no longer has. */
 export const TEXT_PDF_CAPTION = "Here's the assignment as a PDF.";
 /** No assignment anywhere yet. */
-export const NO_ASSIGNMENT_FILE = "I don't have the assignment yet. Drop the file in your group chat, or send /canvas there to pull it from Canvas.";
+export const NO_ASSIGNMENT_FILE = "I don't have the assignment yet. Drop it in your group, or send /canvas there.";
 /** The file and the PDF both failed to send. */
 export const FILE_SEND_FAILED = "I couldn't send the file just now. Try again in a sec?";
 
@@ -203,7 +203,7 @@ export const wrongAppCubbieText = (message: string, fresh: boolean, extra: strin
 export const CANVAS_NOT_CONNECTED = "I don't see your Canvas yet.";
 /** The install step (HTML), shown only to people whose iMessage is not linked. */
 export const installLine = (skillUrl: string) =>
-  `<b>First time only:</b> install the skill. Text Cubbie <code>Install this skill: ${esc(skillUrl)}</code> and wait for it to say it's installed.`;
+  `<b>First time only:</b> text Cubbie <code>Install this skill: ${esc(skillUrl)}</code> and wait until it's installed.`;
 /** Headings for the instant answers. */
 export const CANVAS_HEAD = { next: 'Your next one:', week: 'Due in the next 7 days:', named: 'Found it:' } as const;
 /** Nothing matched the ask. */
@@ -218,10 +218,59 @@ export const CANVAS_DM_SENT = 'Sent you the details in DM.';
 export const CANVAS_DM_OPENER = 'From your /canvas in the group, just between us:';
 /** [Split this one] reply (HTML). */
 export const splitText = (title: string, message: string, minutes: number) =>
-  `Text Cubbie this to split <b>${esc(title)}</b> for this group:\n<code>${esc(message)}</code>\nThe code works once, for ${minutes} minutes.`;
+  `Text Cubbie this to split <b>${esc(title)}</b> here (works once, ${minutes} min):\n<code>${esc(message)}</code>`;
 /** [Split this one] tapped by someone other than the asker. */
-export const SPLIT_NOT_YOURS = 'Only the person who asked can split this one. Send /canvas to find yours.';
+export const SPLIT_NOT_YOURS = 'Only the asker can split this one. Send /canvas for yours.';
 /** [Split this one] when the group already has its assignment. */
 export const SPLIT_HAS_ASSIGNMENT = 'This group already has its assignment. Use /reset to start over.';
 /** In a group, or found by the asker, but no member row yet. */
 export const pendingGroupLine = (title: string) => `You're in ${title || 'your project group'} but haven't added your details yet.`;
+
+// ---------------------------------------------------------------- personal setup checklist (setupStatus.ts, DM /setup and /start)
+
+/** One line per step: what it says while still to do, and once done. Plain text. */
+export const SETUP_STEP = {
+  group: { todo: 'Add me to your project group', done: (title: string) => `In ${title || 'your project group'}` },
+  details: { todo: 'Add your details', waiting: 'Add your details once the assignment is in', done: 'Details added' },
+  calendar: { todo: 'Connect your calendar', done: 'Calendar connected' },
+  canvas: { todo: 'Connect your Canvas feed', done: 'Canvas feed connected' },
+  imessage: { todo: 'Link iMessage through Cubbie', done: 'iMessage linked' },
+  reminders: { todo: 'Let me DM you reminders', done: 'Reminders on' },
+} as const;
+/** Button text for each step. */
+export const SETUP_BUTTON = {
+  group: 'Add me to a group',
+  details: 'Add my details',
+  calendar: 'Connect calendar',
+  canvas: 'Connect Canvas',
+  imessage: 'Link iMessage',
+  reminders: 'Turn on reminders',
+} as const;
+/** How the Cubbie link works, for the Mini App row. Plain text. */
+export const IMESSAGE_HINT = 'Tap Link iMessage and I will DM you two texts for Cubbie. Send them and you are linked.';
+/** Checklist header (HTML). */
+export const setupHead = (done: number, total: number) => `<b>Your setup:</b> ${done} of ${total} done.`;
+/** Every step is done. */
+export const ALL_SET = "You're all set. I've got you from here.";
+/** The last line of the DM /start checklist. */
+export const START_HELP_LINE = 'Send /help to see everything I do.';
+/** Marks for done and to-do rows. */
+export const SETUP_MARK = { done: '✅', todo: '⬜' } as const;
+
+// ---------------------------------------------------------------- group /setup after setup (bot/index.ts)
+
+/** The group's state, for /setup once the group is already set up (HTML). */
+export const groupStateText = (s: {
+  nickname: string;
+  teamSize: number | null;
+  assignmentTitle: string | null;
+  joined: number;
+  meeting: string | null;
+}) =>
+  [
+    `<b>${esc(s.nickname)} here.</b> Here's where we're at:`,
+    s.teamSize ? `• Team of ${s.teamSize}` : '• Team size: not picked yet',
+    s.assignmentTitle ? `• Assignment: ${esc(s.assignmentTitle)}` : '• Assignment: in',
+    s.teamSize ? `• ${s.joined} of ${s.teamSize} joined` : `• ${s.joined} joined`,
+    s.meeting ? `• Meeting: ${esc(s.meeting)}` : '• Meeting: not picked yet',
+  ].join('\n');

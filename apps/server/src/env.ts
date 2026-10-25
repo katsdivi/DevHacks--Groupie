@@ -36,7 +36,8 @@ export const env = {
   /** Set to 'true' for demos: caches LLM answers and serves them when Groq fails (see demo/llmCache.ts). */
   demoMode: process.env.DEMO_MODE === 'true',
   // webhook: production. polling: local testing (takes the bot away from prod). off: no bot.
-  botMode: (process.env.BOT_MODE ?? (isProd ? 'webhook' : 'off')) as 'webhook' | 'polling' | 'off',
+  // || not ??: the template's empty `BOT_MODE=` must mean the default, not an unknown mode that polls.
+  botMode: (process.env.BOT_MODE || (isProd ? 'webhook' : 'off')) as 'webhook' | 'polling' | 'off',
 };
 
 /** The real secrets the public signing key and the feed key must never equal. */

@@ -1,0 +1,16 @@
+# Local container run: `docker compose up --build`. Railway builds the same Dockerfile but does not use this file.
+services:
+  groupie:
+    build: .
+    env_file: .env
+    environment:
+      # The image sets NODE_ENV=production, which defaults the bot to webhook. Locally that would try to
+      # register a webhook at an empty PUBLIC_URL, so the bot follows .env and stays off when BOT_MODE is empty.
+      BOT_MODE: ${BOT_MODE:-off}
+      # .env points at ./data for non-docker runs; inside the container the volume is /data.
+      DATABASE_PATH: /data/groupie.db
+      PORT: "3000"
+    ports:
+      - "${PORT:-3000}:3000"
+    volumes:
+      - ./data:/data

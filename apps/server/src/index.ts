@@ -24,6 +24,7 @@ import { cubbieLinkRouter } from './canvas/link.ts';
 import { startFeedPoller } from './canvas/poller.ts';
 import { skillVersionTap } from './canvas/linkedImport.ts';
 import { goCubbiePage } from './canvas/goPage.ts';
+import { featureMatrix, formatFeatureMatrix } from './featureMatrix.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const webDist = path.resolve(here, '../../web/dist');
@@ -119,6 +120,8 @@ if (fs.existsSync(webDist)) {
 assertDistinctSecrets();
 
 console.log(`Database at ${path.resolve(env.databasePath)}`);
+// Names and on/off only, never values. `pnpm run doctor` prints the same table with fixes.
+console.log(['Features:', ...formatFeatureMatrix(featureMatrix(process.env))].join('\n'));
 
 app.listen(env.port, (err) => {
   // Express 5 passes listen errors (like a taken port) to this callback.

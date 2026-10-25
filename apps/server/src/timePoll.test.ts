@@ -8,6 +8,7 @@ import {
   confirmTime,
   decodeStarts,
   encodeStarts,
+  INVITE_PROMPT,
   lockMeeting,
   onAvailabilityChanged,
   pickWinner,
@@ -196,7 +197,7 @@ describe('time poll', () => {
     expect(meeting).toMatchObject({ start: at(8), end: at(9) });
     expect(texts().some((t) => t.startsWith('<b>Best time:') && t.includes('3/3 free'))).toBe(true);
     expect(sent('sendPoll').map((c) => c.payload.question)).toEqual(['How should we meet?']);
-    expect(texts()).toContain('Vote above, then tap below and I will send everyone the invite.');
+    expect(texts()).toContain(INVITE_PROMPT);
 
     // Zoom wins the how-to-meet poll, then the link, card, .ics, and DMs.
     calls = [];

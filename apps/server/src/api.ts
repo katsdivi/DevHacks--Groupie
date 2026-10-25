@@ -41,6 +41,7 @@ import { onAvailabilityChanged } from './bot/schedule.ts';
 import { html } from './bot/format.ts';
 import { announceRename } from './bot/index.ts';
 import { canvasRouter } from './canvas/routes.ts';
+import { setupStatus } from './setupStatus.ts';
 
 export const api = Router();
 api.use(requireAuth);
@@ -101,7 +102,12 @@ api.get('/me', async (req, res) => {
   const group = await loadGroupFor(req, res, req.query.group);
   if (!group) return;
   const member = getMemberByTgUser(group.id, tgUser(res).id);
-  const body: MeResponse = { user: tgUser(res), member: member ? memberDto(member) : null, group: summary(group) };
+  const body: MeResponse = {
+    user: tgUser(res),
+    member: member ? memberDto(member) : null,
+    group: summary(group),
+    setup: setupStatus(tgUser(res).id, group.id),
+  };
   res.json(body);
 });
 

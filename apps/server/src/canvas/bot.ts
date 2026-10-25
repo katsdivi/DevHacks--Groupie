@@ -22,31 +22,27 @@ export const SKILL_URL = 'https://github.com/katsdivi/groupie-cubbie-skill/tree/
 export type CodeTextOpts = { linked?: boolean; hint?: string };
 
 const installStep = (linked: boolean | undefined) =>
-  linked ? [] : ['<b>1. First time only:</b> text Cubbie this and wait for it to say the skill is installed:', `<code>Install this skill: ${SKILL_URL}</code>`, ''];
+  linked ? [] : ["<b>1. First time only:</b> text Cubbie this, then wait until it's installed:", `<code>Install this skill: ${SKILL_URL}</code>`, ''];
 
 /** The /canvas reply: the code, the exact Cubbie message, and a button to the Canvas screen. */
 export function canvasCodeText(code: string, opts: CodeTextOpts = {}): string {
-  const step = opts.linked ? '' : '<b>2.</b> ';
+  const step = opts.linked ? 'Text' : '<b>2.</b> Then text';
   return [
     `Your Cubbie code: <b>${html(code)}</b>`,
     '',
     ...installStep(opts.linked),
-    `${step}${opts.linked ? 'Text' : 'Then text'} Cubbie this within ${minutes} minutes (add the assignment name if you have several), and say yes when it asks:`,
+    `${step} Cubbie this within ${minutes} minutes and say yes (works once):`,
     `<code>${html(cubbieMessage(code, opts.hint))}</code>`,
-    '',
-    "Cubbie reads the assignment from Canvas and sends it here. The code works once.",
   ].join('\n');
 }
 
 /** The /canvas reply in a private chat: a personal code, so the plan comes back here. */
 export function personalCanvasCodeText(code: string, opts: CodeTextOpts = {}): string {
-  const step = opts.linked ? '' : '<b>2.</b> ';
+  const step = opts.linked ? 'Text' : '<b>2.</b> Then text';
   return [
     ...installStep(opts.linked),
-    `${step}${opts.linked ? 'Text' : 'Then text'} Cubbie this and say yes when it asks: <code>${html(cubbieMessage(code, opts.hint ?? '<assignment name>'))}</code>`,
-    "I'll send you a plan here.",
-    '',
-    `The code works once, for ${minutes} minutes. For a group project, send /canvas in the project group instead.`,
+    `${step} Cubbie this within ${minutes} minutes and say yes: <code>${html(cubbieMessage(code, opts.hint ?? '<assignment name>'))}</code>`,
+    "I'll send you a plan here. For a group project, use /canvas in the group.",
   ].join('\n');
 }
 
@@ -69,7 +65,7 @@ canvasComposer.command('canvas', async (ctx) => {
   const group = getGroup(ctx.chat.id);
   if (!group) return void (await ctx.reply('Send /setup first, then /canvas.'));
   if (!expectingAssignment(group)) {
-    return void (await ctx.reply('This group already has its assignment, so there is nothing to import. Use /reset to start over.'));
+    return void (await ctx.reply('This group already has its assignment. Use /reset to start over.'));
   }
   const pc = createPairCode(ctx.from.id, group.id);
   await ctx.reply(canvasCodeText(pc.code, { linked, hint }), {

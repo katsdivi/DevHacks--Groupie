@@ -7,6 +7,9 @@
     "node": ">=20"
   },
   "scripts": {
+    "bootstrap": "node scripts/setup.mjs",
+    "doctor": "pnpm --silent --filter @groupie/server exec tsx ../../scripts/doctor.mjs",
+    "start:local": "node scripts/start-local.mjs",
     "dev": "pnpm --parallel --filter @groupie/server --filter @groupie/web dev",
     "build": "pnpm --filter @groupie/web build",
     "start": "pnpm --filter @groupie/server start",

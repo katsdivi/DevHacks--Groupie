@@ -1,7 +1,7 @@
 import { SKILL_URL } from './bot.ts';
 import { createHash, randomBytes } from 'node:crypto';
 import { and, eq, isNull } from 'drizzle-orm';
-import { Composer, InlineKeyboard } from 'grammy';
+import { Composer, InlineKeyboard, type Context } from 'grammy';
 import { Router } from 'express';
 import {
   CUBBIE_LINK_RATE_LIMITS,
@@ -227,16 +227,22 @@ const minutes = PAIR_CODE_TTL_MS / 60_000;
 /** The /imessage reply in a private chat. */
 export function linkCodeText(code: string): string {
   return [
-    '<b>1. First time only:</b> text Cubbie this and wait for it to say the skill is installed:',
+    "<b>1. First time only:</b> text Cubbie this, then wait until it's installed:",
     `<code>Install this skill: ${SKILL_URL}</code>`,
     '',
     `<b>2.</b> Then text Cubbie: <code>${html(cubbieLinkMessage(code))}</code>`,
-    '',
-    `The code works once, for ${minutes} minutes. After that, text Cubbie "Groupie status" to see your tasks, deadlines and next meeting in iMessage.`,
+    `Works once, for ${minutes} minutes. Then text Cubbie "Groupie status" any time.`,
   ].join('\n');
 }
 
 export const linkComposer = new Composer();
+
+/** The private /imessage reply: a fresh link code and the two Cubbie texts. Also used by /start imessage and [Link iMessage]. */
+export async function sendLinkCode(ctx: Context) {
+  if (!ctx.from) return;
+  const pc = createPairCode(ctx.from.id, null, new Date(), undefined, 'link');
+  await ctx.reply(linkCodeText(pc.code), { parse_mode: 'HTML' });
+}
 
 linkComposer.command('imessage', async (ctx) => {
   if (!ctx.from) return;
@@ -245,8 +251,7 @@ linkComposer.command('imessage', async (ctx) => {
       reply_markup: new InlineKeyboard().url(BUTTON.dmMe, `https://t.me/${env.botUsername}`),
     }));
   }
-  const pc = createPairCode(ctx.from.id, null, new Date(), undefined, 'link');
-  await ctx.reply(linkCodeText(pc.code), { parse_mode: 'HTML' });
+  await sendLinkCode(ctx);
 });
 
 linkComposer.command('unlink', async (ctx) => {

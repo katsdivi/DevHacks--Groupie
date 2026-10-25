@@ -45,7 +45,15 @@ export default function App() {
   }, []);
 
   const go = useCallback((s: Screen) => setStack((st) => [...st, s]), []);
-  const back = useCallback(() => setStack((st) => st.slice(0, -1)), []);
+  // Back to home refreshes the setup checklist, so a step done on another screen ticks off.
+  const back = useCallback(() => {
+    setStack((st) => st.slice(0, -1));
+    if (route) {
+      api<MeResponse>(`/me?group=${route.groupId}`)
+        .then((fresh) => setMe((m) => (m ? { ...m, setup: fresh.setup } : fresh)))
+        .catch(() => {});
+    }
+  }, []);
   useBackButton(stack.length > 1 ? back : null);
 
   const onRenamed = useCallback(
