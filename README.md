@@ -76,6 +76,12 @@ Inspect production, read-only: `pnpm canvas:inspect [N]` (latest imports: status
 
 The signing key is public by design. Cubbie cannot host team keys, so the value ships inside the public Skill (as `GROUPIE_SIGNING_KEY` in `cubbie-skill/scripts/send.py`) and anyone can read it. It is integrity and spam friction only; single-use, 15 minute pair codes plus rate limits are the real protection. Never reuse another secret for it: the server refuses to start if `CUBBIE_PUBLIC_SIGNING_KEY` equals `FEED_ENCRYPTION_KEY`, `BOT_TOKEN`, `WEBHOOK_SECRET`, `LINK_SIGNING_SECRET`, `GROQ_API_KEY`, `GOOGLE_CLIENT_SECRET` or `GOOGLE_REFRESH_TOKEN`, or if `FEED_ENCRYPTION_KEY` equals any of the others.
 
+## Personal agents
+
+- `GOOGLE_USER_CLIENT_ID`, `GOOGLE_USER_CLIENT_SECRET`: optional per-user Google free/busy. Create a **Web application** OAuth client with redirect URI `PUBLIC_URL/api/google/callback` and scope `calendar.freebusy`. In Google testing mode each teammate's Gmail must be a test user, and tokens expire after 7 days. Without these, students connect with a calendar link (ICS) instead.
+- `PREFILL_START_HOUR`, `PREFILL_END_HOUR`: the hours the availability grid treats as reasonable when prefilling (default 8 and 22).
+- Background jobs started with the server: reminders (15 min), calendar sync (30 min), availability deadlines (5 min), feed poller (30 min), weekly check-in.
+
 ## Deploy
 
 One Railway service built from the `Dockerfile`, with a volume mounted at `/data` for SQLite.

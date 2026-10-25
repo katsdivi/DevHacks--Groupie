@@ -15,11 +15,12 @@ Live at https://devhacks-groupie-production.up.railway.app. API details: `API.md
 - **Voice.** Warm, upbeat, a little cheeky superfan. No em dashes anywhere; replies use names or they/them, never guessed pronouns.
 - **Supergroup upgrades.** When Telegram moves a group to a new id, all of its data moves with it.
 - **Private chat fallback.** Group-only commands sent in a DM get a friendly "that works in your project group chat" reply instead of silence.
-- **Command menu.** Telegram's command list is set automatically (app, setup, join, split, avail, checkin, progress, canvas, meetlink, settings, rename).
+- **Command menu.** Telegram's command list is set automatically (help, app, setup, join, split, avail, deadline, checkin, progress, canvas, imessage, unlink, meetlink, settings, rename).
+- **`/start` and `/help` explain everything.** In a DM: the full feature guide plus an [Add me to a group] button. In a group: the same guide with the group's nickname and [Open Groupie].
 
 ## 2. Setup and assignment intake
 
-- **Team size.** After naming, "How many people are on this project?" with **[3] [4] [5] [6]**. The message edits in place to "Team of 5. Love that for us. Now drop the assignment PDF..." with **[Change team size]**. `/setup` restarts it.
+- **Team size.** After naming, "How many people are on this project?" with **[2] [3] [4] [5] [6]**, plus the real head count of the chat first (for example "2 (everyone here)"). The message edits in place to "Team of 5. Love that for us. Now drop the assignment PDF..." with **[Change team size]**. `/setup` restarts it.
 - **Drop any assignment file.** PDF, Word (.docx), PowerPoint (.pptx), Excel (.xlsx), OpenDocument (.odt, .odp, .ods), RTF, HTML, EPUB, Markdown, CSV and plain text. Google Docs exports work as .docx or .pdf.
 - **Helpful refusals.** Old .doc/.ppt/.pages files: "Save it as PDF or .docx". Unknown formats: lists what works. Photos: "Send it as a file instead". Scanned PDFs with no text: asks for selectable text. Files over 20 MB: asks for a smaller one.
 - **Only listens when it should.** Files shared after people have joined (drafts, notes) are ignored, so the bot never hijacks the chat.
@@ -74,9 +75,11 @@ Live at https://devhacks-groupie-production.up.railway.app. API details: `API.md
 - **DMs.** Every member who has started the bot gets the meeting privately; the group sees "Sent the details to N of M", with a nudge for the rest.
 - **One-time setup.** `pnpm google:auth` opens Google consent (Calendar events and Gmail send) and saves the refresh token.
 
-## 8. Ask the bot ("Motu, ...")
+## 8. Ask the bot ("Motu, ...") and chat in DMs
 
-- **Addressed by nickname, @mention, or a reply** to one of Groupie's messages. Normal chatter is ignored.
+- **Addressed by nickname or "Groupie"** at the start ("hi Motu"), at the end ("thanks Groupie"), or anywhere in a short message, plus @mentions and replies to Groupie. A bare "hi" is ignored, so it never spams.
+- **Three kinds of questions.** About the project: answered in the group. About yourself ("what do I have due?"): the group-safe part in the group, the private part by DM ("Sent you the rest in DM.", or a Start hint if Groupie cannot DM you). About a teammate: only from what they shared with the group, otherwise "That's Ava's to share."
+- **DM conversations.** Any message in a private chat gets a real reply using your own context (your tasks, groups, memory, Canvas items), with a short history.
 - **Accurate, short answers** from group facts only: tasks, owners, points, statuses, who is stuck, due date, days left, meeting time and link, and this project's Canvas items for the week ("Tue 11:59 PM: Homework 5").
 - **Model.** Groq `openai/gpt-oss-20b`, falling back to the backup model; replies cleaned of dashes and curly quotes.
 - **Privacy.** Never sees private chats; never mentions other courses, other members' item counts, or anything outside this project. Asked about someone's other class, it says it only knows this project.
@@ -100,14 +103,25 @@ Live at https://devhacks-groupie-production.up.railway.app. API details: `API.md
 - **Opt-in busy weeks.** Toggle "Let my group's split account for my busy weeks". When on (and `LOAD_AWARE_SPLIT=true`), a busy member gets the lighter share among equally fair splits. The card shows only "Busy week" plus "<name> got fewer points this time: busy week." Never counts or other courses. With nobody opted in, the split is identical to the normal one.
 - **The Cubbie Skill** (`groupie-import`) is public at https://github.com/katsdivi/groupie-cubbie-skill. Install by texting Cubbie the folder link.
 
-## 11. Private chat ("Chat with Motu")
+## 11. Personal agents (one model, your own context)
+
+- **Context policy.** Every model call goes through one gate (`buildContext`): group answers never see anyone's private rows, not even the asker's; private rows reach the model only in your own DM or Mini App chat. Tested with adversarial prompts on the exact model input.
+- **Memory.** Say "remember I work Thursday nights" in a DM or the app chat; "forget ..." removes it. The What Motu remembers screen lists your facts, lets you edit or delete them, and share one with the current group (private by default).
+- **Reminders by DM.** 48, 24 and 3 hours before your own Canvas items, your groups' due dates, and your open tasks; quiet hours (default 11 PM to 8 AM); one batched message per run; never twice for the same item and offset; tasks due with the assignment fold into one line. Settings has the switch, offsets, and quiet hours; joining prompts you to tap Start so Groupie can DM you.
+- **Connect your calendar.** Google (free/busy only) or a calendar link from Apple, Outlook, or Google. Only busy start and end times are stored, never titles; links and tokens are encrypted and never shown. Canvas timed events count too.
+- **Prefilled availability.** The grid opens with your free time already selected around your busy blocks; fix anything and tap Looks right. Nobody sees anyone else's calendar; the heatmap shows counts only.
+- **Top 3 times.** When everyone answers, at a deadline (`/deadline 24h`), or on Lock it now, Groupie polls the group on the 3 best one-hour slots, then continues to the meeting flow.
+- **Your own Canvas assignment.** `/canvas` in a DM gives a personal code; after Cubbie sends it, Groupie DMs you a step-by-step plan and adds the due date to Upcoming and reminders.
+- **iMessage link.** `/imessage` in a DM, then text Cubbie "Groupie link CODE" once. After that, "Groupie status" in iMessage shows your deadlines, tasks, and next meeting link. `/unlink` disconnects.
+
+## 12. Private chat in the app ("Chat with Motu")
 
 - **One-on-one, private.** Only you see your history; teammates cannot (tested).
 - **Knows your situation.** Your tasks and statuses, skills and weak areas, the group facts, the meeting, and your own Canvas items across all courses.
 - **Useful advice.** What to do first (your own tasks, bigger and blocking first), step-by-step breakdowns, short messages to teammates. If your tasks are done, suggests helping whoever is stuck.
 - **Chat UI.** Bubbles in your color, grouped by sender with day separators, typing indicator, suggestion chips that fit your project, simple formatting (bold, bullets, numbered lists, links), failed sends with "Tap to retry", "New message" pill when scrolled up, keyboard-safe layout.
 
-## 12. Mini App (Telegram)
+## 13. Mini App (Telegram)
 
 - **Opens from any group button** via a direct link with a start parameter that routes to the right screen (home, form, split, avail, progress, chat, settings, canvas, upcoming).
 - **Screens.** Home (greeting, next meeting card with Join and Add to Calendar, assignment summary, your color, links to everything), My details (form), The split, Availability, Progress, Chat with Motu, Connect Canvas, Upcoming, Settings (rename).
@@ -115,7 +129,7 @@ Live at https://devhacks-groupie-production.up.railway.app. API details: `API.md
 - **Secure.** Every request carries Telegram's signed initData, checked server-side (HMAC, 24-hour freshness), plus a group membership check through Telegram (cached).
 - **Outside Telegram.** Shows "Groupie lives in Telegram" with an open button, except for signed availability links.
 
-## 13. Privacy and security
+## 14. Privacy and security
 
 - Private chats never reach group answers, other members, or prompts for anyone else.
 - Calendar feed links encrypted at rest; never in logs, responses, or chat (tested).
@@ -125,13 +139,16 @@ Live at https://devhacks-groupie-production.up.railway.app. API details: `API.md
 - The Cubbie signing key is public by design (Cubbie cannot host team secrets); single-use pair codes and rate limits are the real protection. The server refuses to start if any two secrets are the same.
 - Secrets live only in `.env` (gitignored) and Railway variables; nothing secret in the repo or the public Skill (gitleaks clean).
 
-## 14. Background jobs
+## 15. Background jobs
 
 - **Weekly check-in:** checks every 15 minutes; runs Mondays at 10 AM group time.
 - **Calendar feed poller:** every 30 minutes per user, conditional GET, exponential backoff up to 12 hours.
 - **Debounced progress card:** about 6 seconds after the last task change.
+- **Reminders:** every 15 minutes, per user, respecting quiet hours.
+- **Calendar sync:** every 30 minutes per connection (Google free/busy, ICS, Canvas events), with backoff.
+- **Availability deadlines:** every 5 minutes; posts the top 3 time poll when a deadline passes.
 
-## 15. Developer and operations tools
+## 16. Developer and operations tools
 
 - **Dev commands** (when `DEV_MODE=true`): `/seed` adds up to 4 pretend teammates with skills and overlapping free times; `/reset` wipes the group and restarts the welcome.
 - **Dev routes:** `/dev/state` (all data as JSON), `/dev/split?group=` (a live split drawn as the card), `/dev/links?group=` (each member's browser availability link), `/cards/split` and `/cards/progress` (`?preview=1` for HTML, otherwise the PNG).
@@ -140,7 +157,7 @@ Live at https://devhacks-groupie-production.up.railway.app. API details: `API.md
 - **Tests:** about 180 automated tests across the fair split, swaps, time zones, availability, initData and link signing, intake, Canvas import and feeds, privacy, and prompts; plus Skill unit tests and an offline harness.
 - **Deploy:** one Railway service from the Dockerfile (Playwright image), SQLite on a volume, migrations run automatically at boot, health check at `/health`.
 
-## 16. Configuration
+## 17. Configuration
 
 | Variable | Purpose |
 |---|---|
@@ -153,9 +170,11 @@ Live at https://devhacks-groupie-production.up.railway.app. API details: `API.md
 | `CUBBIE_PUBLIC_SIGNING_KEY` | Signs Cubbie imports (public by design) |
 | `FEED_ENCRYPTION_KEY` | Encrypts calendar feed links |
 | `LOAD_AWARE_SPLIT` | Opt-in busy-week adjustment |
+| `GOOGLE_USER_CLIENT_ID`, `GOOGLE_USER_CLIENT_SECRET` | Per-user Google free/busy (Web OAuth client; optional) |
+| `PREFILL_START_HOUR`, `PREFILL_END_HOUR` | Reasonable hours for the prefilled grid (default 8 and 22) |
 | `DEFAULT_TZ`, `DEV_MODE`, `PORT` | Time zone, dev tools, port |
 
-## 17. Known limits
+## 18. Known limits
 
 - One assignment per Telegram group; one team per group.
 - Group times use one time zone (default America/Phoenix); Upcoming uses each phone's time zone.

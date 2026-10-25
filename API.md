@@ -365,6 +365,40 @@ Errors: `401 not_linked` (missing, unknown or revoked token), `429 rate_limited`
 
 Public, `Authorization: Bearer <token>`. Revokes that token: `{ "ok": true, "message": "Unlinked from Groupie." }`. `401 not_linked` if it was already revoked or unknown. Same rate limits as `/me`.
 
+## Personal agents (step 18a)
+
+Identity is always the verified Telegram user (initData). Request bodies never choose whose data is read or written. Every LLM prompt is built by `buildContext()` in `apps/server/src/contextPolicy.ts`: in a group, the model sees the project facts, the asker's group-safe rows, and only what teammates shared with that group; private rows reach the model only in the asker's own DM or Mini App chat.
+
+### Memory: `GET/POST /api/me/memory`, `PATCH/DELETE /api/me/memory/:id`
+
+```json
+{ "items": [{ "id": 3, "key": "work", "value": "Tue and Thu nights", "source": "chat", "visibility": "private", "group_chat_id": null, "updated_at": "..." }] }
+```
+
+`POST { "key", "value", "visibility": "private" | "group", "group_chat_id"? }`. Sharing needs `group_chat_id` and membership in that group. Someone else's id returns 404. In chat, "remember ..." saves a private fact and "forget ..." deletes the asker's matching facts.
+
+### Reminders: `GET /api/me/prefs`, `PUT /api/me/prefs`
+
+```json
+{ "reminders_enabled": true, "reminder_offsets": [48, 24, 3], "quiet_start": "23:00", "quiet_end": "08:00", "tz": "America/Phoenix", "can_dm": true, "start_link": "https://t.me/CubbieGroupieBot?start=reminders" }
+```
+
+`PUT` accepts any subset. Offsets are 1 to 5 whole hours from 1 to 336 (deduped, sorted). A scheduler runs every 15 minutes and sends one batched DM per user with their own calendar items, their groups' due dates, and their open tasks, once per offset, outside quiet hours. `can_dm` turns on with `/start` in a DM and off when Telegram refuses a DM.
+
+### Calendar: `GET /api/calendar/status`, `GET /api/calendar/google/start`, `PUT /api/calendar/ics`, `POST /api/calendar/sync`, `DELETE /api/calendar/:kind`
+
+- Google (free/busy scope only) needs `GOOGLE_USER_CLIENT_ID`/`GOOGLE_USER_CLIENT_SECRET` (a Web OAuth client, redirect `PUBLIC_URL/api/google/callback`); otherwise `google_available` is false and `start` returns 503. `GET /api/google/callback` is public and checks a signed, 10 minute `state`.
+- `PUT /api/calendar/ics { "url" }` accepts an https (or webcal) calendar link from Apple, Outlook, or Google; private and local addresses are refused. The link is encrypted at rest and never returned.
+- Only busy start and end times are stored (`busy_blocks`), never titles. Canvas timed events count too. Disconnect deletes the token or link and its blocks.
+
+### Availability prefill
+
+`GET /api/groups/:id/availability/me` adds `prefill: { prefilled, busy_slots, hours: { start, end } }` for a member with calendar data. The grid opens with every free slot in reasonable hours (8 to 22 by default, `PREFILL_START_HOUR`/`PREFILL_END_HOUR`) selected; nothing is saved until "Looks right" or the first edit. Nobody else's busy time is ever exposed; the heatmap shows counts only.
+
+### Meeting time
+
+When everyone has answered, the deadline passes (`/deadline 24h|48h|off` or the Lock in 24h / 48h buttons), or someone taps Lock it now, Groupie posts a non-anonymous poll "Which time works?" with the top 3 one-hour slots (most people free, then longest free stretch, then earliest) and a Confirm time button. Confirm picks the most-voted option and continues the meeting flow.
+
 ## Dev only (`DEV_MODE=true`, no auth)
 
 | Route | What it shows |
@@ -387,6 +421,9 @@ Public, `Authorization: Bearer <token>`. Revokes that token: `{ "ok": true, "mes
 | `/canvas` | private chat | Make a personal pair code: "Text this to Cubbie: `Groupie import CODE <assignment name>`. I'll send you a plan here." |
 | `/imessage` | private chat | Make a link code: "Text Cubbie: `Groupie link CODE`". In a group it only points the student to the DM |
 | `/unlink` | private chat | Revoke every iMessage (Cubbie) token of the student |
+| `/help` (and `/start` in a DM) | any | Explains every feature |
+| `/deadline 24h\|48h\|off` | group | Pick meeting times automatically after a deadline |
+| any text | DM | Chat with Groupie privately about your own tasks, deadlines, and groups |
 | `/checkin` | group | Post [Done] [On track] [Stuck] for each member's open tasks (also runs Mondays at 10 AM) |
 | `/progress` | group | Post the progress card |
 | `<nickname>, ...` or `@CubbieGroupieBot ...` | group | Ask about tasks, owners, due dates, the meeting. Replies to Groupie's messages work too |
