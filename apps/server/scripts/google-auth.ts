@@ -7,7 +7,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { exec } from 'node:child_process';
 import type { AddressInfo } from 'node:net';
-import { CALENDAR_SCOPES, oauthClient } from '../src/calendar.ts';
+import { GOOGLE_SCOPES, oauthClient } from '../src/calendar.ts';
 import { env } from '../src/env.ts';
 
 const envPath = path.resolve(import.meta.dirname, '../../../.env');
@@ -22,7 +22,7 @@ server.listen(0, '127.0.0.1', () => {
   const port = (server.address() as AddressInfo).port;
   const redirect = `http://127.0.0.1:${port}/callback`;
   const client = oauthClient(redirect);
-  const url = client.generateAuthUrl({ access_type: 'offline', prompt: 'consent', scope: CALENDAR_SCOPES });
+  const url = client.generateAuthUrl({ access_type: 'offline', prompt: 'consent', scope: GOOGLE_SCOPES });
 
   server.on('request', async (req, res) => {
     const u = new URL(req.url ?? '/', redirect);
@@ -41,7 +41,7 @@ server.listen(0, '127.0.0.1', () => {
       if (i >= 0) lines[i] = line;
       else lines.push(line);
       fs.writeFileSync(envPath, lines.join('\n'));
-      res.writeHead(200, { 'content-type': 'text/html' }).end('<h2>Groupie is connected to Google Calendar. You can close this tab.</h2>');
+      res.writeHead(200, { 'content-type': 'text/html' }).end('<h2>Groupie is connected to Google Calendar and Gmail. You can close this tab.</h2>');
       console.log('\nSaved GOOGLE_REFRESH_TOKEN to .env. Tell Claude it worked so it can set it on Railway.');
     } catch (err) {
       res.writeHead(500).end(String(err));

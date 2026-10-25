@@ -14,6 +14,10 @@ import {
 } from '../availability.ts';
 import type { Group } from '../db/schema.ts';
 import { askForMeetingLink } from './meeting.ts';
+import { googleConfigured } from '../calendar.ts';
+import { sendEmail } from '../gmail.ts';
+import { signLinkToken } from '../linkToken.ts';
+import { env } from '../env.ts';
 
 export const scheduleComposer = new Composer();
 
@@ -52,6 +56,24 @@ export async function postAvailStatus(groupId: number) {
   });
   if (group.availMessageId) await bot.api.editMessageReplyMarkup(groupId, group.availMessageId).catch(() => {});
   setAvailMessage(groupId, msg.message_id);
+  await emailAvailabilityLinks(groupId).catch((err) => console.error('emailAvailabilityLinks failed', err));
+}
+
+/** Teammates who are only reachable by email (no Telegram) get their signed availability link. */
+export async function emailAvailabilityLinks(groupId: number): Promise<number> {
+  const group = getGroup(groupId);
+  if (!group || !googleConfigured()) return 0;
+  const targets = listMembers(groupId).filter((m) => !m.tgUserId && m.email && !m.isSeed);
+  for (const m of targets) {
+    const url = `${env.publicUrl}/?t=${signLinkToken({ g: groupId, m: m.id, n: m.name }, env.linkSigningSecret)}`;
+    await sendEmail({
+      to: [m.email!],
+      subject: `When are you free? (${group.title})`,
+      text: `Hi ${m.name}, ${group.nickname} here, helping ${group.title} find a meeting time.\n\nPaint your free times here (no app needed): ${url}\n\nThe link is just for you and works for 14 days.`,
+      html: `<div style="font-family:Inter,Arial,sans-serif;max-width:520px"><p>Hi ${html(m.name)}, ${html(group.nickname)} here, helping <b>${html(group.title)}</b> find a meeting time.</p><p><a href="${url}" style="background:#A6E35A;color:#1E1E1E;padding:10px 18px;border-radius:999px;text-decoration:none;font-weight:600">Paint my free times</a></p><p style="color:#888">No app needed. The link is just for you and works for 14 days.</p></div>`,
+    });
+  }
+  return targets.length;
 }
 
 async function refreshAvailStatus(groupId: number) {

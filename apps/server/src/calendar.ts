@@ -1,13 +1,24 @@
 import { auth, calendar } from '@googleapis/calendar';
 import { env } from './env.ts';
 
-export const CALENDAR_SCOPES = ['https://www.googleapis.com/auth/calendar.events'];
+/** One consent covers calendar events (with Meet links) and sending email as that account. */
+export const GOOGLE_SCOPES = [
+  'https://www.googleapis.com/auth/calendar.events',
+  'https://www.googleapis.com/auth/gmail.send',
+];
 
 /** True once GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET and GOOGLE_REFRESH_TOKEN are all set. */
 export const googleConfigured = () => Boolean(env.googleClientId && env.googleClientSecret && env.googleRefreshToken);
 
 export function oauthClient(redirectUri?: string) {
   return new auth.OAuth2(env.googleClientId, env.googleClientSecret, redirectUri);
+}
+
+/** OAuth client already holding the saved refresh token. */
+export function authorizedClient() {
+  const client = oauthClient();
+  client.setCredentials({ refresh_token: env.googleRefreshToken });
+  return client;
 }
 
 export type EventInput = {
@@ -23,7 +34,7 @@ export type EventInput = {
   requestId: string;
 };
 
-export type CreatedEvent = { id: string; htmlLink: string | null; meetLink: string | null };
+export type CreatedEvent = { id: string; htmlLink: string | null; meetLink: string | null; organizer: string | null };
 
 /** The events.insert request: Meet link (when asked), attendees, invites emailed to everyone. */
 export function buildEventRequest(input: EventInput) {
@@ -48,11 +59,9 @@ export function buildEventRequest(input: EventInput) {
 
 /** Creates the event on the authorized account and emails the invite to attendees. */
 export async function createCalendarEvent(input: EventInput): Promise<CreatedEvent> {
-  const client = oauthClient();
-  client.setCredentials({ refresh_token: env.googleRefreshToken });
-  const cal = calendar({ version: 'v3', auth: client });
+  const cal = calendar({ version: 'v3', auth: authorizedClient() });
   const res = await cal.events.insert(buildEventRequest(input));
   const ev = res.data;
   const meet = ev.hangoutLink ?? ev.conferenceData?.entryPoints?.find((e) => e.entryPointType === 'video')?.uri ?? null;
-  return { id: ev.id ?? '', htmlLink: ev.htmlLink ?? null, meetLink: meet };
+  return { id: ev.id ?? '', htmlLink: ev.htmlLink ?? null, meetLink: meet, organizer: ev.organizer?.email ?? null };
 }

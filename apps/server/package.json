@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@googleapis/calendar": "^20.1.0",
+    "@googleapis/gmail": "^22.0.2",
     "@groupie/shared": "workspace:*",
     "better-sqlite3": "^13.0.3",
     "drizzle-orm": "^0.45.4",

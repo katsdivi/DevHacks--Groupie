@@ -16,6 +16,7 @@ import { clearPending, getGroup, setPending } from '../groups.ts';
 import { listMembers } from '../members.ts';
 import { latestMeeting, updateMeeting } from '../availability.ts';
 import { createCalendarEvent, googleConfigured } from '../calendar.ts';
+import { sendEmail } from '../gmail.ts';
 import type { Meeting } from '../db/schema.ts';
 
 export const meetingComposer = new Composer();
@@ -97,10 +98,21 @@ export async function finalizeMeeting(groupId: number) {
         ...(ev.meetLink && !meeting.meetLink ? { meetLink: ev.meetLink } : {}),
       });
       meeting = latestMeeting(groupId)!;
-      notes.push(emails.length ? `Calendar invite emailed to ${emails.length} of ${members.length}.` : 'Added to the calendar. Add emails in your details to get invites.');
+      // Google doesn't email the organizer their own invite, so don't count them.
+      const invited = emails.filter((e) => e.toLowerCase() !== ev.organizer?.toLowerCase()).length;
+      notes.push(
+        invited
+          ? `Calendar invite emailed to ${invited} of ${members.length}.`
+          : 'On the calendar. Add your email in My details to get the invite next time.',
+      );
     } catch (err) {
       console.error('createCalendarEvent failed', err);
       notes.push("Google Calendar didn't cooperate, so use the buttons below to add it yourself.");
+      // Still get it into inboxes: a plain email with the link and the .ics.
+      if (emails.length) {
+        const sent = await emailMeeting(groupId, meeting, emails).catch((e) => (console.error('emailMeeting failed', e), false));
+        if (sent) notes.push(`Emailed the details to ${emails.length} of ${members.length}.`);
+      }
     }
   }
   if (meeting.mode !== 'in_person' && !meeting.meetLink) {
@@ -214,4 +226,21 @@ export function meetingSummary(groupId: number, m: Meeting | undefined): Meeting
     calendar_url: googleCalendarUrl(meetingInfo(groupId, m)),
     event_url: m.eventLink,
   };
+}
+
+/** Meeting email (used when the Calendar invite could not be created). */
+async function emailMeeting(groupId: number, m: Meeting, to: string[]): Promise<boolean> {
+  const group = getGroup(groupId)!;
+  const info = meetingInfo(groupId, m);
+  const when = `${formatMeeting(m.start, m.end, group.tz)} (${tzLabel(group.tz, new Date(m.start))})`;
+  const where = m.mode === 'in_person' ? (m.location ?? 'Place to be decided') : (m.meetLink ?? `${modeLabel(m.mode)}, link coming`);
+  const join = m.meetLink ? `<p><a href="${m.meetLink}" style="background:#A6E35A;color:#1E1E1E;padding:10px 18px;border-radius:999px;text-decoration:none;font-weight:600">Join ${html(modeLabel(m.mode))}</a></p>` : '';
+  await sendEmail({
+    to,
+    subject: `📅 ${info.title}: ${formatMeeting(m.start, m.end, group.tz)}`,
+    text: `${group.nickname} here from ${group.title}.\n\n${when}\nWhere: ${where}\n\nAdd to Google Calendar: ${googleCalendarUrl(info)}\n\nThe .ics file is attached for any calendar app.`,
+    html: `<div style="font-family:Inter,Arial,sans-serif;max-width:520px"><p>${html(group.nickname)} here from <b>${html(group.title)}</b>.</p><h2 style="margin:8px 0">${html(when)}</h2><p>Where: ${html(where)}</p>${join}<p><a href="${googleCalendarUrl(info)}">Add to Google Calendar</a></p><p style="color:#888">The .ics file is attached for any calendar app.</p></div>`,
+    attachments: [{ filename: 'team-meeting.ics', contentType: 'text/calendar; method=PUBLISH', content: icsFile({ ...info, uid: `groupie-${groupId}-${m.id}@groupie` }) }],
+  });
+  return true;
 }
