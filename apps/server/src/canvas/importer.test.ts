@@ -7,13 +7,26 @@ import { db, schema } from '../db/index.ts';
 import { bot } from '../bot/core.ts';
 import { setTeamSize, upsertGroup } from '../groups.ts';
 import { ingestAssignment } from '../intake.ts';
+import { parseAssignment } from '../parse.ts';
 import { signBody } from './crypto.ts';
 import { buildIntakeText, formatRubric, resetRateLimits, storablePayload } from './importer.ts';
 import { createPairCode } from './pairCodes.ts';
+import { applyFeedEvents } from './poller.ts';
+import { deleteFeed } from './feeds.ts';
 import { startTestApp } from './testApp.ts';
 
 vi.mock('../intake.ts', async (orig) => ({ ...(await orig<typeof import('../intake.ts')>()), ingestAssignment: vi.fn() }));
 const ingest = vi.mocked(ingestAssignment);
+vi.mock('../parse.ts', async (orig) => ({ ...(await orig<typeof import('../parse.ts')>()), parseAssignment: vi.fn() }));
+const parse = vi.mocked(parseAssignment);
+const plan = {
+  assignment_title: 'Project 2',
+  due_date: null,
+  tasks: [
+    { title: 'Interview five students', description: 'Write a one page summary', effort: 3, skill_tags: ['research'] },
+    { title: 'Integrate and proofread', description: 'Final pass', effort: 2, skill_tags: ['editing'] },
+  ],
+};
 const okResult = { ok: true as const, parsed: { assignment_title: 'x', due_date: null, tasks: [] } as never };
 
 const fixture = (name: string) => fs.readFileSync(new URL(`../../../../fixtures/cubbie/${name}`, import.meta.url), 'utf8');
@@ -41,6 +54,8 @@ beforeEach(() => {
   ingest.mockResolvedValue(okResult);
   sendMessage.mockReset();
   sendMessage.mockResolvedValue({} as never);
+  parse.mockReset();
+  parse.mockResolvedValue(plan as never);
   db.update(schema.groups).set({ status: 'setup' }).where(eq(schema.groups.id, GROUP)).run();
   ip++;
 });
@@ -199,17 +214,102 @@ describe('import content', () => {
   });
 });
 
-describe('codes without a group', () => {
-  it('stores the import as failed and DMs the student', async () => {
+describe('personal imports (code made in a private chat)', () => {
+  let n = 0;
+  /** The text-only fixture with a fresh title, so earlier imports of the same item do not count as a twin. */
+  const fresh = () => ({ ...textOnly, assignment: { ...textOnly.assignment, title: `Lab ${++n}` } });
+  const eventsFor = (uid: string) => db.select().from(schema.calendarEvents).where(eq(schema.calendarEvents.uid, uid)).all();
+
+  it('plans for one, DMs the plan, and adds the due date to the student calendar', async () => {
     const r = await post(withCode(textOnly, null));
-    expect(r.status).toBe(200);
-    expect(r.body.ok).toBe(true);
-    expect(importRow(r.body.importId)).toMatchObject({ status: 'failed', groupChatId: null });
+    expect(r).toMatchObject({ status: 200, body: { ok: true, message: 'Sent to Groupie. Check your Telegram messages.' } });
+    expect(importRow(r.body.importId)).toMatchObject({ status: 'imported', groupChatId: null });
     expect(ingest).not.toHaveBeenCalled();
-    expect(sendMessage).toHaveBeenCalledWith(USER, expect.stringContaining('/canvas'), expect.anything());
+    expect(parse).toHaveBeenCalledTimes(1);
+    expect(parse.mock.calls[0]![1]).toBe(1);
+    const [to, text, opts] = sendMessage.mock.calls[0]!;
+    expect(to).toBe(USER);
+    expect(opts).toMatchObject({ parse_mode: 'HTML' });
+    expect(text).toContain('<b>Project 2: Campus Food Finder</b>');
+    expect(text).toContain('CSE 340: Software Engineering');
+    expect(text).toContain('Due Fri Nov 20, 11:59 PM (Arizona time)');
+    expect(text).toContain('1. Interview five students <i>(3 pt, half a day)</i>');
+    expect(text).toContain('2. Integrate and proofread');
+    expect(text).toContain('Upcoming');
+    const [row] = eventsFor(`cubbie-import-${r.body.importId}`);
+    expect(row).toMatchObject({
+      telegramUserId: USER,
+      kind: 'assignment',
+      course: 'CSE 340: Software Engineering',
+      title: 'Project 2: Campus Food Finder',
+      dueAt: '2026-11-21T06:59:00.000Z',
+      url: 'https://canvas.asu.edu/courses/123456/assignments/7654321',
+      removedAt: null,
+    });
+  });
+  it('passes the rubric to the plan and shows points', async () => {
+    const r = await post(withCode(full, null));
+    expect(r.status).toBe(200);
+    expect(parse.mock.calls[0]![3]).toContain('Implementation (30 pts)');
+    expect(String(sendMessage.mock.calls[0]![1])).toContain('100 points');
+  }, 20_000);
+  it('says so and skips the calendar when Canvas has no due date', async () => {
+    const body = withCode({ ...textOnly, assignment: { ...textOnly.assignment, dueAt: null } }, null);
+    const r = await post(body);
+    expect(r.status).toBe(200);
+    expect(eventsFor(`cubbie-import-${r.body.importId}`)).toHaveLength(0);
+    const text = String(sendMessage.mock.calls[0]![1]);
+    expect(text).toContain('No due date in Canvas');
+    expect(text).toContain("didn't add it to your Upcoming list");
+  });
+  it('still DMs the details and keeps the due date when the plan fails', async () => {
+    parse.mockRejectedValue(new Error('groq down'));
+    const r = await post(withCode(fresh(), null));
+    expect(r.status).toBe(200);
+    expect(String(sendMessage.mock.calls[0]![1])).toContain("couldn't turn this one into steps");
+    expect(eventsFor(`cubbie-import-${r.body.importId}`)).toHaveLength(1);
+    expect(importRow(r.body.importId).status).toBe('imported');
+  });
+  it('escapes HTML from Canvas and the LLM', async () => {
+    parse.mockResolvedValue({ ...plan, tasks: [{ ...plan.tasks[0]!, title: '<script>x</script>' }] } as never);
+    await post(withCode({ ...textOnly, assignment: { ...textOnly.assignment, title: 'A <b> & B' } }, null));
+    const text = String(sendMessage.mock.calls[0]![1]);
+    expect(text).toContain('A &lt;b&gt; &amp; B');
+    expect(text).toContain('&lt;script&gt;');
   });
   it('still answers when the DM fails', async () => {
     sendMessage.mockRejectedValue(new Error('bot was blocked'));
     expect((await post(withCode(textOnly, null))).status).toBe(200);
+  });
+  it('keeps imported items when the Canvas feed polls or is disconnected', async () => {
+    const r = await post(withCode(fresh(), null));
+    const uid = `cubbie-import-${r.body.importId}`;
+    applyFeedEvents(USER, []);
+    expect(eventsFor(uid)[0]!.removedAt).toBeNull();
+    deleteFeed(USER);
+    expect(eventsFor(uid)).toHaveLength(1);
+  });
+  it('does not add a second item when the same assignment is already in the calendar', async () => {
+    const body = fresh();
+    const first = await post(withCode(body, null));
+    const again = await post(withCode(body, null));
+    expect(eventsFor(`cubbie-import-${first.body.importId}`)).toHaveLength(1);
+    expect(eventsFor(`cubbie-import-${again.body.importId}`)).toHaveLength(0);
+    expect(String(sendMessage.mock.calls[1]![1])).toContain('Upcoming list');
+  });
+  it('rejects a link code as an unknown import code', async () => {
+    const pc = createPairCode(USER, null, new Date(), undefined, 'link');
+    expect((await post({ ...textOnly, pairCode: pc.code })).body.error).toBe('unknown_code');
+  });
+});
+
+describe('group imports are unchanged', () => {
+  it('goes through the group intake, not the personal plan', async () => {
+    const r = await post(withCode(textOnly));
+    expect(r.body.message).toBe('Sent to Groupie. Check your group.');
+    expect(ingest).toHaveBeenCalledTimes(1);
+    expect(parse).not.toHaveBeenCalled();
+    expect(sendMessage).not.toHaveBeenCalled();
+    expect(db.select().from(schema.calendarEvents).all().some((e) => e.uid === `cubbie-import-${r.body.importId}`)).toBe(false);
   });
 });

@@ -5,8 +5,10 @@ import { html } from '../bot/format.ts';
 import { getGroup } from '../groups.ts';
 import { expectingAssignment } from '../intake.ts';
 import { createPairCode } from './pairCodes.ts';
+import { linkComposer } from './link.ts';
 
 export const canvasComposer = new Composer();
+canvasComposer.use(linkComposer);
 
 const minutes = PAIR_CODE_TTL_MS / 60_000;
 /** The public Groupie import Skill that Cubbie installs from a link. */
@@ -27,11 +29,23 @@ export function canvasCodeText(code: string): string {
   ].join('\n');
 }
 
+/** The /canvas reply in a private chat: a personal code, so the plan comes back here. */
+export function personalCanvasCodeText(code: string): string {
+  return [
+    `Text this to Cubbie: <code>${html(cubbieMessage(code, '<assignment name>'))}</code>`,
+    "I'll send you a plan here.",
+    '',
+    `The code works once, for ${minutes} minutes. For a group project, send /canvas in the project group instead.`,
+  ].join('\n');
+}
+
 canvasComposer.command('canvas', async (ctx) => {
-  if (ctx.chat.type !== 'group' && ctx.chat.type !== 'supergroup') {
-    return void (await ctx.reply('Send /canvas in your project group, so I know where to post the assignment.'));
-  }
   if (!ctx.from) return;
+  if (ctx.chat.type === 'private') {
+    const pc = createPairCode(ctx.from.id, null);
+    return void (await ctx.reply(personalCanvasCodeText(pc.code), { parse_mode: 'HTML' }));
+  }
+  if (ctx.chat.type !== 'group' && ctx.chat.type !== 'supergroup') return;
   const group = getGroup(ctx.chat.id);
   if (!group) return void (await ctx.reply('Send /setup first, then /canvas.'));
   if (!expectingAssignment(group)) {

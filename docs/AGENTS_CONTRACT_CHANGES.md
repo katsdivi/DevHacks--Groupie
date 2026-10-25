@@ -33,3 +33,9 @@ export function hasCalendarConnection(telegramUserId: number): boolean; // Googl
 - **POLICY: `bot/index.ts` one-line registration.** `bot.filter((ctx) => ctx.chat?.type === 'private').use(dmComposer)` after `qaComposer`, so DM plain text gets a reply. Other agents adding DM handlers (BRIDGE `/canvas` in DMs, REMIND `/start`) should register before it; it ignores commands and pending inputs.
 - **POLICY: `MemoryUpdateRequest` has no `key`.** The Memory screen edits values only. If renaming labels matters, add `key: z.string().trim().min(1).max(60).optional()`.
 - **POLICY: `contextPolicy.ts` unchanged.** Bucket narrowing (`onlyMember`, `withoutTeammates`) and the DM context (`buildDmContext`) live in `context.ts` and only call `buildContext`. The lead may move them into contextPolicy.ts at integration.
+## BRIDGE (personal Canvas import and iMessage link)
+
+1. **`db/schema.ts` (additive, requested by the lead's task):** new table `cubbieLinks` and a `purpose` column (`'import' | 'link'`, default `'import'`) on `cubbiePairCodes`, matching migration 9 (appended; migration 8 untouched). `createPairCode` gained an optional fifth parameter `purpose`.
+2. **`packages/shared/src/cubbieLink.ts` (new file, exported from `index.ts`):** `CubbieLinkRequest`, `CubbieLinkResponse`, `CubbieMeResponse`, `CUBBIE_LINK_RATE_LIMITS`, `CUBBIE_ME_DAYS`, `cubbieLinkMessage`. No change to `canvas.ts` or `agents.ts`.
+3. **REMIND / POLICY, please note:** personal imports write `calendar_events` rows with uid prefix `cubbie-import-`. They are the student's own items like feed rows, so the reminder scheduler and private context pick them up with no change. If either agent filters by uid shape, keep this prefix.
+4. **`index.ts`:** the raw body parser now also covers `/api/cubbie/link`, and `cubbieLinkRouter` is mounted at `/api/cubbie` before `/api`. Commands `imessage` and `unlink` were added to `setMyCommands`. If REMIND rewrites the command list, keep these two.

@@ -32,3 +32,4 @@ export * from './linkToken.ts';
 export * from './meeting.ts';
 export * from './canvas.ts';
 export * from './agents.ts';
+export * from './cubbieLink.ts';

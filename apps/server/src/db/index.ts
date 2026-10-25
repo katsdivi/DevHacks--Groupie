@@ -192,6 +192,16 @@ const MIGRATIONS = [
    );
    CREATE INDEX busy_blocks_user ON busy_blocks(telegram_user_id, start_at);
    ALTER TABLE groups ADD COLUMN avail_deadline_at TEXT;`,
+  `CREATE TABLE cubbie_links (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     telegram_user_id INTEGER NOT NULL,
+     token_hash TEXT NOT NULL UNIQUE,
+     created_at TEXT NOT NULL,
+     last_used_at TEXT,
+     revoked_at TEXT
+   );
+   CREATE INDEX cubbie_links_user ON cubbie_links(telegram_user_id);
+   ALTER TABLE cubbie_pair_codes ADD COLUMN purpose TEXT NOT NULL DEFAULT 'import';`,
 ];
 
 export function openDb(file: string) {
