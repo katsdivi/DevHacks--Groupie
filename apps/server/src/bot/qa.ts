@@ -8,6 +8,7 @@ import { talk, type ChatMessage } from '../llm.ts';
 import { bot } from './core.ts';
 import { catchWrongApp } from '../canvas/bot.ts';
 import { sendAssignment, wantsAssignmentFile } from './assignmentFile.ts';
+import { groupThread, recordGroupTurn, resolveFollowUp } from './followUp.ts';
 import { buffering, DM_BLOCKED, DM_OPENER, DM_RETRY, DM_SENT, REFUSE_EVERYONE, REFUSE_INJECTION, shareLine } from '../copy.ts';
 
 export { DM_BLOCKED, DM_OPENER, DM_RETRY, DM_SENT, REFUSE_EVERYONE, REFUSE_INJECTION, shareLine };
@@ -245,10 +246,8 @@ qaComposer.on('message:text', async (ctx, next) => {
   const group = getGroup(ctx.chat.id);
   if (!group) return next();
   const replyToBot = ctx.msg.reply_to_message?.from?.id === ctx.me.id;
-  const question = addressedQuestion(ctx.msg.text, group.nickname, ctx.me.username, replyToBot);
-  if (!question) return next();
-  // "Send me the assignment": the file itself, no model call.
-  if (wantsAssignmentFile(question)) return void (await sendAssignment(group.id, group.id, ctx.msg.message_id));
+  const raw = addressedQuestion(ctx.msg.text, group.nickname, ctx.me.username, replyToBot);
+  if (!raw) return next();
 
   const key = `${group.id}:${ctx.from.id}`;
   const now = Date.now();
@@ -256,12 +255,26 @@ qaComposer.on('message:text', async (ctx, next) => {
   if (times.length >= FLOOD_MAX) return;
   recent.set(key, [...times, now]);
 
+  // "When is it due?": resolve "it" from what the group can already see, before any check runs.
+  const replied = ctx.msg.reply_to_message;
+  const repliedText = replied && 'text' in replied ? replied.text : replied && 'caption' in replied ? replied.caption : undefined;
+  const notes = [
+    ...(group.assignmentTitle ? [`The group's project: ${group.assignmentTitle}${group.dueDate ? `, due ${group.dueDate}` : ''}.`] : []),
+    ...(repliedText ? [`They are replying to this message: ${repliedText.slice(0, 600)}`] : []),
+  ];
+  const askerName = ctx.from.first_name;
+  const question = refusalFor(raw) ? raw : await resolveFollowUp(raw, groupThread(group.id), notes);
+  recordGroupTurn(group.id, askerName, question);
+  // "Send me the assignment": the file itself, no model call.
+  if (wantsAssignmentFile(question, group.assignmentTitle)) return void (await sendAssignment(group.id, group.id, ctx.msg.message_id));
+
   await ctx.replyWithChatAction('typing').catch(() => {});
   const reply = (text: string) => ctx.reply(text, { reply_parameters: { message_id: ctx.msg.message_id } });
   try {
     const answer = await answerGroupQuestion(group.id, ctx.from.id, question, {
       onWait: () => void ctx.replyWithChatAction('typing').catch(() => {}),
     });
+    recordGroupTurn(group.id, group.nickname, answer);
     await reply(answer);
   } catch (err) {
     console.error('group Q&A failed', err);

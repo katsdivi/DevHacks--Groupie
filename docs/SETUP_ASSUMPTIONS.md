@@ -36,3 +36,13 @@ Four parallel tracks, merged on `integrate/easy-setup` (2026-10-25).
 - Hero chat lines in the SVG ("Fair split posted. Max difference: 1 pt", "Best time: Sun 4 to 5 PM. Invite sent.") are illustration, not exact bot strings.
 - Video scenes for features not in this codebase (team emails, reply checking) were left out.
 - The demo GIF (1.7 MB) is committed; the source .mp4 stays out of git.
+
+## Follow-ups ("it", "that", "she")
+
+- Before the quick checks and the classifier, a short model call rewrites a follow-up into a standalone message. It runs only when the message has a referring word ("it", "they", "she", "that" standing alone; not "this week") and there is something to refer to.
+- Group: the thread is the last 6 addressed questions and Groupie's group answers, kept in memory for 20 minutes (lost on restart, which is fine for follow-ups). The notes add the project title and due date, and the text of a bot message being replied to. All of it was already posted in the group, so no private data reaches the rewrite.
+- DM: the rewrite uses the sender's own last 6 DM messages, and runs only for asks a quick check could catch (send, give, file, pdf...). The DM model already sees the history, so other DMs need no rewrite.
+- Injection attempts are checked on the raw text first and never rewritten. A rewrite that names a teammate goes down the member path, so "what are her grades?" gets the same share line as "what are Ava's grades?".
+- The rewrite says "the assignment" for the project, and a known assignment title also counts as "assignment" in the file check, so "send it to me" sends the file.
+- On failure, an empty answer, multiple lines or a much longer answer, the original message is used.
+- Demo: none of the moment 4 questions has a referring word, so the demo makes no extra calls (dry run 18 of 19, unchanged).

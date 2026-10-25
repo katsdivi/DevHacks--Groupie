@@ -27,8 +27,14 @@ const ASKS = [
   new RegExp(`^\\s*(?:the\\s+)?(?:assignment\\s+)?(?:pdf|file|doc|document|handout)\\s*(?:please|pls)?\\s*[?.!]*\\s*$`, 'i'),
 ];
 
-/** True when the text asks for the assignment itself (the file), not a question about it. Pure. */
-export const wantsAssignmentFile = (text: string) => ASKS.some((r) => r.test(text));
+/**
+ * True when the text asks for the assignment itself (the file), not a question about it. Pure. A
+ * known assignment title counts as the word "assignment", so "send me the Sprint 3 Report" works.
+ */
+export const wantsAssignmentFile = (text: string, title?: string | null) => {
+  const t = title?.trim() ? text.replace(new RegExp(title.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), 'assignment') : text;
+  return ASKS.some((r) => r.test(t));
+};
 
 /** The asker's groups that have an assignment, newest assignment first. */
 export function groupsWithAssignment(telegramUserId: number): number[] {
