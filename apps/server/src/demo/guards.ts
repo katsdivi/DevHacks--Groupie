@@ -16,10 +16,11 @@ export type DemoArgs = {
   prodOk: boolean;
   leaveJoin: boolean;
   beforeImport: boolean;
+  reparse: boolean;
   config: string | undefined;
 };
 
-export const USAGE = `Usage: cli.ts <reset|seed|fill|warm> <groupChatId> --as <telegramUserId> [--prod-ok] [--leave-join] [--before-import] [--config <path>]
+export const USAGE = `Usage: cli.ts <reset|seed|fill|warm> <groupChatId> --as <telegramUserId> [--prod-ok] [--leave-join] [--before-import] [--reparse] [--config <path>]
        cli.ts remind <telegramUserId> --as <telegramUserId> [--prod-ok]`;
 
 const isInt = (s: string | undefined) => !!s && /^-?\d+$/.test(s);
@@ -29,7 +30,7 @@ export function parseArgs(argv: string[]): DemoArgs {
   const [sub, target, ...rest] = argv;
   if (!SUBCOMMANDS.includes(sub as Subcommand)) throw new Error(`Unknown subcommand ${sub ?? '(none)'}.\n${USAGE}`);
   if (!isInt(target)) throw new Error(`${sub} needs a numeric id.\n${USAGE}`);
-  const out: DemoArgs = { sub: sub as Subcommand, target: Number(target), as: null, prodOk: false, leaveJoin: false, beforeImport: false, config: undefined };
+  const out: DemoArgs = { sub: sub as Subcommand, target: Number(target), as: null, prodOk: false, leaveJoin: false, beforeImport: false, reparse: false, config: undefined };
   for (let i = 0; i < rest.length; i++) {
     const a = rest[i];
     if (a === '--as') {
@@ -39,6 +40,7 @@ export function parseArgs(argv: string[]): DemoArgs {
     } else if (a === '--prod-ok') out.prodOk = true;
     else if (a === '--leave-join') out.leaveJoin = true;
     else if (a === '--before-import') out.beforeImport = true;
+    else if (a === '--reparse') out.reparse = true;
     else if (a === '--config') {
       out.config = rest[++i];
       if (!out.config) throw new Error('--config needs a path.');

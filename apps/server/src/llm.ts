@@ -1,5 +1,5 @@
 import { env } from './env.ts';
-import { cacheKey, DEMO_TIMEOUT_MS, demoCacheOn, looseKey, serveCached, store } from './demo/llmCache.ts';
+import { cacheKey, DEMO_TIMEOUT_MS, demoCacheOn, looseKey, serveCached, stableParse, store } from './demo/llmCache.ts';
 
 const BASE = 'https://api.groq.com/openai/v1';
 
@@ -45,6 +45,8 @@ export async function chat(opts: ChatOpts): Promise<string> {
   const key = demo ? cacheKey(keyInput) : '';
   const loose = demo ? looseKey(keyInput) : '';
   const cached = (why: string) => (demo ? serveCached(key, why, loose) : undefined);
+  const stable = demo ? stableParse(key) : undefined;
+  if (stable !== undefined) return stable;
 
   let waited = false;
   for (let attempt = 0; attempt < 4; attempt++) {

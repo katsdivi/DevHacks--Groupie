@@ -17,6 +17,11 @@ export const DEMO_TASKS: ParsedTask[] = [
 
 /** Canvas items (same course) for a busy week, due 3 to 6 days out, so they stay out of the 48 h reminder window. */
 export const BUSY_WEEK_ITEMS = ['Quiz 4: Design patterns', 'Lab 6: REST APIs', 'Reading response 5', 'Milestone 2 check-in'];
+/** The busy week's other classes: private, so they only ever reach the presenter's DM. */
+export const OTHER_COURSE_ITEMS = [
+  { course: 'MAT 343: Applied Linear Algebra', title: 'Problem set 7' },
+  { course: 'ENG 302: Technical Writing', title: 'Memo draft' },
+];
 /** One item for a lighter week. */
 export const LIGHT_ITEMS = ['Lab 6: REST APIs'];
 /** The presenter's item due in 3 hours, for the reminder moment. */

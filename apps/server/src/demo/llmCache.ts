@@ -55,7 +55,7 @@ export function cacheKey(req: KeyInput): string {
     format: req.format ?? 'text',
     messages: req.messages.map((m) => ({ role: m.role, content: normalizePrompt(m.content) })),
   };
-  return createHash('sha256').update(JSON.stringify(normalized)).digest('hex');
+  return `${normalized.family}:${createHash('sha256').update(JSON.stringify(normalized)).digest('hex')}`;
 }
 
 /**
@@ -74,7 +74,34 @@ export function looseKey(req: KeyInput): string {
   return `loose:${createHash('sha256').update(JSON.stringify(loose)).digest('hex')}`;
 }
 
-export const shortKey = (key: string) => key.slice(0, 10);
+export const shortKey = (key: string) => key.slice(0, 16);
+
+/**
+ * Demo mode serves assignment parses from the cache first, so the live import gives the same tasks
+ * (and so the same split card) as the rehearsal. Chat answers still go live and only fall back.
+ */
+export function stableParse(key: string): string | undefined {
+  if (!key.startsWith('parse:')) return undefined;
+  const hit = lookup(key);
+  if (hit !== undefined) console.warn(`[demo-cache] parse served from cache for ${shortKey(key)} (same tasks as the rehearsal)`);
+  return hit;
+}
+
+/** Drops every cached assignment parse, so the next import parses fresh. Returns how many went. */
+export function dropParses(): number {
+  const file = cacheFile();
+  const all = file ? readFile(file) : Object.fromEntries([...memory].map(([k, v]) => [k, v]));
+  const keep = Object.fromEntries(Object.entries(all).filter(([k]) => !k.startsWith('parse:')));
+  const dropped = Object.keys(all).length - Object.keys(keep).length;
+  if (!file) {
+    for (const k of Object.keys(all)) if (k.startsWith('parse:')) memory.delete(k);
+    return dropped;
+  }
+  const tmp = `${file}.${process.pid}.${Date.now()}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify({ version: 1, entries: keep } satisfies CacheFile));
+  fs.renameSync(tmp, file);
+  return dropped;
+}
 
 function readFile(file: string): Record<string, Entry> {
   try {

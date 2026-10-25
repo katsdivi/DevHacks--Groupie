@@ -82,7 +82,9 @@ describe('demo seed', () => {
     const events = (id: number) => db.select().from(T.calendarEvents).where(eq(T.calendarEvents.telegramUserId, id)).all();
     const soon = events(PRESENTER).filter((e) => Date.parse(e.dueAt) - NOW.getTime() <= 3 * 3_600_000);
     expect(soon).toHaveLength(1);
-    expect(events(PRESENTER).length).toBe(5);
+    // 4 course items, the 3 hour item, and 2 other-course items that only ever reach the DM.
+    expect(events(PRESENTER).length).toBe(7);
+    expect(events(PRESENTER).filter((e) => e.course !== 'CSE 340: Software Engineering')).toHaveLength(2);
     expect(events(REAL2).length).toBe(1);
     // Everything else is past the 48 h reminder window.
     for (const e of [...events(PRESENTER), ...events(REAL2)].filter((e) => !e.uid.endsWith(":soon"))) {

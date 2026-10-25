@@ -9,7 +9,7 @@ import { applySplit, computeSplit } from '../splitService.ts';
 import { getPrefs } from '../prefs.ts';
 import { demoUidPrefix, resetGroup } from './reset.ts';
 import { presenterOf, type DemoConfig, type DemoMember } from './config.ts';
-import { BUSY_WEEK_ITEMS, DEMO_TASKS, LIGHT_ITEMS, SOON_ITEM } from './fixture.ts';
+import { BUSY_WEEK_ITEMS, DEMO_TASKS, LIGHT_ITEMS, OTHER_COURSE_ITEMS, SOON_ITEM } from './fixture.ts';
 
 /**
  * Loads the demo team into one group: reset first (so seeding twice gives the same rows), then the
@@ -138,6 +138,12 @@ export function seedGroup(groupId: number, config: DemoConfig, opts: SeedOpts = 
       upsertItem(m.telegramUserId, `${prefix}${m.role}:${i + 1}`, title, g.course, dueAt, now);
       canvasItems++;
     });
+    if (m.calendar === 'busy-week') {
+      OTHER_COURSE_ITEMS.forEach(({ course, title }, i) => {
+        upsertItem(m.telegramUserId, `${prefix}${m.role}:other:${i + 1}`, title, course, today.plus({ days: 2 + 2 * i, hours: 23, minutes: 59 }).toJSDate(), now);
+        canvasItems++;
+      });
+    }
   }
   const soonDue = new Date(Math.floor((now.getTime() + 3 * HOUR_MS) / 60_000) * 60_000);
   upsertItem(presenter.telegramUserId!, `${prefix}${presenter.role}:soon`, SOON_ITEM, g.course, soonDue, now);
