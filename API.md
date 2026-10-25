@@ -299,13 +299,13 @@ The HMAC secret ships inside the public Skill, so it is integrity and spam frict
 { "ok": true, "importId": 12, "message": "Sent to Groupie. Check your group." }
 ```
 
-Errors: `400 bad_payload`, `401 bad_signature`, `404 unknown_code`, `409 code_used` or `code_expired`, `409 not_expecting` (the group already has its assignment), `429 rate_limited`.
+Errors: `400 bad_payload`, `401 bad_signature`, `404 unknown_code`, `409 code_used` or `code_expired`, `409 not_expecting` (the group already has its assignment; the code stays usable), `422 <reason>` (intake failed, for example `too_short`), `429 rate_limited`, `503 imports_off` (server has no `CUBBIE_HMAC_SECRET`). A code made without a group returns `200` with a different message and the student gets a DM to make the code from inside a group.
 
 ### `PUT /api/feed`, `DELETE /api/feed`, `GET /api/feed/status`, `GET /api/feed/upcoming`
 
 Telegram auth, per Telegram user (not per group).
 
-- `PUT /api/feed` `{ "feedUrl": "https://canvas.asu.edu/feeds/calendars/user_....ics" }` saves the Canvas calendar feed (encrypted at rest, AES-256-GCM) and polls it right away. Only `https://canvas.asu.edu/feeds/...` is accepted (`webcal://` is rewritten). The URL is never logged, returned, or shown in chat.
+- `PUT /api/feed` `{ "feedUrl": "https://canvas.asu.edu/feeds/calendars/user_....ics" }` (`400 bad_feed_url` otherwise, `503 feeds_off` without `FEED_ENCRYPTION_KEY`, `403 telegram_only` with browser-link auth) saves the Canvas calendar feed (encrypted at rest, AES-256-GCM) and polls it right away. Only `https://canvas.asu.edu/feeds/...` is accepted (`webcal://` is rewritten). The URL is never logged, returned, or shown in chat.
 - `DELETE /api/feed` disconnects and deletes the stored events.
 - `GET /api/feed/status`: `{ "connected": true, "lastPolledAt": "...", "lastError": null, "eventCount": 9, "courses": ["CSE 340 (Fall 2026)", "HST 101 (Fall 2026)"] }`
 - `GET /api/feed/upcoming`: `{ "events": [FeedEvent, ...] }`, the caller's own items, soonest first.

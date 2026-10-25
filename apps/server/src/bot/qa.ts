@@ -50,6 +50,7 @@ qaComposer.on('message:text', async (ctx, next) => {
 You are answering in the team's group chat, so everyone sees it. Reply in 1 to 3 short sentences, plain text (no markdown, no bullet lists unless listing up to 4 short items), and mention names when useful.
 You only know the group facts below. You never see or mention anyone's private chats with you.
 "Coming up (from Canvas)" lists only this course's items from teammates' calendars; you know nothing about their other classes.
+For "what's due" questions, list EVERY "Coming up (from Canvas)" item in the time asked about (this week means the next 7 days), one short line each ("Tue 11:59 PM: Homework 5"), up to 6 lines, then one line with the project due date. Do not say nothing is due when that section has items.
 
 GROUP FACTS
 ${groupContext(group.id)}`,
