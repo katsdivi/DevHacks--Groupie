@@ -20,7 +20,7 @@ import { formatDue, html } from '../bot/format.ts';
 import { meetingSummary } from '../bot/meeting.ts';
 import { latestMeeting } from '../availability.ts';
 import { addDays, upcomingForUser } from '../calendarQueries.ts';
-import { getGroup, getTasks } from '../groups.ts';
+import { getTasks } from '../groups.ts';
 import { daysLeft } from '../progress.ts';
 import { verifySignature } from './crypto.ts';
 import { takeRateLimit } from './importer.ts';
@@ -28,6 +28,8 @@ import { claimPairCode, createPairCode, getPairCode } from './pairCodes.ts';
 import { canvasDueLabel } from './personal.ts';
 import { clientIp } from './routes.ts';
 import { BUTTON, IMESSAGE_IN_GROUP, LINK_ERR, LINKED_DM, LINKED_MESSAGE, NOT_LINKED, UNLINK_IN_GROUP, UNLINKED } from '../copy.ts';
+import { pendingGroupLine } from '../copy.ts';
+import { projectGroupsFor } from '../membership.ts';
 
 export { LINKED_DM, LINKED_MESSAGE };
 
@@ -134,36 +136,35 @@ const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? o
  * calendar items for the next 7 days. No other member's calendar, memory, chat, or profile is read.
  */
 export function meView(telegramUserId: number, now = new Date()): CubbieMeResponse {
+  // Joined groups, plus groups they made codes or imports for without adding details (pending).
   const memberships = db.select().from(members).where(eq(members.tgUserId, telegramUserId)).all();
-  const groups = memberships.flatMap((m) => {
-    const group = getGroup(m.groupId);
-    if (!group) return [];
+  const project = projectGroupsFor(telegramUserId);
+  const groups = project.map(({ group, joined }) => {
+    const memberIds = new Set(joined ? memberships.filter((m) => m.groupId === group.id).map((m) => m.id) : []);
     const tasks = getTasks(group.id);
-    const mine = tasks.filter((t) => t.assigneeMemberId === m.id).sort((a, b) => a.id - b.id);
+    const mine = tasks.filter((t) => t.assigneeMemberId != null && memberIds.has(t.assigneeMemberId)).sort((a, b) => a.id - b.id);
     const meeting = latestMeeting(group.id);
     const upcomingMeeting = meeting && Date.parse(meeting.end) > now.getTime() ? meetingSummary(group.id, meeting) : null;
-    return [
-      {
-        title: group.title,
-        assignmentTitle: group.assignmentTitle,
-        dueDate: group.dueDate,
-        dueLabel: formatDue(group.dueDate, group.tz),
-        daysLeft: daysLeft(group.dueDate, group.tz, now),
-        myTasks: mine.map((t) => ({ title: t.title, status: t.status, points: t.effort })),
-        myTasksLeft: mine.filter((t) => t.status !== 'done').length,
-        groupTasksDone: tasks.filter((t) => t.status === 'done').length,
-        groupTasksTotal: tasks.length,
-        nextMeeting: upcomingMeeting
-          ? {
-              start: upcomingMeeting.start,
-              label: upcomingMeeting.label,
-              mode: upcomingMeeting.mode,
-              joinUrl: upcomingMeeting.join_url,
-              location: upcomingMeeting.location,
-            }
-          : null,
-      },
-    ];
+    return {
+      title: group.title,
+      assignmentTitle: group.assignmentTitle,
+      dueDate: group.dueDate,
+      dueLabel: formatDue(group.dueDate, group.tz),
+      daysLeft: daysLeft(group.dueDate, group.tz, now),
+      myTasks: mine.map((t) => ({ title: t.title, status: t.status, points: t.effort })),
+      myTasksLeft: mine.filter((t) => t.status !== 'done').length,
+      groupTasksDone: tasks.filter((t) => t.status === 'done').length,
+      groupTasksTotal: tasks.length,
+      nextMeeting: upcomingMeeting
+        ? {
+            start: upcomingMeeting.start,
+            label: upcomingMeeting.label,
+            mode: upcomingMeeting.mode,
+            joinUrl: upcomingMeeting.join_url,
+            location: upcomingMeeting.location,
+          }
+        : null,
+    };
   });
   const upcoming = upcomingForUser(telegramUserId, now, addDays(now, CUBBIE_ME_DAYS)).map((e) => ({
     title: e.title,
@@ -173,13 +174,14 @@ export function meView(telegramUserId: number, now = new Date()): CubbieMeRespon
     kind: e.kind,
   }));
   const myTasksLeft = groups.reduce((s, g) => s + g.myTasksLeft, 0);
+  const pending = project.filter((p) => !p.joined).map((p) => pendingGroupLine(p.group.title));
   return {
     name: nameFor(telegramUserId),
     now: now.toISOString(),
     groups,
     upcoming,
     counts: { myTasksLeft, upcoming: upcoming.length, groups: groups.length },
-    summary: `${plural(myTasksLeft, 'task')} left, ${plural(upcoming.length, 'thing')} due in the next ${CUBBIE_ME_DAYS} days`,
+    summary: [`${plural(myTasksLeft, 'task')} left, ${plural(upcoming.length, 'thing')} due in the next ${CUBBIE_ME_DAYS} days`, ...pending].join('. '),
   };
 }
 
