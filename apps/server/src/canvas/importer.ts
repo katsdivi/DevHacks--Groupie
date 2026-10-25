@@ -196,6 +196,7 @@ export async function handleImport(rawBody: Buffer | undefined, signature: strin
     extraContext,
     dueDate: p.assignment.dueAt,
     courseName: p.course.name,
+    source: 'canvas',
   }).then(
     (r) => {
       finishImport(importId, r);
@@ -203,7 +204,7 @@ export async function handleImport(rawBody: Buffer | undefined, signature: strin
     },
     (err: unknown) => {
       console.error('Cubbie import intake failed', err);
-      const r: IngestResult = { ok: false, reason: 'failed', message: 'Could not parse the assignment.' };
+      const r: IngestResult = { ok: false, reason: 'failed', message: "I couldn't make sense of this one. Get a new code and try again." };
       finishImport(importId, r);
       return r;
     },

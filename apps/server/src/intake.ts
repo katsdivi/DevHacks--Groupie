@@ -22,6 +22,8 @@ export type IngestInput = {
   courseName?: string;
   /** Edit this existing group message instead of posting a new "Reading..." message. */
   statusMessageId?: number;
+  /** Where it came from, so a failure suggests the right retry. Defaults to 'file'. */
+  source?: 'file' | 'canvas';
 };
 
 export type IngestResult =
@@ -40,29 +42,40 @@ export const expectingAssignment = (g: Group | undefined) =>
  */
 export async function ingestAssignment(groupId: number, input: IngestInput): Promise<IngestResult> {
   const group = getGroup(groupId);
-  if (!group) return { ok: false, reason: 'no_group', message: "I'm not in that group yet." };
+  if (!group) return { ok: false, reason: 'no_group', message: "I'm not in that group yet. Add me, then send /setup." };
   if (!group.teamSize) {
-    return { ok: false, reason: 'no_team_size', message: 'Set the team size first: send /setup in the group.' };
+    return { ok: false, reason: 'no_team_size', message: 'Pick the team size first: send /setup in the group.' };
   }
   if (!expectingAssignment(group)) {
     return { ok: false, reason: 'not_expecting', message: 'This group already has its assignment. Use /reset to start over.' };
   }
-  if (inFlight.has(groupId)) return { ok: false, reason: 'busy', message: 'Still reading the last one.' };
+  if (inFlight.has(groupId)) {
+    return { ok: false, reason: 'busy', message: 'Still reading the last one. Give it a minute, then grab a new code.' };
+  }
+  const canvas = input.source === 'canvas';
+  const label = `<b>${html(input.sourceLabel)}</b>`;
 
   inFlight.add(groupId);
   const statusId =
     input.statusMessageId ??
-    (await bot.api.sendMessage(groupId, `Reading <b>${html(input.sourceLabel)}</b>. Give me a sec...`, { parse_mode: 'HTML' }))
-      .message_id;
+    (await bot.api.sendMessage(groupId, `Reading ${label}. Give me a sec...`, { parse_mode: 'HTML' })).message_id;
   const edit = (text: string) => bot.api.editMessageText(groupId, statusId, text, { parse_mode: 'HTML' }).catch(() => {});
   const typing = setInterval(() => bot.api.sendChatAction(groupId, 'typing').catch(() => {}), 4500);
   try {
     if (input.text.replace(/\s/g, '').length < 50) {
-      await edit("Hmm, I couldn't find enough text in that to work with. Can you send the assignment as a PDF or .docx?");
-      return { ok: false, reason: 'too_short', message: 'Not enough assignment text.' };
+      await edit(
+        canvas
+          ? `Hmm, Canvas didn't give me much text for ${label}. Drop the assignment PDF here and I'll read that instead.`
+          : "Hmm, I couldn't find enough text in that to work with. Can you send the assignment as a PDF or .docx?",
+      );
+      return {
+        ok: false,
+        reason: 'too_short',
+        message: "Canvas didn't have much text for this one. Drop the assignment PDF in the group instead.",
+      };
     }
     await bot.api.sendChatAction(groupId, 'typing').catch(() => {});
-    let parsed = await parseAssignment(input.text, group.teamSize, () => void edit('Thinking, one sec...'), input.extraContext);
+    let parsed = await parseAssignment(input.text, group.teamSize, () => void edit(`Reading ${label}. Thinking hard, one sec...`), input.extraContext);
     if (input.dueDate !== undefined) parsed = { ...parsed, due_date: input.dueDate ? input.dueDate.slice(0, 10) : parsed.due_date };
     saveAssignment(groupId, parsed);
     if (input.courseName) {
@@ -74,8 +87,16 @@ export async function ingestAssignment(groupId: number, input: IngestInput): Pro
     return { ok: true, parsed };
   } catch (err) {
     console.error('Assignment parse failed', err);
-    await edit("I couldn't make sense of that one. Try sending it again, or as a PDF?");
-    return { ok: false, reason: 'failed', message: 'Could not parse the assignment.' };
+    await edit(
+      canvas
+        ? `I couldn't make sense of ${label}. Send /canvas for a fresh code and try again, or drop the PDF here.`
+        : "I couldn't make sense of that one. Try sending it again, or as a PDF?",
+    );
+    return {
+      ok: false,
+      reason: 'failed',
+      message: "I couldn't make sense of this one. Get a new code and try again, or drop the PDF in the group.",
+    };
   } finally {
     clearInterval(typing);
     inFlight.delete(groupId);

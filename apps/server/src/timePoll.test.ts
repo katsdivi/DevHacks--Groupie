@@ -19,6 +19,8 @@ type Call = { method: string; payload: Record<string, unknown>; result?: unknown
 let calls: Call[] = [];
 /** Vote counts the next stopPoll returns (or an error to throw). */
 let nextVotes: number[] | Error = [];
+/** When set, the next sendPoll fails with this description. */
+let failPoll: string | null = null;
 let msgId = 100;
 
 beforeAll(() => {
@@ -41,7 +43,10 @@ beforeAll(() => {
     const chat = { id: (payload as { chat_id?: number }).chat_id ?? 0, type: 'group', title: 'T' };
     let result: unknown = true;
     if (method === 'sendMessage' || method === 'sendDocument') result = { message_id: id, date: 0, chat };
-    if (method === 'sendPoll') result = { message_id: id, date: 0, chat, poll: { id: `poll${id}` } };
+    if (method === 'sendPoll') {
+      if (failPoll) return { ok: false, error_code: 400, description: failPoll } as never;
+      result = { message_id: id, date: 0, chat, poll: { id: `poll${id}` } };
+    }
     if (method === 'stopPoll') {
       if (nextVotes instanceof Error) return { ok: false, error_code: 400, description: nextVotes.message } as never;
       result = { id: 'p', options: nextVotes.map((voter_count, i) => ({ text: `o${i}`, voter_count })) };
@@ -53,6 +58,7 @@ beforeAll(() => {
 afterEach(() => {
   calls = [];
   nextVotes = [];
+  failPoll = null;
 });
 
 const created = new Date().toISOString();
@@ -74,6 +80,7 @@ function makeGroup(teamSize: number, status: 'scheduling' | 'active' = 'scheduli
 
 const sent = (method: string) => calls.filter((c) => c.method === method);
 const texts = () => calls.filter((c) => c.method === 'sendMessage').map((c) => String(c.payload.text));
+const edits = () => calls.filter((c) => c.method === 'editMessageText').map((c) => String(c.payload.text));
 const timePoll = () => sent('sendPoll').find((c) => c.payload.question === 'Which time works?');
 const confirmData = (c: Call) =>
   ((c.payload.reply_markup as { inline_keyboard: { callback_data: string }[][] }).inline_keyboard[0]![0]!.callback_data);
@@ -145,6 +152,21 @@ describe('time poll', () => {
     expect(await lockMeeting(g.id)).toBe(false);
     expect(texts().some((t) => t.includes("Nobody's free times overlap"))).toBe(true);
     expect(getGroup(g.id)!.status).toBe('scheduling');
+
+    // A second try edits the same message instead of stacking another copy.
+    calls = [];
+    expect(await lockMeeting(g.id)).toBe(false);
+    expect(texts().some((t) => t.includes("Nobody's free times overlap"))).toBe(false);
+    expect(edits().some((t) => t.includes("Nobody's free times overlap"))).toBe(true);
+  });
+
+  it('says so and stays in scheduling when the time poll will not post', async () => {
+    const g = makeGroup(2);
+    for (const m of g.members) setSlots(m.id, [...halfHours(0, 2), ...halfHours(4, 2)]);
+    failPoll = 'Bad Request: polls are not allowed';
+    expect(await lockMeeting(g.id)).toBe(false);
+    expect(texts()).toContain("I couldn't post the time poll. Tap <b>Lock it now</b> to try again?");
+    expect(getGroup(g.id)!.status).toBe('scheduling');
   });
 
   it('confirm picks the most-voted time, ties to the higher rank, and only once', async () => {
@@ -181,13 +203,16 @@ describe('time poll', () => {
     nextVotes = [0, 2, 0];
     await bot.handleUpdate(tap(g.id, asker, 'cal:invite', 999));
     expect(latestMeeting(g.id)!.mode).toBe('zoom');
+    expect(edits()).toContain('Zoom it is. Sending the invite...');
     expect(getPending(g.id, asker)?.kind).toBe('meeting_link');
     expect(texts().some((t) => t.includes('reply with the Zoom link'))).toBe(true);
 
     calls = [];
     await bot.handleUpdate(say(g.id, asker, 'https://zoom.us/j/123456789'));
     expect(latestMeeting(g.id)!.meetLink).toBe('https://zoom.us/j/123456789');
-    expect(texts().some((t) => t.includes('Team meeting is on!'))).toBe(true);
+    // A "one sec" message first, then the same message becomes the meeting card.
+    expect(texts().some((t) => t.includes('Setting up your meeting, one sec...'))).toBe(true);
+    expect(edits().some((t) => t.includes('Team meeting is on!'))).toBe(true);
     expect(sent('sendDocument')).toHaveLength(1);
     const dms = sent('sendMessage').filter((c) => g.members.some((m) => m.tgUserId === c.payload.chat_id));
     expect(dms).toHaveLength(3);

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import type { MeResponse, Screen, SplitMemberView, SplitResponse, SplitTaskView, SwapResponse } from '@groupie/shared';
 import { api, ApiError } from '../api.ts';
-import { haptic } from '../telegram.ts';
+import { haptic, tg } from '../telegram.ts';
 import { useMainButton } from '../useMainButton.ts';
 import { SplitSkeleton } from '../components/Skeleton.tsx';
 
@@ -250,7 +250,7 @@ export function Split({ me, go }: Props) {
         <h1 className="mt-6 text-[24px] font-bold tracking-tight">The split got lost</h1>
         <p className="mt-2 max-w-xs text-[15px] leading-relaxed text-muted">{loadError}</p>
         <button
-          className="mt-8 rounded-full bg-text px-7 py-3 text-[15px] font-semibold text-ink active:scale-[0.98]"
+          className="mt-8 min-h-11 rounded-full bg-text px-7 py-3 text-[15px] font-semibold text-ink active:scale-[0.98]"
           onClick={() => {
             haptic.tap();
             setLoadError(null);
@@ -304,6 +304,17 @@ export function Split({ me, go }: Props) {
               }}
             >
               Add my details
+            </button>
+          )}
+          {me.member && tg && (
+            <button
+              className="mt-6 min-h-11 w-full rounded-full border border-dashed border-line-strong py-3 text-[15px] font-semibold active:scale-[0.98]"
+              onClick={() => {
+                haptic.tap();
+                tg?.close();
+              }}
+            >
+              Back to the group
             </button>
           )}
         </section>
@@ -593,7 +604,7 @@ function FlowHead({ step, title, onCancel, color }: { step: 1 | 2; title: string
         <button
           type="button"
           onClick={onCancel}
-          className="-mr-2 rounded-full px-3 py-1.5 text-[15px] font-medium text-muted active:bg-panel"
+          className="-mr-2 min-h-11 rounded-full px-3 py-1.5 text-[15px] font-medium text-muted active:bg-panel"
         >
           Cancel
         </button>

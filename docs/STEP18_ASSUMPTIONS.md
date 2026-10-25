@@ -12,3 +12,11 @@
 7. **`api.ts` mount.** One `api.use(chatRouter)` line plus its import line.
 8. **`/forgetchat` in the command menu.** Not added: `setMyCommands` lives in `index.ts`, outside PERSIST ownership. The lead can add `{ command: 'forgetchat', description: 'Wipe our chat history' }` there and mention it in `/help`.
 9. **`clearAppChat` lives in `dmHistory.ts`**, not `agent.ts`, so both clears share one transaction in `clearMyChat`.
+
+### From POLISH-A
+
+4. **POLISH-A: button wording.** The `/canvas` button is now "Open Groupie" (was "Open Canvas in Groupie") to match the shared convention; it still deep links to the Canvas screen.
+5. **POLISH-A: Cubbie error replies stay in send.py.** `cubbie-skill/scripts/send.py` maps a 422 to "Groupie's server answered HTTP 422" and is outside POLISH-A's files. The friendly next step for a failed import is shown in the group (the "Reading..." message is edited) and in the Mini App failed box (`cubbie_imports.error`), both reworded.
+6. **POLISH-A: split card fallback.** If the card PNG fails to render or send, the same split is posted as text ("Fair split (card is shy today):") with the same Looks fair / Request swap buttons, and becomes the live split message so votes still count.
+7. **POLISH-A: in-place edits.** The meeting card replaces a "Setting up your meeting, one sec..." message; the Send Calendar Invite prompt is edited to "<Mode> it is. Sending the invite..."; repeat "no overlap" notices edit the previous one (tracked in memory, so a restart may post one fresh copy).
+8. **POLISH-A: themes.** The Mini App keeps the dark brand palette in both Telegram themes; `color-scheme: dark` makes native controls match. Verified with Playwright screenshots in light and dark at 360 and 390 px.

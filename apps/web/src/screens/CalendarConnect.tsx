@@ -13,7 +13,7 @@ const card = 'rounded-3xl border border-dashed border-line-strong';
 const primary =
   'w-full rounded-full bg-text py-3.5 text-[16px] font-semibold text-ink transition-transform active:scale-[0.98] disabled:opacity-50';
 const secondary =
-  'rounded-full border border-dashed border-line-strong px-5 py-2.5 text-[15px] font-medium transition-transform active:scale-[0.98] disabled:opacity-50';
+  'min-h-11 rounded-full border border-dashed border-line-strong px-5 py-2.5 text-[15px] font-medium transition-transform active:scale-[0.98] disabled:opacity-50';
 const LIME = '#A6E35A';
 const CORAL = '#FF6B5B';
 const AMBER = '#FFB547';
@@ -43,12 +43,14 @@ function ConnectionCard({
   onSync,
   onDisconnect,
   syncing,
+  syncError,
 }: {
   conn: Conn;
   count: number;
   onSync: () => void;
   onDisconnect: () => Promise<void>;
   syncing: boolean;
+  syncError: string | null;
 }) {
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -89,15 +91,20 @@ function ConnectionCard({
           <b className="font-semibold" style={{ color: AMBER }}>
             Last sync hiccup.
           </b>{' '}
-          {conn.last_error}
+          {conn.last_error} Tap Sync now to try again.
         </p>
       )}
       <button className={`${secondary} mt-4 w-full`} onClick={onSync} disabled={syncing}>
         {syncing ? 'Syncing...' : 'Sync now'}
       </button>
+      {syncError && (
+        <p className="mt-2 px-1 text-[13px] leading-snug" style={{ color: CORAL }} role="alert">
+          {syncError}
+        </p>
+      )}
       {!confirming ? (
         <button
-          className="mt-2 w-full py-2 text-[14px] font-medium text-muted active:opacity-70"
+          className="mt-2 min-h-11 w-full py-2 text-[14px] font-medium text-muted active:opacity-70"
           onClick={() => {
             haptic.tap();
             setConfirming(true);
@@ -116,7 +123,7 @@ function ConnectionCard({
               Keep it
             </button>
             <button
-              className="flex-1 rounded-full py-2.5 text-[15px] font-semibold text-ink active:scale-[0.98] disabled:opacity-50"
+              className="min-h-11 flex-1 rounded-full py-2.5 text-[15px] font-semibold text-ink active:scale-[0.98] disabled:opacity-50"
               style={{ background: CORAL }}
               onClick={disconnect}
               disabled={busy}
@@ -136,7 +143,7 @@ function ConnectionCard({
 }
 
 /** Step 18a: connect Google (free/busy) or paste an ICS link. Only busy times are ever stored. */
-export function CalendarConnect(_props: { me: MeResponse; go: (s: Screen) => void }) {
+export function CalendarConnect({ me, go }: { me: MeResponse; go: (s: Screen) => void }) {
   const [status, setStatus] = useState<CalendarStatusResponse | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
@@ -146,6 +153,7 @@ export function CalendarConnect(_props: { me: MeResponse; go: (s: Screen) => voi
   const [starting, setStarting] = useState(false);
   const [googleError, setGoogleError] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
+  const [syncError, setSyncError] = useState<string | null>(null);
   const [openGuide, setOpenGuide] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -217,12 +225,13 @@ export function CalendarConnect(_props: { me: MeResponse; go: (s: Screen) => voi
   const syncNow = async () => {
     haptic.tap();
     setSyncing(true);
+    setSyncError(null);
     try {
       setStatus(await api<CalendarStatusResponse>('/calendar/sync', { method: 'POST' }));
       haptic.success();
     } catch (e) {
       haptic.error();
-      setLoadError(errText(e, 'Could not sync. Try again?'));
+      setSyncError(errText(e, 'Could not sync just now. Try again in a sec?'));
     } finally {
       setSyncing(false);
     }
@@ -271,15 +280,27 @@ export function CalendarConnect(_props: { me: MeResponse; go: (s: Screen) => voi
           )}
 
           {google?.connected && (
-            <ConnectionCard conn={google} count={status.busy_block_count} syncing={syncing} onSync={syncNow} onDisconnect={() => disconnect('google')} />
+            <ConnectionCard conn={google} count={status.busy_block_count} syncing={syncing} syncError={syncError} onSync={syncNow} onDisconnect={() => disconnect('google')} />
           )}
           {ics?.connected && (
-            <ConnectionCard conn={ics} count={status.busy_block_count} syncing={syncing} onSync={syncNow} onDisconnect={() => disconnect('ics')} />
+            <ConnectionCard conn={ics} count={status.busy_block_count} syncing={syncing} syncError={syncError} onSync={syncNow} onDisconnect={() => disconnect('ics')} />
+          )}
+
+          {anyConnected && me.member && (
+            <button
+              className={`${primary} mt-4`}
+              onClick={() => {
+                haptic.tap();
+                go('avail');
+              }}
+            >
+              Fill your availability
+            </button>
           )}
 
           {status.google_available && !google?.connected && (
             <section className={`${card} mt-4 p-5`}>
-              <div className={label}>Option 1</div>
+              <div className={label}>{anyConnected ? 'Add another' : 'Option 1'}</div>
               <h2 className="mt-2 text-[21px] font-semibold leading-snug">Google Calendar</h2>
               <p className="mt-1.5 text-[15px] leading-relaxed text-muted">Sign in with Google and allow free/busy access. No event names, ever.</p>
               <button className={`${primary} mt-4`} onClick={startGoogle} disabled={starting}>
@@ -296,14 +317,14 @@ export function CalendarConnect(_props: { me: MeResponse; go: (s: Screen) => voi
 
           {!ics?.connected && (
             <section className={`${card} mt-4 p-5`}>
-              <div className={label}>{status.google_available && !google?.connected ? 'Option 2' : 'Calendar link'}</div>
+              <div className={label}>{anyConnected ? 'Add another' : status.google_available && !google?.connected ? 'Option 2' : 'Calendar link'}</div>
               <h2 className="mt-2 text-[21px] font-semibold leading-snug">Paste a calendar link</h2>
               <p className="mt-1.5 text-[15px] leading-relaxed text-muted">Works with Apple, Outlook, and Google. Find the link:</p>
               <ul className="mt-3 space-y-2">
                 {GUIDES.map((g) => (
                   <li key={g.key} className="rounded-2xl border border-line bg-panel/60">
                     <button
-                      className="flex w-full items-center justify-between px-4 py-3 text-left text-[15px] font-medium"
+                      className="flex min-h-11 w-full items-center justify-between px-4 py-3 text-left text-[15px] font-medium"
                       onClick={() => {
                         haptic.select();
                         setOpenGuide(openGuide === g.key ? null : g.key);

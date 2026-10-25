@@ -119,7 +119,7 @@ function Blocked({
       <p className="mt-2 max-w-xs text-[15px] leading-relaxed text-muted">{body}</p>
       {action && (
         <button
-          className="mt-8 rounded-full bg-text px-7 py-3 text-[15px] font-semibold text-ink active:scale-[0.98]"
+          className="mt-8 min-h-11 rounded-full bg-text px-7 py-3 text-[15px] font-semibold text-ink active:scale-[0.98]"
           onClick={() => {
             haptic.tap();
             action.onClick();
@@ -375,7 +375,7 @@ function Board({ data, standalone }: { data: AvailabilityMeResponse; standalone:
 
         {view === 'mine' && prefill && (
           <>
-            {prefillPending && <PrefillBanner onConfirm={confirmPrefill} />}
+            <PrefillBanner pending={prefillPending} nick={nick} onConfirm={confirmPrefill} />
             <PrefillLegend color={member.color} />
           </>
         )}
@@ -465,7 +465,7 @@ function Segmented({ view, onChange, color }: { view: View; onChange: (v: View) 
             role="tab"
             aria-selected={on}
             onClick={() => onChange(o.v)}
-            className={`relative z-10 flex items-center justify-center gap-2 rounded-full py-2.5 text-[15px] font-semibold transition-colors duration-200 ${
+            className={`relative z-10 flex min-h-11 items-center justify-center gap-2 rounded-full py-2.5 text-[15px] font-semibold transition-colors duration-200 ${
               on ? 'text-ink' : 'text-muted'
             }`}
           >
@@ -486,21 +486,34 @@ function Segmented({ view, onChange, color }: { view: View; onChange: (v: View) 
   );
 }
 
-function PrefillBanner({ onConfirm }: { onConfirm: () => void }) {
+/** Stays mounted after Looks right (same height, new text) so the grid below never jumps. */
+function PrefillBanner({ pending, nick, onConfirm }: { pending: boolean; nick: string; onConfirm: () => void }) {
   return (
     <section
-      className="mt-4 flex animate-enter items-center justify-between gap-3 rounded-3xl border p-4"
+      className="mt-4 flex min-h-[76px] animate-enter items-center justify-between gap-3 rounded-3xl border p-4"
       style={{ borderColor: `${LIME}55`, background: `linear-gradient(135deg, ${LIME}12, transparent 65%)` }}
     >
-      <p className="min-w-0 text-[14px] leading-snug">
-        We filled this from your calendar. Fix anything that's off, then tap Looks right.
+      <p className="min-w-0 text-[14px] leading-snug" aria-live="polite">
+        {pending
+          ? `${nick} filled this from your calendar. Fix anything that's off.`
+          : 'Saved. Drag across the grid any time to tweak it.'}
       </p>
-      <button
-        onClick={onConfirm}
-        className="shrink-0 rounded-full bg-text px-4 py-2.5 text-[14px] font-semibold text-ink active:scale-[0.98]"
-      >
-        Looks right
-      </button>
+      {pending ? (
+        <button
+          onClick={onConfirm}
+          className="min-h-11 shrink-0 rounded-full bg-text px-4 py-2.5 text-[14px] font-semibold text-ink active:scale-[0.98]"
+        >
+          Looks right
+        </button>
+      ) : (
+        <span
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink"
+          style={{ background: LIME }}
+          aria-hidden
+        >
+          <Check className="h-4 w-4" />
+        </span>
+      )}
     </section>
   );
 }
@@ -582,7 +595,7 @@ function BestCard({
             haptic.tap();
             onRetry();
           }}
-          className="shrink-0 rounded-full bg-text px-4 py-2 text-[14px] font-semibold text-ink active:scale-[0.98]"
+          className="min-h-11 shrink-0 rounded-full bg-text px-4 py-2 text-[14px] font-semibold text-ink active:scale-[0.98]"
         >
           Try again
         </button>
@@ -762,7 +775,7 @@ function SlotSheet({
                 haptic.tap();
                 onClose();
               }}
-              className="flex h-8 w-8 items-center justify-center rounded-full text-[18px] text-muted active:bg-line"
+              className="-mr-1.5 flex h-11 w-11 items-center justify-center rounded-full text-[20px] text-muted active:bg-line"
             >
               ×
             </button>
