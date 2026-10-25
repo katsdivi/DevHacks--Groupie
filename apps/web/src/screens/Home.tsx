@@ -1,5 +1,5 @@
-import { colorName, type MeResponse, type Screen } from '@groupie/shared';
-import { haptic } from '../telegram.ts';
+import { colorName, type MeResponse, type Screen, type SetupStatus, type SetupStep } from '@groupie/shared';
+import { haptic, openTelegram } from '../telegram.ts';
 import { MeetingCard } from '../components/MeetingCard.tsx';
 
 function Row({ title, sub, onClick, accent }: { title: string; sub: string; onClick: () => void; accent?: string }) {
@@ -25,6 +25,61 @@ function Row({ title, sub, onClick, accent }: { title: string; sub: string; onCl
   );
 }
 
+/** "Finish setup": progress and one tappable row per undone step. Hidden once everything is done. */
+export function SetupCard({ setup, go }: { setup: SetupStatus | undefined; go: (s: Screen) => void }) {
+  if (!setup || setup.all_done) return null;
+  const run = (step: SetupStep) => {
+    const a = step.action;
+    if (a.kind === 'screen') go(a.screen);
+    else if (a.kind === 'url' || a.kind === 'command') openTelegram(a.url);
+  };
+  return (
+    <section className="mt-8 rounded-3xl border border-dashed border-line-strong p-5">
+      <div className="flex items-baseline justify-between">
+        <div className="text-[13px] font-medium uppercase tracking-widest text-muted">Finish setup</div>
+        <div className="text-[13px] text-muted">
+          {setup.done} of {setup.total}
+        </div>
+      </div>
+      <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-panel">
+        <div className="h-full rounded-full bg-text" style={{ width: `${(setup.done / setup.total) * 100}%` }} />
+      </div>
+      <ul className="mt-3 divide-y divide-dashed divide-line">
+        {setup.steps
+          .filter((s) => !s.done)
+          .map((s) => {
+            const actionable = s.action.kind !== 'none';
+            return (
+              <li key={s.key}>
+                <button
+                  className="flex w-full items-center justify-between gap-4 py-3 text-left text-[15px] active:opacity-70 disabled:opacity-60"
+                  disabled={!actionable}
+                  onClick={() => {
+                    haptic.tap();
+                    run(s);
+                  }}
+                >
+                  <span className="flex items-center gap-3">
+                    <span className="h-4 w-4 shrink-0 rounded-full border-2 border-dashed border-line-strong" aria-hidden />
+                    <span>
+                      {s.label}
+                      {s.hint && <span className="block text-[13px] text-muted">{s.hint}</span>}
+                    </span>
+                  </span>
+                  {actionable && (
+                    <span className="text-xl text-muted" aria-hidden>
+                      ›
+                    </span>
+                  )}
+                </button>
+              </li>
+            );
+          })}
+      </ul>
+    </section>
+  );
+}
+
 export function Home({ me, go }: { me: MeResponse; go: (s: Screen) => void }) {
   const { user, member, group } = me;
   const hasAssignment = group.status !== 'setup';
@@ -36,6 +91,8 @@ export function Home({ me, go }: { me: MeResponse; go: (s: Screen) => void }) {
         <span className="text-muted">{group.nickname} is on </span>
         {group.title || 'your group'}
       </h1>
+
+      <SetupCard setup={me.setup} go={go} />
 
       {group.meeting && <MeetingCard meeting={group.meeting} />}
 

@@ -24,7 +24,12 @@ import { checkinComposer } from './checkin.ts';
 import { qaComposer } from './qa.ts';
 import { dmComposer } from './dm.ts';
 import { canvasComposer } from '../canvas/bot.ts';
-import { seedAvailability } from '../availability.ts';
+import { latestMeeting, seedAvailability } from '../availability.ts';
+import { meetingSummary } from './meeting.ts';
+import { listMembers } from '../members.ts';
+import { sendLinkCode } from '../canvas/link.ts';
+import { addToGroupUrl, setupStatus } from '../setupStatus.ts';
+import { setupCardText, setupKeyboard, SETUP_IMESSAGE } from './setupCard.ts';
 
 import { appButton, appUrl, bot } from './core.ts';
 import { postJoinStatus, refreshJoinStatus } from './joinStatus.ts';
@@ -32,7 +37,6 @@ import { askSizeKeyboard, nudgeTeamSize, postSizePrompt, sizeKeyboard, TEAM_SIZE
 import { seedMembers } from '../members.ts';
 import { setCanDm } from '../prefs.ts';
 import {
-  alreadySetUp,
   appText,
   askAssignmentText,
   askNameText,
@@ -40,6 +44,7 @@ import {
   BAD_NAME,
   BUTTON,
   GROUP_ONLY,
+  groupStateText,
   joinTooEarly,
   KEPT_TOAST,
   namedText,
@@ -50,6 +55,7 @@ import {
   seededText,
   settingsText,
   SIZE_LOCKED,
+  START_HELP_LINE,
   sizeSetText,
   sizeToast,
   WELCOME,
@@ -164,10 +170,9 @@ bot.command('start', async (ctx) => {
       await ctx.reply(REMINDERS_READY);
       return;
     }
-    await ctx.reply(`${featureGuide()}\n\n${html(REMINDERS_READY)}`, {
-      parse_mode: 'HTML',
-      reply_markup: addToGroupButton(),
-    });
+    // From the Mini App's [Link iMessage]: the same flow as /imessage.
+    if (ctx.match.trim() === 'imessage' && ctx.chat?.type === 'private') return void (await sendLinkCode(ctx));
+    await replyChecklist(ctx, true);
     return;
   }
   const known = getGroup(ctx.chat.id);
@@ -181,7 +186,31 @@ bot.command('start', async (ctx) => {
 });
 
 /** Opens Telegram's "add to group" picker for this bot. */
-const addToGroupButton = () => new InlineKeyboard().url(BUTTON.addToGroup, `https://t.me/${env.botUsername}?startgroup=true`);
+const addToGroupButton = () => new InlineKeyboard().url(BUTTON.addToGroup, addToGroupUrl());
+
+/**
+ * The personal checklist in a DM, with a button for the next 1 to 3 steps. On /start it also keeps the
+ * add-to-group button and points at /help for the full guide.
+ */
+async function replyChecklist(ctx: Context, fromStart: boolean) {
+  const status = setupStatus(ctx.from!.id);
+  const kb = setupKeyboard(status);
+  const hasAddButton = kb.inline_keyboard.flat().some((b) => 'url' in b && b.url === addToGroupUrl());
+  if (fromStart && !hasAddButton) kb.url(BUTTON.addToGroup, addToGroupUrl());
+  const text = fromStart ? `${setupCardText(status)}\n\n${html(START_HELP_LINE)}` : setupCardText(status);
+  await ctx.reply(text, { parse_mode: 'HTML', ...(kb.inline_keyboard.flat().length ? { reply_markup: kb } : {}) });
+}
+
+/** The group's state for /setup once setup is done, with one button for the next step. */
+async function replyGroupState(ctx: Context, group: Group) {
+  const joined = listMembers(group.id).length;
+  const meeting = meetingSummary(group.id, latestMeeting(group.id));
+  const text = groupStateText({ nickname: group.nickname, teamSize: group.teamSize, assignmentTitle: group.assignmentTitle, joined, meeting: meeting?.label ?? null });
+  const open = group.status === 'collecting_members' && (!group.teamSize || joined < group.teamSize);
+  const pickTime = !meeting && (group.status === 'split_ready' || group.status === 'scheduling');
+  const button = open ? appButton(group.id, BUTTON.details, 'form') : pickTime ? appButton(group.id, BUTTON.avail, 'avail') : appButton(group.id, BUTTON.open);
+  await ctx.reply(text, { parse_mode: 'HTML', reply_markup: button });
+}
 
 bot.command('help', async (ctx) => {
   const group = isGroupChat(ctx) ? getGroup(ctx.chat.id) : undefined;
@@ -242,14 +271,21 @@ bot.callbackQuery('nick:keep', async (ctx) => {
 });
 
 bot.command('setup', async (ctx) => {
+  if (ctx.chat?.type === 'private' && ctx.from) {
+    // A private message from them means Telegram lets us DM them.
+    setCanDm(ctx.from.id, true);
+    return void (await replyChecklist(ctx, false));
+  }
   if (!isGroupChat(ctx)) return void (await ctx.reply(GROUP_ONLY));
   const group = groupFromCtx(ctx);
   if (needsSizeAfterImport(group)) return void (await postSizePrompt(group.id));
-  if (group.status !== 'setup') {
-    await ctx.reply(alreadySetUp(group.nickname), { parse_mode: 'HTML' });
-    return;
-  }
+  if (group.status !== 'setup') return void (await replyGroupState(ctx, group));
   await sendSetupPrompt(ctx);
+});
+
+bot.callbackQuery(SETUP_IMESSAGE, async (ctx) => {
+  await ctx.answerCallbackQuery();
+  if (ctx.chat?.type === 'private') await sendLinkCode(ctx);
 });
 
 bot.callbackQuery(/^size:(\d)$/, async (ctx) => {

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { SKILL_TAGS } from './assignment.ts';
+import { SCREENS } from './startParam.ts';
 
 export const GroupStatus = z.enum(['setup', 'collecting_members', 'split_ready', 'scheduling', 'active']);
 
@@ -45,6 +46,40 @@ export const MeetingSummary = z.object({
 });
 export type MeetingSummary = z.infer<typeof MeetingSummary>;
 
+/** One personal setup step. `action` says how to do it; `none` means it is waiting on something else. */
+export const SETUP_STEP_KEYS = ['group', 'details', 'calendar', 'canvas', 'imessage', 'reminders'] as const;
+export const SetupAction = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('screen'), screen: z.enum(SCREENS) }),
+  z.object({ kind: z.literal('url'), url: z.string() }),
+  /** A bot command to send in the DM; `url` opens the DM with it (a t.me deep link). */
+  z.object({ kind: z.literal('command'), command: z.string(), url: z.string() }),
+  z.object({ kind: z.literal('none') }),
+]);
+export type SetupAction = z.infer<typeof SetupAction>;
+
+export const SetupStep = z.object({
+  key: z.enum(SETUP_STEP_KEYS),
+  done: z.boolean(),
+  /** One line, plain text. */
+  label: z.string(),
+  /** Button text for the action. */
+  button: z.string(),
+  /** Optional one-line how-to, plain text (the Cubbie link). */
+  hint: z.string().nullable(),
+  action: SetupAction,
+});
+export type SetupStep = z.infer<typeof SetupStep>;
+
+/** The personal "finish setup" checklist. */
+export const SetupStatus = z.object({
+  group: z.object({ id: z.number(), title: z.string() }).nullable(),
+  steps: z.array(SetupStep),
+  done: z.number(),
+  total: z.number(),
+  all_done: z.boolean(),
+});
+export type SetupStatus = z.infer<typeof SetupStatus>;
+
 export const MeResponse = z.object({
   user: TgUser,
   member: Member.nullable(),
@@ -55,6 +90,8 @@ export const MeResponse = z.object({
     task_count: z.number(),
     total_points: z.number(),
   }),
+  /** The caller's setup checklist for this group. Optional so older servers still parse. */
+  setup: SetupStatus.optional(),
 });
 export type MeResponse = z.infer<typeof MeResponse>;
 

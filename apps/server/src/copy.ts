@@ -225,3 +225,52 @@ export const SPLIT_NOT_YOURS = 'Only the person who asked can split this one. Se
 export const SPLIT_HAS_ASSIGNMENT = 'This group already has its assignment. Use /reset to start over.';
 /** In a group, or found by the asker, but no member row yet. */
 export const pendingGroupLine = (title: string) => `You're in ${title || 'your project group'} but haven't added your details yet.`;
+
+// ---------------------------------------------------------------- personal setup checklist (setupStatus.ts, DM /setup and /start)
+
+/** One line per step: what it says while still to do, and once done. Plain text. */
+export const SETUP_STEP = {
+  group: { todo: 'Add me to your project group', done: (title: string) => `In ${title || 'your project group'}` },
+  details: { todo: 'Add your details', waiting: 'Add your details once the assignment is in', done: 'Details added' },
+  calendar: { todo: 'Connect your calendar', done: 'Calendar connected' },
+  canvas: { todo: 'Connect your Canvas feed', done: 'Canvas feed connected' },
+  imessage: { todo: 'Link iMessage through Cubbie', done: 'iMessage linked' },
+  reminders: { todo: 'Let me DM you reminders', done: 'Reminders on' },
+} as const;
+/** Button text for each step. */
+export const SETUP_BUTTON = {
+  group: 'Add me to a group',
+  details: 'Add my details',
+  calendar: 'Connect calendar',
+  canvas: 'Connect Canvas',
+  imessage: 'Link iMessage',
+  reminders: 'Turn on reminders',
+} as const;
+/** How the Cubbie link works, for the Mini App row. Plain text. */
+export const IMESSAGE_HINT = 'Tap Link iMessage and I will DM you two texts for Cubbie. Send them and you are linked.';
+/** Checklist header (HTML). */
+export const setupHead = (done: number, total: number) => `<b>Your setup:</b> ${done} of ${total} done.`;
+/** Every step is done. */
+export const ALL_SET = "You're all set. I've got you from here.";
+/** The last line of the DM /start checklist. */
+export const START_HELP_LINE = 'Send /help to see everything I do.';
+/** Marks for done and to-do rows. */
+export const SETUP_MARK = { done: '✅', todo: '⬜' } as const;
+
+// ---------------------------------------------------------------- group /setup after setup (bot/index.ts)
+
+/** The group's state, for /setup once the group is already set up (HTML). */
+export const groupStateText = (s: {
+  nickname: string;
+  teamSize: number | null;
+  assignmentTitle: string | null;
+  joined: number;
+  meeting: string | null;
+}) =>
+  [
+    `<b>${esc(s.nickname)} here.</b> Here's where we're at:`,
+    s.teamSize ? `• Team of ${s.teamSize}` : '• Team size: not picked yet',
+    s.assignmentTitle ? `• Assignment: ${esc(s.assignmentTitle)}` : '• Assignment: in',
+    s.teamSize ? `• ${s.joined} of ${s.teamSize} joined` : `• ${s.joined} joined`,
+    s.meeting ? `• Meeting: ${esc(s.meeting)}` : '• Meeting: not picked yet',
+  ].join('\n');
