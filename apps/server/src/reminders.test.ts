@@ -2,7 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { GrammyError } from 'grammy';
 import { eq } from 'drizzle-orm';
 import { db, schema } from './db/index.ts';
-import { dueInstant, formatReminder, inQuietHours, runReminders, startReminderScheduler } from './reminders.ts';
+import { dueInstant, formatReminder, inQuietHours, runReminders, startReminderScheduler, type ReminderMarkup } from './reminders.ts';
+import { decodeStartParam } from '@groupie/shared';
 import { getPrefs } from './prefs.ts';
 
 const H = 60 * 60 * 1000;
@@ -12,10 +13,10 @@ const G1 = -9101;
 const G2 = -9102;
 const NOW = '2026-10-01T00:00:00.000Z';
 
-type Sent = { userId: number; text: string };
+type Sent = { userId: number; text: string; extra?: { reply_markup: ReminderMarkup } };
 let sent: Sent[];
-const send = async (userId: number, text: string) => {
-  sent.push({ userId, text });
+const send = async (userId: number, text: string, extra?: { reply_markup: ReminderMarkup }) => {
+  sent.push({ userId, text, extra });
 };
 const run = (iso: string | Date) => runReminders(new Date(iso), { send });
 const at = (base: string, deltaH: number) => new Date(Date.parse(base) + deltaH * H);
@@ -70,7 +71,7 @@ describe('offsets', () => {
     expect(sent).toHaveLength(0);
     await run(at(DUE, -48));
     expect(sent).toHaveLength(1);
-    expect(sent[0]!.text).toContain('Homework 5 (CSE 340), in 48 h');
+    expect(sent[0]!.text).toContain('• Homework 5 (CSE 340)\n   Tue 12:00 PM, in 48 h');
     expect(rows()).toEqual(['cal:hw5|48']);
     await run(at(DUE, -47.75));
     await run(at(DUE, -30));
@@ -133,7 +134,7 @@ describe('quiet hours', () => {
     expect(r1.skippedQuiet).toBe(1);
     await run(at(due, -1)); // 08:00 local
     expect(sent).toHaveLength(1);
-    expect(sent[0]!.text).toContain('Midterm (CSE 340), in 1 h');
+    expect(sent[0]!.text).toContain('• Midterm (CSE 340)\n   Today 9:00 AM, in 1 h');
     expect(rows()).toEqual(['cal:early|3', 'cal:early|6']);
     await run(at(due, -0.75));
     expect(sent).toHaveLength(1);
@@ -168,12 +169,14 @@ describe('batching and privacy', () => {
     expect(mine).toHaveLength(1);
     const text = mine[0]!.text;
     expect(text.split('\n')).toEqual([
-      'Heads up: 2 things due soon',
+      'Heads up! 2 things due soon:',
       '',
-      'Tue 11:00 AM: Homework 5 (CSE 340), in 18 h',
-      'Tue 11:59 PM: Project 1 (CSE 340 · your part: Write intro), in 31 h',
+      '• Homework 5 (CSE 340)',
+      '   Tomorrow 11:00 AM, in 18 h',
+      '• Project 1 (CSE 340 · your part: Write intro)',
+      '   Tomorrow 11:59 PM, in 31 h',
       '',
-      'Change reminders in Settings.',
+      "You've got this. Change reminders in Settings.",
     ]);
     expect(text).not.toContain('Mate');
     expect(text).not.toContain('Done thing');
@@ -185,8 +188,8 @@ describe('batching and privacy', () => {
 
   it('uses the singular for one item', () => {
     const text = formatReminder([{ key: 'cal:x', title: 'X', context: null, due: new Date('2026-11-10T19:00:00Z') }], new Date('2026-11-10T18:30:00Z'), 'America/Phoenix');
-    expect(text.split('\n')[0]).toBe('Heads up: 1 thing due soon');
-    expect(text).toContain('Tue 12:00 PM: X, in 30 min');
+    expect(text.split('\n')[0]).toBe('Heads up! 1 thing due soon:');
+    expect(text).toContain('• X\n   Today 12:00 PM, in 30 min');
   });
 });
 
@@ -249,7 +252,7 @@ describe('time zones', () => {
     expect(sent).toHaveLength(0);
     await run(at(due.toISOString(), -48)); // 2026-11-01T04:59Z = 00:59 EDT, before the change
     expect(sent).toHaveLength(1);
-    expect(sent[0]!.text).toContain('Mon 11:59 PM: Essay (Team 9101), in 48 h');
+    expect(sent[0]!.text).toContain('• Essay (Team 9101)\n   Tomorrow 11:59 PM, in 48 h');
   });
 
   it('quiet hours follow the local clock across DST', () => {
@@ -292,5 +295,33 @@ describe('assignment and task on the same due date', () => {
     expect(text).toContain('your part: Build data API, Write tests');
     expect(text).not.toMatch(/^.*: Build data API \(/m);
     expect(rows().some((r) => r.startsWith('task:'))).toBe(false);
+  });
+});
+
+describe('reminder button', () => {
+  const button = (s: Sent) => s.extra!.reply_markup.inline_keyboard[0]![0]!;
+
+  it('opens Upcoming in the most recent group', async () => {
+    prefs(ME);
+    group(G1);
+    group(G2);
+    member(G1, ME);
+    member(G2, ME);
+    calItem(ME, 'a', 'A', DUE);
+    await run(at(DUE, -2));
+    const b = button(sent[0]!);
+    expect(b.text).toBe('Open Upcoming');
+    const param = new URL(b.url).searchParams.get('startapp')!;
+    expect(decodeStartParam(param)).toEqual({ groupId: G2, screen: 'upcoming' });
+  });
+
+  it('links to the bot chat when the user has no group', async () => {
+    prefs(ME);
+    calItem(ME, 'a', 'A', DUE);
+    await run(at(DUE, -2));
+    const b = button(sent[0]!);
+    expect(b.text).toBe('Open Groupie');
+    expect(b.url).not.toContain('startapp');
+    expect(b.url).toMatch(/^https:\/\/t\.me\/[^/]*$/);
   });
 });

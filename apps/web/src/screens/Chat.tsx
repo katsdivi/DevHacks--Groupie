@@ -183,7 +183,7 @@ export function Chat({ me }: { me: MeResponse }) {
         setItems(res.messages.map((m) => ({ ...m, key: `m${m.id}` })));
         setSuggestions(res.suggestions);
       })
-      .catch((e) => live && setLoadError(errorText(e, 'Could not reach Groupie. Try again in a sec?')));
+      .catch((e) => live && setLoadError(errorText(e, `Could not reach ${nick}. Try again in a sec?`)));
     return () => {
       live = false;
     };
@@ -301,7 +301,7 @@ export function Chat({ me }: { me: MeResponse }) {
     return shell(
       <CenterState
         title="Add your details first"
-        body={`${nick} needs to know who you are before the two of you can talk shop. Tap Back and add your details, then come say hi.`}
+        body={`${nick} needs to know who you are before the two of you can talk shop. Tap Back, then Add my details, and come say hi.`}
       />,
     );
   }
