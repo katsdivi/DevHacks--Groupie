@@ -89,6 +89,10 @@ export const sizeHereLabel = (n: number) => `${n} (everyone here)`;
 /** After the team size is picked (HTML). */
 export const askAssignmentText = (size: number) =>
   `<b>Team of ${size}.</b> Love that for us.\n\nNow drop the assignment file in this chat (PDF, Word, slides) or send /canvas to pull it straight from Canvas, and I'll turn it into tasks with effort points.`;
+/** The team size picked after the task list already posted (HTML). The join message follows. */
+export const sizeSetText = (size: number) => `<b>Team of ${size}.</b> Love that for us.`;
+/** A group step needs the team size and the size buttons are close above. */
+export const TAP_SIZE_ABOVE = 'Tap a team size above first.';
 /** Toast after the team size is picked. */
 export const sizeToast = (size: number) => `Team of ${size}!`;
 /** Team size tapped after setup. */
@@ -159,3 +163,13 @@ export const PLAN_INTRO = 'Your plan, step by step:';
 export const PLAN_FAILED = "I couldn't turn this one into steps. Ask me about it here, or open it in Canvas.";
 export const PLAN_SAVED = "It's in your Upcoming list, and I'll remind you before it's due.";
 export const PLAN_NO_DUE = "Canvas has no due date for this one, so I didn't add it to your Upcoming list.";
+
+// ---------------------------------------------------------------- wrong app (canvas/bot.ts)
+
+/** Someone sent Groupie the message that belongs to Cubbie. */
+export const WRONG_APP = 'That one goes to Cubbie in iMessage, not here. Copy this and send it to Cubbie:';
+/** Their code was unknown, used, or expired, so a new one is in the message. */
+export const CODE_EXPIRED_FRESH = "That code expired, here's a fresh one.";
+/** The wrong-app reply (HTML): the exact Cubbie message in a code block. */
+export const wrongAppText = (message: string, fresh: boolean) =>
+  [...(fresh ? [CODE_EXPIRED_FRESH] : []), WRONG_APP, `<code>${esc(message)}</code>`].join('\n');

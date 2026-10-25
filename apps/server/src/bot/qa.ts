@@ -6,6 +6,7 @@ import { sharedAnything, voice, withoutTeammates } from '../context.ts';
 import { buildContext, renderContext, type ContextBuckets } from '../contextPolicy.ts';
 import { talk, type ChatMessage } from '../llm.ts';
 import { bot } from './core.ts';
+import { catchWrongApp } from '../canvas/bot.ts';
 import { buffering, DM_BLOCKED, DM_OPENER, DM_RETRY, DM_SENT, REFUSE_EVERYONE, REFUSE_INJECTION, shareLine } from '../copy.ts';
 
 export { DM_BLOCKED, DM_OPENER, DM_RETRY, DM_SENT, REFUSE_EVERYONE, REFUSE_INJECTION, shareLine };
@@ -237,8 +238,11 @@ const FLOOD_WINDOW_MS = 30_000;
 const FLOOD_MAX = 4;
 
 qaComposer.on('message:text', async (ctx, next) => {
+  if (ctx.msg.text.startsWith('/')) return next();
+  // The Cubbie import message sent here by mistake: before the address check, so no model call.
+  if (await catchWrongApp(ctx)) return;
   const group = getGroup(ctx.chat.id);
-  if (!group || ctx.msg.text.startsWith('/')) return next();
+  if (!group) return next();
   const replyToBot = ctx.msg.reply_to_message?.from?.id === ctx.me.id;
   const question = addressedQuestion(ctx.msg.text, group.nickname, ctx.me.username, replyToBot);
   if (!question) return next();

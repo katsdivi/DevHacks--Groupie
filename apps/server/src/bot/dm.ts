@@ -5,6 +5,7 @@ import { renderContext } from '../contextPolicy.ts';
 import { memoryReply } from '../agent.ts';
 import { talk, type ChatMessage } from '../llm.ts';
 import { appendDm, clearMyChat, dmHistoryForAsker } from '../dmHistory.ts';
+import { catchWrongApp } from '../canvas/bot.ts';
 
 /**
  * Plain-text conversation in a private chat with the bot. Identity is ctx.from.id; context comes
@@ -66,6 +67,8 @@ dmComposer.command('forgetchat', async (ctx) => {
 
 dmComposer.on('message:text', async (ctx, next) => {
   if (ctx.chat.type !== 'private' || ctx.msg.text.startsWith('/')) return next();
+  // The Cubbie import message sent here by mistake: point it at Cubbie, before history or the model.
+  if (await catchWrongApp(ctx)) return;
   if (getPending(ctx.chat.id, ctx.from.id)) return next();
   await ctx.replyWithChatAction('typing').catch(() => {});
   try {
