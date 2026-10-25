@@ -1,4 +1,4 @@
-export const SCREENS = ['home', 'form', 'split', 'avail', 'progress', 'chat', 'settings', 'canvas', 'upcoming'] as const;
+export const SCREENS = ['home', 'form', 'split', 'avail', 'progress', 'chat', 'settings', 'canvas', 'upcoming', 'calendar', 'memory'] as const;
 export type Screen = (typeof SCREENS)[number];
 
 /**

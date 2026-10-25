@@ -146,6 +146,14 @@ export const AvailabilityMeResponse = z.object({
   member: z.object({ id: z.number(), name: z.string(), color: z.string() }),
   /** UTC ISO slot starts (30 minutes each). */
   slots: z.array(z.string()),
+  /** Step 18a: present when the grid should open prefilled from the member's calendar. */
+  prefill: z
+    .object({
+      prefilled: z.boolean(),
+      busy_slots: z.array(z.string()),
+      hours: z.object({ start: z.number(), end: z.number() }),
+    })
+    .optional(),
 });
 export type AvailabilityMeResponse = z.infer<typeof AvailabilityMeResponse>;
 

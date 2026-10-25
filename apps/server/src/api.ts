@@ -1,3 +1,6 @@
+import { memoryRouter } from './routes/memory.ts';
+import { prefsRouter } from './routes/prefs.ts';
+import { calendarRouter } from './routes/calendar.ts';
 import { Router, type Request, type Response } from 'express';
 import {
   MemberRequest,
@@ -39,6 +42,10 @@ import { canvasRouter } from './canvas/routes.ts';
 
 export const api = Router();
 api.use(requireAuth);
+// Step 18a routers (each agent owns one file).
+api.use(memoryRouter);
+api.use(prefsRouter);
+api.use(calendarRouter);
 api.use(canvasRouter);
 
 function summary(g: Group): MeResponse['group'] {

@@ -12,6 +12,8 @@ import { Form } from './screens/Form.tsx';
 import { Split } from './screens/Split.tsx';
 import { Availability } from './screens/Availability.tsx';
 import { Soon } from './screens/Soon.tsx';
+import { CalendarConnect } from './screens/CalendarConnect.tsx';
+import { Memory } from './screens/Memory.tsx';
 import { Progress } from './screens/Progress.tsx';
 import { Chat } from './screens/Chat.tsx';
 import { Canvas } from './screens/Canvas.tsx';
@@ -101,7 +103,9 @@ export default function App() {
         {screen === 'chat' && <Chat me={me} />}
         {screen === 'canvas' && <Canvas me={me} go={go} onMember={(member) => setMe((m) => (m ? { ...m, member } : m))} />}
         {screen === 'upcoming' && <Upcoming me={me} go={go} />}
-        {!['home', 'settings', 'form', 'split', 'avail', 'progress', 'chat', 'canvas', 'upcoming'].includes(screen) && (
+        {screen === 'calendar' && <CalendarConnect me={me} go={go} />}
+        {screen === 'memory' && <Memory me={me} go={go} />}
+        {!['home', 'settings', 'form', 'split', 'avail', 'progress', 'chat', 'canvas', 'upcoming', 'calendar', 'memory'].includes(screen) && (
           <Soon nickname={me.group.nickname} />
         )}
       </main>

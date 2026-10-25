@@ -144,6 +144,54 @@ const MIGRATIONS = [
    CREATE INDEX calendar_events_due ON calendar_events(telegram_user_id, due_at);
    ALTER TABLE groups ADD COLUMN canvas_course TEXT;
   ALTER TABLE members ADD COLUMN share_workload INTEGER NOT NULL DEFAULT 0;`,
+  `CREATE TABLE user_memory (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     telegram_user_id INTEGER NOT NULL,
+     key TEXT NOT NULL,
+     value TEXT NOT NULL,
+     source TEXT NOT NULL,
+     visibility TEXT NOT NULL DEFAULT 'private',
+     group_chat_id INTEGER REFERENCES groups(id) ON DELETE CASCADE ON UPDATE CASCADE,
+     updated_at TEXT NOT NULL
+   );
+   CREATE INDEX user_memory_owner ON user_memory(telegram_user_id);
+   CREATE INDEX user_memory_group ON user_memory(group_chat_id, visibility);
+   CREATE TABLE user_prefs (
+     telegram_user_id INTEGER PRIMARY KEY,
+     reminders_enabled INTEGER NOT NULL DEFAULT 1,
+     reminder_offsets TEXT NOT NULL DEFAULT '[48,24,3]',
+     quiet_start TEXT NOT NULL DEFAULT '23:00',
+     quiet_end TEXT NOT NULL DEFAULT '08:00',
+     tz TEXT NOT NULL DEFAULT 'America/Phoenix',
+     can_dm INTEGER NOT NULL DEFAULT 0,
+     updated_at TEXT NOT NULL
+   );
+   CREATE TABLE reminders_sent (
+     telegram_user_id INTEGER NOT NULL,
+     item_key TEXT NOT NULL,
+     offset_h INTEGER NOT NULL,
+     sent_at TEXT NOT NULL,
+     PRIMARY KEY (telegram_user_id, item_key, offset_h)
+   );
+   CREATE TABLE calendar_connections (
+     telegram_user_id INTEGER NOT NULL,
+     kind TEXT NOT NULL,
+     token_encrypted TEXT,
+     ics_url_encrypted TEXT,
+     last_sync_at TEXT,
+     last_error TEXT,
+     created_at TEXT NOT NULL,
+     PRIMARY KEY (telegram_user_id, kind)
+   );
+   CREATE TABLE busy_blocks (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     telegram_user_id INTEGER NOT NULL,
+     start_at TEXT NOT NULL,
+     end_at TEXT NOT NULL,
+     source TEXT NOT NULL
+   );
+   CREATE INDEX busy_blocks_user ON busy_blocks(telegram_user_id, start_at);
+   ALTER TABLE groups ADD COLUMN avail_deadline_at TEXT;`,
 ];
 
 export function openDb(file: string) {

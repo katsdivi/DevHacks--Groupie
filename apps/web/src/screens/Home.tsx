@@ -109,6 +109,8 @@ export function Home({ me, go }: { me: MeResponse; go: (s: Screen) => void }) {
           <Row title={`Chat with ${group.nickname}`} sub="Private to you. Ask anything about your tasks" onClick={() => go('chat')} />
         )}
         {member && <Row title="My details" sub="Name, email, skills" accent={member.color} onClick={() => go('form')} />}
+        {member && <Row title="Connect your calendar" sub="Busy times prefill your availability; titles stay private" onClick={() => go('calendar')} />}
+        {member && <Row title={`What ${group.nickname} remembers`} sub="Private by default; you choose what the group sees" onClick={() => go('memory')} />}
         <Row title="Settings" sub={`Rename ${group.nickname} for this group`} onClick={() => go('settings')} />
       </nav>
     </div>

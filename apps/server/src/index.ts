@@ -1,3 +1,6 @@
+import { googleCallbackRouter } from './routes/googleCallback.ts';
+import { startReminderScheduler } from './reminders.ts';
+import { startCalendarSync } from './calendarSync.ts';
 import express from 'express';
 import path from 'node:path';
 import fs from 'node:fs';
@@ -41,6 +44,7 @@ app.get('/health', (_req, res) => {
 
 // Public: the Cubbie Skill has no Telegram login. The pair code and signature gate it.
 app.use('/api/cubbie/import', cubbieImportRouter);
+app.use('/api', googleCallbackRouter);
 app.use('/api', api);
 
 if (env.devMode) {
@@ -111,6 +115,8 @@ app.listen(env.port, (err) => {
   if (err) throw err;
   console.log(`Groupie listening on port ${env.port}`);
   startFeedPoller();
+  startReminderScheduler();
+  startCalendarSync();
   startBot().catch((err) => console.error('Bot failed to start', err));
 });
 
