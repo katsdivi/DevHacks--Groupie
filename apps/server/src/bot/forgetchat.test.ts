@@ -49,13 +49,13 @@ const command = (text: string, chat: { id: number; type: 'private' } | { id: num
   });
 
 describe('/forgetchat', () => {
-  it("wipes the sender's DM and Mini App chat and confirms", async () => {
+  it("wipes the sender's Telegram DM only and confirms", async () => {
     await command('/forgetchat', { id: ME, type: 'private' });
     expect(sent).toHaveLength(1);
     expect(sent[0]!.payload.text).toBe(FORGOT_CHAT);
     expect(FORGOT_CHAT).toBe('Done. Our chat is wiped; your tasks and reminders are untouched.');
     expect(loadDm(ME)).toEqual([]);
-    expect(history(mine.id)).toEqual([]);
+    expect(history(mine.id)).toHaveLength(1);
     expect(loadDm(OTHER)).toHaveLength(1);
     expect(history(theirs.id)).toHaveLength(1);
   });

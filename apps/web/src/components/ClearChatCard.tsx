@@ -4,7 +4,7 @@ import { haptic } from '../telegram.ts';
 
 type State = 'idle' | 'confirm' | 'clearing' | 'done' | 'error';
 
-/** Settings card: wipes the caller's bot DM and Mini App chat history, with an inline confirm. */
+/** Settings card: wipes the caller's Telegram DM history with the bot, with an inline confirm. */
 export function ClearChatCard({ nickname }: { nickname: string }) {
   const [state, setState] = useState<State>('idle');
   const [error, setError] = useState('');
@@ -27,7 +27,7 @@ export function ClearChatCard({ nickname }: { nickname: string }) {
     <section className="mt-12">
       <h2 className="text-[22px] font-bold tracking-tight">Clear my chat with {nickname}</h2>
       <p className="mt-2 text-[15px] text-muted">
-        Wipes our DM and the private chat here. Your tasks, reminders, and what I remember stay.
+        Wipes our Telegram DM. Your tasks, reminders, and what I remember stay.
       </p>
 
       {state === 'confirm' || state === 'clearing' ? (

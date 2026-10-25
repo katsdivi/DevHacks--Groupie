@@ -66,11 +66,11 @@ describe('DELETE /api/me/chat', () => {
     expect(loadDm(ME)).toHaveLength(1);
   });
 
-  it("clears the caller's DM and Mini App chat, and nobody else's", async () => {
+  it("clears only the caller's Telegram DM, and nobody else's", async () => {
     const res = await del({ 'x-test-user': String(ME) });
-    expect(res).toEqual({ status: 200, body: { ok: true, cleared: { dm: 1, app: 1 } } });
+    expect(res).toEqual({ status: 200, body: { ok: true, cleared: { dm: 1 } } });
     expect(loadDm(ME)).toEqual([]);
-    expect(history(mine.id)).toEqual([]);
+    expect(history(mine.id).map((m) => m.content)).toEqual([`app ${ME}`]);
     expect(loadDm(OTHER).map((m) => m.content)).toEqual([`dm ${OTHER}`]);
     expect(history(theirs.id).map((m) => m.content)).toEqual([`app ${OTHER}`]);
   });

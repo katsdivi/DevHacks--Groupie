@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, lt } from 'drizzle-orm';
+import { and, desc, eq, lt } from 'drizzle-orm';
 import { db, schema } from './db/index.ts';
 import type { ContextBuckets } from './contextPolicy.ts';
 import type { ChatMessage } from './llm.ts';
@@ -8,7 +8,7 @@ import type { ChatMessage } from './llm.ts';
  * Every function takes ONLY the verified id (ctx.from.id or tgUser(res).id), never a body field.
  */
 
-const { dmMessages, agentMessages, members } = schema;
+const { dmMessages } = schema;
 
 /** Rows kept per user. Older ones are trimmed on every append. */
 export const DM_KEEP = 50;
@@ -60,19 +60,7 @@ export function dmHistoryForAsker(asker: ContextBuckets['asker'], verifiedUserId
   return loadDm(verifiedUserId, limit);
 }
 
-/** Deletes the Mini App chat (agent_messages) of every member row this Telegram user has. */
-export function clearAppChat(userId: number): number {
-  const ids = db
-    .select({ id: members.id })
-    .from(members)
-    .where(eq(members.tgUserId, userId))
-    .all()
-    .map((r) => r.id);
-  if (!ids.length) return 0;
-  return db.delete(agentMessages).where(inArray(agentMessages.memberId, ids)).run().changes;
-}
-
-/** "Clear my chat": the DM and every Mini App chat of this user. Tasks, memory, and reminders stay. */
-export function clearMyChat(userId: number): { dm: number; app: number } {
-  return db.transaction(() => ({ dm: clearDm(userId), app: clearAppChat(userId) }));
+/** "Clear my chat": the Telegram DM only. The Mini App, tasks, memory, and reminders stay. */
+export function clearMyChat(userId: number): { dm: number } {
+  return { dm: clearDm(userId) };
 }

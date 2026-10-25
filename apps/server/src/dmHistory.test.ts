@@ -57,7 +57,7 @@ describe('dm history store', () => {
     expect(contents(B)).toEqual(['y']);
   });
 
-  it('clearMyChat wipes the DM and every Mini App chat of that user only', () => {
+  it('clearMyChat wipes only that user\'s Telegram DM and leaves Mini App chat alone', () => {
     for (const id of [G1, G2]) {
       db.insert(schema.groups).values({ id, title: 't', nickname: 'Motu', status: 'active', tz: 'America/Phoenix', createdAt: 'x' }).run();
     }
@@ -69,9 +69,9 @@ describe('dm history store', () => {
     }
     appendDm(A, 'user', 'x');
     appendDm(B, 'user', 'y');
-    expect(clearMyChat(A)).toEqual({ dm: 1, app: 2 });
+    expect(clearMyChat(A)).toEqual({ dm: 1 });
     const left = db.select().from(schema.agentMessages).all();
-    expect(left.map((r) => r.memberId)).toEqual([b1.id]);
+    expect(left.map((r) => r.memberId).sort()).toEqual([a1.id, a2.id, b1.id].sort());
     expect(contents(B)).toEqual(['y']);
   });
 });
