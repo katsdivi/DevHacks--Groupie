@@ -168,11 +168,10 @@ describe('batching and privacy', () => {
     expect(mine).toHaveLength(1);
     const text = mine[0]!.text;
     expect(text.split('\n')).toEqual([
-      'Heads up: 3 things due soon',
+      'Heads up: 2 things due soon',
       '',
       'Tue 11:00 AM: Homework 5 (CSE 340), in 18 h',
-      'Tue 11:59 PM: Project 1 (CSE 340), in 31 h',
-      'Tue 11:59 PM: Write intro (Team 9101), in 31 h',
+      'Tue 11:59 PM: Project 1 (CSE 340 · your part: Write intro), in 31 h',
       '',
       'Change reminders in Settings.',
     ]);
@@ -181,7 +180,7 @@ describe('batching and privacy', () => {
     const theirs = sent.find((s) => s.userId === MATE)!.text;
     expect(theirs).not.toContain('Homework 5');
     expect(theirs).not.toContain('Write intro');
-    expect(rows()).toEqual(['assign:-9101|48', 'cal:hw|24', 'cal:hw|48', 'task:' + db.select().from(schema.tasks).all().find((t) => t.title === 'Write intro')!.id + '|48'].sort());
+    expect(rows()).toEqual(['assign:-9101|48', 'cal:hw|24', 'cal:hw|48'].sort());
   });
 
   it('uses the singular for one item', () => {
@@ -276,5 +275,22 @@ describe('scheduler', () => {
 
   it('stays off when the bot is off and no sender is given', () => {
     expect(startReminderScheduler()).toBeNull();
+  });
+});
+
+describe('assignment and task on the same due date', () => {
+  it('folds my tasks into the one assignment line instead of repeating the time', async () => {
+    prefs(ME);
+    group(G1, { dueDate: '2026-11-10', assignmentTitle: 'Project 2' });
+    const mine = member(G1, ME);
+    task(G1, mine, 'Build data API', '2026-11-10');
+    task(G1, mine, 'Write tests', '2026-11-10');
+    task(G1, mine, 'Early draft', '2026-11-05');
+    await run('2026-11-10T19:00:00.000Z'); // noon Phoenix, 12 h before the 23:59 due
+    const text = sent.map((s) => s.text).join('\n');
+    expect(text).toContain('Project 2');
+    expect(text).toContain('your part: Build data API, Write tests');
+    expect(text).not.toMatch(/^.*: Build data API \(/m);
+    expect(rows().some((r) => r.startsWith('task:'))).toBe(false);
   });
 });

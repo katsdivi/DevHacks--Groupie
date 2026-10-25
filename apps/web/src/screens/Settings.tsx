@@ -200,8 +200,10 @@ function Reminders() {
             From
             <input
               type="time"
-              value={prefs.quiet_start}
-              onChange={(e) => e.target.value && void save({ quiet_start: e.target.value })}
+              key={prefs.quiet_start}
+              defaultValue={prefs.quiet_start}
+              // Save once when the picker closes, not on every keystroke.
+              onBlur={(e) => e.target.value && e.target.value !== prefs.quiet_start && void save({ quiet_start: e.target.value })}
               className={timeInput}
             />
           </label>
@@ -209,8 +211,10 @@ function Reminders() {
             To
             <input
               type="time"
-              value={prefs.quiet_end}
-              onChange={(e) => e.target.value && void save({ quiet_end: e.target.value })}
+              key={prefs.quiet_end}
+              defaultValue={prefs.quiet_end}
+              // Save once when the picker closes, not on every keystroke.
+              onBlur={(e) => e.target.value && e.target.value !== prefs.quiet_end && void save({ quiet_end: e.target.value })}
               className={timeInput}
             />
           </label>

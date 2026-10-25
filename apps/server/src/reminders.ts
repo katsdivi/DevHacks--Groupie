@@ -68,11 +68,23 @@ export function collectItems(userId: number, now: Date, until: Date): ReminderIt
     .from(tasks)
     .where(and(inArray(tasks.assigneeMemberId, mine.map((m) => m.id)), ne(tasks.status, 'done'), isNotNull(tasks.dueDate)))
     .all();
+  // A task due at the same moment as its group's assignment folds into that one line ("your part: ...").
+  const folded = new Map<number, string[]>();
   for (const t of myTasks) {
     const g = byId.get(t.groupId);
     if (!g) continue;
     const due = dueInstant(t.dueDate!, g.tz);
-    if (due) add({ key: `task:${t.id}`, title: t.title, context: g.title || null, due });
+    if (!due) continue;
+    const assignment = out.get(`assign:${g.id}`);
+    if (assignment && assignment.due.getTime() === due.getTime()) {
+      folded.set(g.id, [...(folded.get(g.id) ?? []), t.title]);
+      continue;
+    }
+    add({ key: `task:${t.id}`, title: t.title, context: g.title || null, due });
+  }
+  for (const [groupId, titles] of folded) {
+    const item = out.get(`assign:${groupId}`)!;
+    item.context = `${item.context ? `${item.context} · ` : ''}your part: ${titles.join(', ')}`;
   }
   return [...out.values()];
 }
