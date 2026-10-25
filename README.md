@@ -240,7 +240,25 @@ See `SPEC.md` for the full plan and build order.
 
 <!-- QUICKSTART:START -->
 
-You need Node 20+ and pnpm.
+You need Node 20+ and pnpm. Three commands:
+
+```sh
+pnpm bootstrap      # checks Node and pnpm, installs, downloads Chromium, writes .env (asks only for a bot token and a Groq key)
+pnpm start:local    # builds the Mini App and starts the server on :3000
+pnpm run doctor     # read-only health check: what is on, what is off, and how to fix it
+```
+
+> [!WARNING]
+> **Use a separate test bot.** Make one with [@BotFather](https://t.me/BotFather) (`/newbot`) and give `pnpm bootstrap` that token. If the bot already has a webhook, bootstrap treats it as the live production bot and sets `BOT_MODE=off`, because polling would delete the webhook. With a test bot it sets `BOT_MODE=polling`, so you can message it as soon as `start:local` says it is up.
+
+`bootstrap` generates every other secret for you (four distinct random keys), keeps anything already in `.env`, never prints a value, and is safe to rerun. The server logs the same feature matrix as `doctor` at boot (names only, never values).
+
+**Mini App locally:** Telegram opens the URL registered for your bot's Mini App, so it needs https. Run `pnpm start:local --tunnel` (needs `cloudflared`, for example `brew install cloudflared`), then set the printed URL for your test bot in @BotFather (`/myapps`, your app, Edit Web App URL). The short name goes in `MINI_APP_SHORT_NAME` (default `app`).
+
+**Docker instead:** `docker compose up --build` uses `.env`, keeps the database in `./data`, and leaves the bot off unless `.env` sets `BOT_MODE`.
+
+<details>
+<summary>Manual setup and dev commands</summary>
 
 ```sh
 pnpm install
@@ -259,6 +277,8 @@ pnpm test
 
 Health check: http://localhost:3000/health
 
+</details>
+
 <!-- QUICKSTART:END -->
 
 ## Try it as a student
@@ -266,9 +286,11 @@ Health check: http://localhost:3000/health
 <!-- STUDENT:START -->
 
 1. Add **[@CubbieGroupieBot](https://t.me/CubbieGroupieBot)** to your project group chat on Telegram.
-2. Open a private chat with the bot and send `/setup` for your checklist (`/start` or `/help` shows the full feature guide).
+2. Open a private chat with the bot and send `/start` (or `/setup` any time). You get a short checklist: project group, your details, calendar, Canvas feed, iMessage link through Cubbie, reminders. Each step shows ✅ or ⬜, with buttons for the next ones.
 3. Back in the group: give Groupie a nickname, pick your team size, then drop the assignment file or send `/canvas` to pull it from Canvas through Cubbie.
 4. Everyone taps **Add my details**. The split card posts the moment the last seat fills.
+
+In the Mini App, Home shows a **Finish setup** card until you are done. In the group, `/setup` shows where the project stands (team size, assignment, who joined, meeting) with one button for the next step. `/help` shows everything Groupie does on one screen.
 
 <!-- STUDENT:END -->
 
@@ -344,7 +366,7 @@ The feed poller starts with the server and checks each feed every 30 minutes. Co
 
 Inspect production, read-only: `pnpm canvas:inspect [N]` (latest imports: status, rubric, attachment kinds and sizes, never the text) and `pnpm feed:inspect <telegram_user_id>` (calendar item stats, never the feed link). Both accept `--local <db>` for a backup copy. They use the app's `better-sqlite3` in read-only mode because the container has no `sqlite3` CLI. What Cubbie can and cannot do, with live evidence: `docs/CUBBIE_CAPABILITIES.md`.
 
-The signing key is public by design. Cubbie cannot host team keys, so the value ships inside the public Skill (as `GROUPIE_SIGNING_KEY` in `cubbie-skill/scripts/send.py`) and anyone can read it. It is integrity and spam friction only; single-use, 15 minute pair codes plus rate limits are the real protection. Never reuse another secret for it: the server refuses to start if `CUBBIE_PUBLIC_SIGNING_KEY` equals `FEED_ENCRYPTION_KEY`, `BOT_TOKEN`, `WEBHOOK_SECRET`, `LINK_SIGNING_SECRET`, `GROQ_API_KEY`, `GOOGLE_CLIENT_SECRET` or `GOOGLE_REFRESH_TOKEN`, or if `FEED_ENCRYPTION_KEY` equals any of the others.
+The signing key is public by design. Cubbie cannot host team keys, so the value ships inside the public Skill (as `GROUPIE_SIGNING_KEY` in `cubbie-skill/scripts/send.py`) and anyone can read it. It is integrity and spam friction only; single-use, 30 minute pair codes (or a per-user link token) plus rate limits are the real protection. Never reuse another secret for it: the server refuses to start if `CUBBIE_PUBLIC_SIGNING_KEY` equals `FEED_ENCRYPTION_KEY`, `BOT_TOKEN`, `WEBHOOK_SECRET`, `LINK_SIGNING_SECRET`, `GROQ_API_KEY`, `GOOGLE_CLIENT_SECRET` or `GOOGLE_REFRESH_TOKEN`, or if `FEED_ENCRYPTION_KEY` equals any of the others.
 
 </details>
 
