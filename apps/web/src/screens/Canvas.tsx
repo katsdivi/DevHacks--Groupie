@@ -5,18 +5,21 @@ import {
   type FeedPutRequest,
   type FeedStatusResponse,
   type ImportStatus,
+  type Member,
   type MeResponse,
   type PairCodeRequest,
   type PairCodeResponse,
   type PairCodeStatusResponse,
   type Screen,
+  type WorkloadRequest,
+  type WorkloadResponse,
 } from '@groupie/shared';
 import { api, ApiError } from '../api.ts';
 import { haptic, openExternal } from '../telegram.ts';
 import { FeedStatusSkeleton } from '../components/Skeleton.tsx';
 import { ago, CourseChip } from '../components/Course.tsx';
 
-type Props = { me: MeResponse; go: (s: Screen) => void };
+type Props = { me: MeResponse; go: (s: Screen) => void; onMember?: (m: Member) => void };
 
 const label = 'text-[13px] font-medium uppercase tracking-widest text-muted';
 const card = 'rounded-3xl border border-dashed border-line-strong';
@@ -760,7 +763,76 @@ function CalendarCard({ go }: { go: (s: Screen) => void }) {
   );
 }
 
-export function Canvas({ me, go }: Props) {
+/** Opt-in switch: lets the load-aware split go easier on me in busy weeks. Optimistic, rolls back on error. */
+function WorkloadCard({ me, onMember }: { me: MeResponse; onMember?: (m: Member) => void }) {
+  const [on, setOn] = useState(Boolean(me.member?.share_workload));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const toggle = async () => {
+    if (saving) return;
+    const next = !on;
+    haptic.select();
+    setOn(next);
+    setSaving(true);
+    setError(null);
+    try {
+      const body: WorkloadRequest = { shareWorkload: next };
+      const res = await api<WorkloadResponse>(`/groups/${me.group.id}/members/me/workload`, {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      });
+      setOn(res.member.share_workload);
+      onMember?.(res.member);
+    } catch (e) {
+      haptic.error();
+      setOn(!next);
+      setError(errText(e, 'Could not save that. Try again?'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <section className={`${card} mt-4 p-5`}>
+      <div className={label}>Busy weeks</div>
+      <div className="mt-2 flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <h2 id="workload-label" className="text-[17px] font-semibold leading-snug">
+            Let my group&apos;s split account for my busy weeks
+          </h2>
+          <p className="mt-1.5 text-[14px] leading-relaxed text-muted">
+            {"Your group sees only 'Busy week', never your other courses or how many items you have due."}
+          </p>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={on}
+          aria-labelledby="workload-label"
+          onClick={toggle}
+          className={`relative mt-0.5 h-8 w-[52px] shrink-0 rounded-full border transition-colors duration-300 active:scale-95 ${
+            on ? 'border-transparent' : 'border-dashed border-line-strong bg-ink'
+          }`}
+          style={on ? { background: LIME } : undefined}
+        >
+          <span
+            aria-hidden
+            className="absolute top-1 left-1 h-[22px] w-[22px] rounded-full shadow transition-[transform,background-color] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)]"
+            style={{ transform: on ? 'translateX(20px)' : 'none', background: on ? '#1E1E1E' : '#9A9A9A' }}
+          />
+        </button>
+      </div>
+      {error && (
+        <p className="mt-3 text-[13px]" style={{ color: CORAL }}>
+          {error}
+        </p>
+      )}
+    </section>
+  );
+}
+
+export function Canvas({ me, go, onMember }: Props) {
   return (
     <div className="mx-auto max-w-xl px-5 pb-12">
       <style>{MOTION}</style>
@@ -768,6 +840,7 @@ export function Canvas({ me, go }: Props) {
       <p className="mt-1 text-[15px] text-muted">Import the assignment, sync your due dates.</p>
       <ImportCard me={me} />
       <CalendarCard go={go} />
+      {me.member && <WorkloadCard me={me} onMember={onMember} />}
     </div>
   );
 }

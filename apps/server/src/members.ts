@@ -62,7 +62,13 @@ export const memberDto = (m: Member): MemberDto => ({
   skills: m.skills as SkillTag[],
   weak_areas: m.weakAreas as SkillTag[],
   is_seed: m.isSeed,
+  share_workload: m.shareWorkload,
 });
+
+/** Turns the member's workload sharing on or off. */
+export function setShareWorkload(memberId: number, shareWorkload: boolean): Member {
+  return db.update(members).set({ shareWorkload }).where(eq(members.id, memberId)).returning().get()!;
+}
 
 const SEEDS: MemberInput[] = [
   { name: 'Ava', skills: ['writing', 'research'], weak_areas: ['coding'] },

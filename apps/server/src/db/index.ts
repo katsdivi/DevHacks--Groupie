@@ -142,7 +142,8 @@ const MIGRATIONS = [
      UNIQUE (telegram_user_id, uid)
    );
    CREATE INDEX calendar_events_due ON calendar_events(telegram_user_id, due_at);
-   ALTER TABLE groups ADD COLUMN canvas_course TEXT;`,
+   ALTER TABLE groups ADD COLUMN canvas_course TEXT;
+  ALTER TABLE members ADD COLUMN share_workload INTEGER NOT NULL DEFAULT 0;`,
 ];
 
 export function openDb(file: string) {
