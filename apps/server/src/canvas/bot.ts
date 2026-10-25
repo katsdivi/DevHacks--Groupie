@@ -9,13 +9,18 @@ import { createPairCode } from './pairCodes.ts';
 export const canvasComposer = new Composer();
 
 const minutes = PAIR_CODE_TTL_MS / 60_000;
+/** The public Groupie import Skill that Cubbie installs from a link. */
+export const SKILL_URL = 'https://github.com/katsdivi/groupie-cubbie-skill/tree/main/groupie-import';
 
 /** The /canvas reply: the code, the exact Cubbie message, and a button to the Canvas screen. */
 export function canvasCodeText(code: string): string {
   return [
     `Your Cubbie code: <b>${html(code)}</b>`,
     '',
-    `Text this to Cubbie within ${minutes} minutes:`,
+    '<b>1. First time only:</b> text Cubbie this and wait for it to say the skill is installed:',
+    `<code>Install this skill: ${SKILL_URL}</code>`,
+    '',
+    `<b>2.</b> Then text Cubbie this within ${minutes} minutes (add the assignment name if you have several), and say yes when it asks:`,
     `<code>${html(cubbieMessage(code))}</code>`,
     '',
     "Cubbie reads the assignment from Canvas and sends it here. The code works once.",
