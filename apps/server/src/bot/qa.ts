@@ -1,3 +1,4 @@
+import { isForbidden, markCannotDm } from '../prefs.ts';
 import { Composer } from 'grammy';
 import { getGroup } from '../groups.ts';
 import { onlyMember, sharedAnything, voice, withoutTeammates } from '../context.ts';
@@ -137,6 +138,7 @@ ${renderContext(withoutTeammates(b))}`,
 export const shareLine = (name: string) => `That's ${name}'s to share.`;
 export const DM_SENT = 'Sent you the rest in DM.';
 export const DM_BLOCKED = 'Open a chat with me and tap Start so I can DM you.';
+export const DM_RETRY = 'I could not finish the private part just now. Ask me again in a sec.';
 
 type AnswerOpts = { now?: Date; onWait?: () => void };
 
@@ -159,12 +161,22 @@ export async function answerGroupQuestion(groupChatId: number, askerId: number, 
 
   const groupPart = (await ask(buildQaMessages(b, question, true))).slice(0, 1200);
   let trailer = DM_SENT;
+  let dm: string;
   try {
     const mine = buildContext({ askerId, groupChatId, mode: 'private', now });
-    const dm = await ask(buildSelfDmMessages(mine, question), 700);
+    dm = await ask(buildSelfDmMessages(mine, question), 700);
+  } catch (err) {
+    // The model failed, not Telegram: do not tell them to tap Start.
+    console.warn('self-question private answer failed', err instanceof Error ? err.message.slice(0, 200) : err);
+    return `${groupPart}
+
+${DM_RETRY}`;
+  }
+  try {
     await bot.api.sendMessage(askerId, dm.slice(0, 3500));
   } catch (err) {
     console.warn('self-question DM failed', err instanceof Error ? err.message.slice(0, 200) : err);
+    if (isForbidden(err)) markCannotDm(askerId);
     trailer = DM_BLOCKED;
   }
   return `${groupPart}\n\n${trailer}`;

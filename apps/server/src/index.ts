@@ -128,6 +128,7 @@ async function startBot() {
     return;
   }
   await bot.api.setMyCommands([
+    { command: 'help', description: 'Everything I can do' },
     { command: 'app', description: 'Open Groupie' },
     { command: 'setup', description: 'Set team size and get started' },
     { command: 'join', description: 'Show who has joined' },

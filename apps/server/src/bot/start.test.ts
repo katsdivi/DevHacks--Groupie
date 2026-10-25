@@ -52,10 +52,20 @@ describe('/start in a DM', () => {
     expect(replies[0]!.payload.text).toBe(REMINDERS_READY);
   });
 
-  it('marks can_dm true on a plain /start and keeps the intro', async () => {
+  it('marks can_dm true on a plain /start and explains every feature', async () => {
     await start('/start');
     expect(getPrefs(USER).canDm).toBe(true);
-    expect(String(replies[0]!.payload.text)).toContain('Add me to your project group chat');
-    expect(String(replies[0]!.payload.text)).toContain(REMINDERS_READY);
+    const text = String(replies[0]!.payload.text);
+    for (const feature of ['/setup', '/canvas', '/split', '/avail', '/checkin', '/progress', '/imessage', 'Reminders', 'Connect your calendar', 'What I remember', 'Privacy']) {
+      expect(text).toContain(feature);
+    }
+    expect(text).toContain("You're set");
+    const buttons = JSON.stringify(replies[0]!.payload.reply_markup);
+    expect(buttons).toContain('startgroup=true');
+  });
+
+  it('shows the same guide on /help', async () => {
+    await start('/help');
+    expect(String(replies.at(-1)!.payload.text)).toContain('Here\'s everything I do');
   });
 });
